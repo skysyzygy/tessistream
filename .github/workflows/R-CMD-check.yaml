@@ -8,6 +8,9 @@ on:
 
 name: R-CMD-check
 
+permissions:
+  repository-projects: read
+
 jobs:
   R-CMD-check:
     runs-on: ubuntu-latest

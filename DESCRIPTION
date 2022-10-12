@@ -1,0 +1,18 @@
+Package: tessistream
+Title: Datasets for Analytics and Machine Learning from Tessitura
+Version: 0.0.0.9000
+Authors@R: 
+    person("Sky", "Syzygy", , "ssyzygy@bam.org", role = c("aut", "cre"),
+           comment = c(ORCID = "YOUR-ORCID-ID"))
+Description: |
+  Builds timestamped datasets based on contributions, ticket sales, 
+  address changes, inventory for historical and predictive analysis.
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.1
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Imports: 
+    tessilake

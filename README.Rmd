@@ -44,7 +44,7 @@ devtools::install_github("skysyzygy/tessistream")
 
 ## Example
 
-```{r example}
+``` r
 library(tessistream)
 ## basic example code
 ```

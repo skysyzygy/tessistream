@@ -5,7 +5,7 @@
 
 <!-- badges: start -->
 
-[![R-CMD-check](https://github.com/skysyzygy/BAMmR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/skysyzygy/BAMmR/actions/workflows/R-CMD-check.yaml)
+[![R-CMD-check](https://github.com/skysyzygy/tessistream/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/skysyzygy/tessistream/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 Builds timestamped datasets based on contributions, ticket sales,

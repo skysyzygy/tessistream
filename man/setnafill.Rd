@@ -2,6 +2,9 @@
 % Please edit documentation in R/stream_utils.R
 \name{setnafill}
 \alias{setnafill}
+\alias{setnafill_factor_character}
+\alias{setnafill_const_simple}
+\alias{setnafill_group}
 \title{setnafill}
 \usage{
 setnafill(
@@ -11,6 +14,12 @@ setnafill(
   cols = seq_along(x),
   by = NA
 )
+
+setnafill_factor_character(x, type = "const", fill = NA, cols = seq_along(x))
+
+setnafill_const_simple(x, type = "const", fill = NA, cols = seq_along(x))
+
+setnafill_group(x, type = "locf", cols = seq_along(x), by = NA)
 }
 \arguments{
 \item{x}{data.table}
@@ -24,17 +33,34 @@ setnafill(
 \item{by}{character string of columns to group by}
 }
 \value{
-filled data.table
+data.table, filled in-place
 }
 \description{
-Wrapper for data.table's setnafill for fast filling by group. Accepts non-numeric columns
+Wrapper for data.table's setnafill for fast filling by group and non-numeric columns.
+Displatches to setnafill_ functions based on column class and type of fill
 }
+\section{Functions}{
+\itemize{
+\item \code{setnafill_factor_character()}: Wrap data.table::setnafill with some logic to convert
+character and factor columns to integers and back again
+
+\item \code{setnafill_const_simple()}: Simple constant fill for factors and character
+
+\item \code{setnafill_group()}: rolling join to quickly do setnafill by groups
+
+}}
 \examples{
-x <- data.table(a=NA,b=seq(1,10,10))
-x[1,a:=1]
-x[10,a:=3]
-setnafill(x,"const",2,by="b")
-setnafill(x,"locf",by="b")
-setnafill(x,"nocb",by="b")
+x <- data.table::data.table(a=NA_character_,b=rep(seq(1,2),each=10))
+x[1,a:="a"]
+x[10,a:="x"]
+
+y<-data.table::copy(x)
+setnafill(y,type="const",fill="test",cols="a")[]
+
+y<-data.table::copy(x)
+setnafill(y,type="locf",by="b")[]
+
+y<-data.table::copy(x)
+setnafill(y,type="nocb",by="b")[]
 
 }

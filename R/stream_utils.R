@@ -147,3 +147,41 @@ setnafill_group <- function(x, type = "locf", cols=seq_along(x), by=NA) {
   x[,I := NULL]
 
 }
+
+#' stream_debounce
+#'
+#' Takes the last row per day for each group identified by columns identified in `...`
+#'
+#' @param stream data.table in a stream format (needs at least a `timestamp` column)
+#' @param ... <[`dynamic-dots`][rlang::dyn-dots]> columns to group by for debouncing
+#'
+#' @return de-bounced stream
+#' @export
+#'
+#' @importFrom rlang list2
+#' @importFrom data.table setorderv
+#'
+#' @examples
+#' stream <- data.table::data.table(timestamp=Sys.time()+as.difftime(0:48,units="hours"),
+#' x=0:48,y=rep(0:4,12))
+#' stream_debounce(stream)
+stream_debounce <- function(stream,...) {
+
+  cols <- sapply(rlang::enquos(...),rlang::quo_name)
+  temp_col <- digest::sha1(Sys.time())
+  group <- temp_col
+  if(length(cols)>0)
+    group <- c(group,cols)
+
+  stream[,(temp_col):=lubridate::floor_date(timestamp,"day")]
+
+  setorderv(stream, "timestamp")
+
+  # Debounce, take the last change per group per day
+  stream = stream[,.SD[.N],by=group]
+
+  stream[,(temp_col):=NULL]
+
+  stream
+
+}

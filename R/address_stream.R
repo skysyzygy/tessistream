@@ -90,37 +90,17 @@ address_create_stream <- function(freshness = as.difftime(7,units="days")) {
   setnafill(address_stream,"nocb",cols = address_cols, by = "address_no")
 }
 
-stream_debounce <- function(stream,...) {
+
+
+if(FALSE)  {
 
   # Lowercase and trim whitespace from address fields
   address_stream[,(address_cols):=lapply(.SD,function(.) {trimws(tolower(.))}),.SDcols=address_cols]
-  group_vars <- sapply(enquos(group_vars),rlang::quo_name)
-  setkeyv(address_stream,group_vars)
-  # Debounce, take the last change per address per day
-  addressStream = addressStream[,timestamp_day:=lubridate::floor_date(timestamp,"day")] %>%
-    .[,.SD[.N],by=group_vars]
-
-  data.table::setkey(addressStream,group_customer_no,timestamp)
 
   # remove junk info
   addressStream = addressStream[!(grepl("^30 lafayette|^tbd$",street1) & (city=="brooklyn" & state=="ny" | substr(postal_code,1,5)=="11217") |
                                     grepl("^web add",street1) | grepl("^web add",postal_code) | grepl("no address",street1) |
                                     grepl("^no add",street1))]
-
-  # Debounce, take the last change per address per day
-  addressStream = addressStream[,.SD[.N],by=c("address_no","timestamp_day")]
-
-
-
-
-  addressStream
-
-}
-
-if(FALSE)  {
-
-
-
 
 # Street cleaning ---------------------------------------------------------
 

@@ -27,6 +27,7 @@ Imports:
     future.callr,
     lubridate,
     magrittr,
+    reticulate,
     rlang,
     targets,
     tessilake

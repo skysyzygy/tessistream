@@ -26,9 +26,10 @@ jobs:
 
       - name: install ffbase
         run: |
-          install.packages("remotes")
-          remotes::install_github("ffbase=edwindj/ffbase/pkg")
-        shell: Rscript {0}
+          cd ..
+          Rscript 'install.packages("remotes")
+          remotes::install_github("ffbase=edwindj/ffbase/pkg")'
+        shell: bash
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:

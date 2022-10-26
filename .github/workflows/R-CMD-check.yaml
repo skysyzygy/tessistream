@@ -21,14 +21,15 @@ jobs:
         with:
           use-public-rspm: true
 
-      - name: Setup upterm session
-        uses: lhotari/action-upterm@v1
+      # - name: Setup upterm session
+      #   uses: lhotari/action-upterm@v1
 
       - name: install ffbase
         run: |
-          install.packages("remotes")
-          remotes::install_github("ffbase=edwindj/ffbase/pkg")
-        shell: Rscript {0} --vanilla
+          cd ..
+          Rscript -e 'install.packages("remotes")
+          remotes::install_github("ffbase=edwindj/ffbase/pkg")'
+        shell: bash
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:

@@ -9,12 +9,18 @@
 # iwave_append
 # Sys.setenv("TAR_PROJECT"="address_stream") # nolint
 
-address_cols = c("street1","street2","city","state","postal_code","country","primary_ind")
+address_cols = c("street1"="street1",
+                 "street2"="street2",
+                 "city"="city",
+                 "state_desc"="state",
+                 "postal_code"="postal_code",
+                 "country_desc"="country",
+                 "primary_ind"="primary_ind")
 
 #' @importFrom dplyr transmute select filter
 #' @importFrom data.table setDT dcast
 #' @importFrom tessilake read_tessi
-load_addresses_audit <- function(freshness) {
+address_load_audit <- function(freshness) {
   # Address changes
   aa = read_tessi("audit", freshness = freshness) %>%
     filter(table_name=="T_ADDRESS" & column_updated %in% address_cols) %>%
@@ -22,58 +28,57 @@ load_addresses_audit <- function(freshness) {
               timestamp=date,
               address_no=as.integer(as.character(alternate_key)),
               last_updated_by=userid,
-              column_updated,old_value,new_value) %>% setDT
+              column_updated,old_value,new_value) %>%
+    collect() %>% setDT
 }
 
 #' @importFrom dplyr transmute select filter
-#' @importFrom data.table setDT
+#' @importFrom data.table setDT setnames
 #' @importFrom tessilake read_tessi
-load_addresses <- function(freshness) {
+address_load <- function(freshness) {
   a = read_tessi("addresses", freshness = freshness) %>% collect %>% setDT
 
   rbind(
     # Address creations
-    a[,c("group_customer_no","event_type"="Address","event_subtype"="Creation",
-         "timestamp"="create_dt",
-         "address_no",
-         "last_updated_by"=get("created_by")),with=F],
+    a[,.(group_customer_no,event_type="Address",event_subtype="Creation",
+         timestamp=create_dt,
+         address_no,
+         last_updated_by=created_by)],
     # Address last modifications
-    a[,c("group_customer_no","event_type"="Address","event_subtype"="Current",
-         "timestamp"=get("last_update_dt"),
-         "address_no",
-         "last_updated_by",
-         address_cols),with = F],
+    cbind(a[,.(group_customer_no,event_type="Address",event_subtype="Current",
+         timestamp=last_update_dt,
+         address_no,
+         last_updated_by)],
+         a[,names(address_cols),with=F] %>%
+           setnames(names(address_cols),address_cols)),
     fill = T
   )
 }
 
-#' create_address_stream
-#'
-#' @param freshness
-#'
 #' @importFrom tessilake read_tessi read_sql_table
 #' @importFrom dplyr collect transmute filter select
 #' @importFrom data.table setDT setkey
-create_address_stream <- function(freshness = as.difftime(7,units="days")) {
+address_create_stream <- function(freshness = as.difftime(7,units="days")) {
 
   s = read_sql_table("TR_STATE",freshness = freshness) %>% collect %>% setDT
 
-  aa = load_addresses_audit(freshness) %>% setkey(address_no,timestamp)
-  address_stream = rbind(load_addresses(freshness), aa)
-  setkey(address_stream,address_no,timestamp)
+  aa = address_load_audit(freshness) %>% setkey(address_no,timestamp)
 
   address_audit_stream = aa %>%
     dcast(group_customer_no + timestamp + address_no + last_updated_by ~ column_updated, value.var="new_value") %>%
     .[,`:=`(event_type="Address",event_subtype="Change")]
 
-  address_audit_creation = aa %>% .[seq_len(.N)==1,by=c("address_no","column_updated")] %>%
+  address_audit_creation = aa %>% .[,.SD[1],by=c("address_no","column_updated")] %>%
     dcast(group_customer_no + address_no + last_updated_by ~ column_updated, value.var="old_value") %>%
     .[,`:=`(event_type="Address",event_subtype="Creation")]
 
+  address_stream = rbind(address_load(freshness), address_audit_stream)
+  setkey(address_stream,address_no,timestamp)
+
   # Address creation fill-up based on audit old_value -- all other old_values are captured within the audit table itself
-  address_stream[address_audit_creation
+  address_stream[address_audit_creation,
     (address_cols):=mget(paste0("i.",address_cols)),
-    on=c("address_no,event_subtype")]
+    on=c("address_no","event_subtype")]
 
   # Factorize event_subtype
   address_stream[,event_subtype:=factor(event_subtype,levels=c("Creation","Change","Current"))]

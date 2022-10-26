@@ -22,6 +22,7 @@ Config/testthat/edition: 3
 Imports:
     checkmate,
     data.table,
+    digest,
     dplyr,
     future,
     future.batchtools,

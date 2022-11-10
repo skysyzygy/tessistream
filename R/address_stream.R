@@ -17,15 +17,19 @@ address_cols = c("street1"="street1",
                  "country_desc"="country",
                  "primary_ind"="primary_ind")
 
-#' @importFrom dplyr transmute select filter
+#' @importFrom dplyr transmute select filter coalesce
 #' @importFrom data.table setDT dcast
 #' @importFrom tessilake read_tessi
 address_load_audit <- function(freshness) {
+  table_name <- column_updated <- group_customer_no <- new_value <- old_value <- alternate_key <- userid <- NULL
+
   # Address changes
   aa = read_tessi("audit", freshness = freshness) %>%
     filter(table_name=="T_ADDRESS" & column_updated %in% address_cols) %>%
     transmute(group_customer_no,
               timestamp=date,
+              new_value=coalesce(new_value,""),
+              old_value=coalesce(old_value,""),
               address_no=as.integer(as.character(alternate_key)),
               last_updated_by=userid,
               column_updated,old_value,new_value) %>%
@@ -36,6 +40,8 @@ address_load_audit <- function(freshness) {
 #' @importFrom data.table setDT setnames
 #' @importFrom tessilake read_tessi
 address_load <- function(freshness) {
+  . <- group_customer_no <- create_dt <- address_no <- created_by <- last_update_dt <- last_updated_by <- NULL
+
   a = read_tessi("addresses", freshness = freshness) %>% collect %>% setDT
 
   rbind(
@@ -55,30 +61,45 @@ address_load <- function(freshness) {
   )
 }
 
+
+#' address_create_stream
+#'
+#' Creates address data with timestamps from TA_AUDIT_TABLE and T_ADDRESS data
+#'
+#' @param freshness data will be at least this fresh
+#'
+#' @return data.table of addresses data at different points of time, no more than one address per customer per day
+#'
 #' @importFrom tessilake read_tessi read_sql_table
 #' @importFrom dplyr collect transmute filter select
 #' @importFrom data.table setDT setkey
 address_create_stream <- function(freshness = as.difftime(7,units="days")) {
+  . <- address_no <- timestamp <- NULL
 
-  s = read_sql_table("TR_STATE",freshness = freshness) %>% collect %>% setDT
-
-  aa = address_load_audit(freshness) %>% setkey(address_no,timestamp)
+  aa = address_load_audit(freshness)
 
   address_audit_stream = aa %>%
     dcast(group_customer_no + timestamp + address_no + last_updated_by ~ column_updated, value.var="new_value") %>%
     .[,`:=`(event_type="Address",event_subtype="Change")]
 
   address_audit_creation = aa %>% .[,.SD[1],by=c("address_no","column_updated")] %>%
-    dcast(group_customer_no + address_no + last_updated_by ~ column_updated, value.var="old_value") %>%
+    dcast(address_no ~ column_updated, value.var="old_value") %>%
     .[,`:=`(event_type="Address",event_subtype="Creation")]
 
-  address_stream = rbind(address_load(freshness), address_audit_stream)
-  setkey(address_stream,address_no,timestamp)
+  address_stream = rbind(address_load(freshness), address_audit_stream, fill = TRUE)
 
   # Address creation fill-up based on audit old_value -- all other old_values are captured within the audit table itself
   address_stream[address_audit_creation,
-    (address_cols):=mget(paste0("i.",address_cols)),
-    on=c("address_no","event_subtype")]
+                 (address_cols):=mget(paste0("i.",address_cols),ifnotfound = NA),
+                 on=c("address_no","event_subtype")]
+
+  setkey(address_stream,address_no,timestamp)
+
+  address_fill_debounce_stream(address_stream)
+}
+
+address_fill_debounce_stream <- function(address_stream) {
+  event_subtype <- address_no <- timestamp <- group_customer_no <- NULL
 
   # Factorize event_subtype
   address_stream[,event_subtype:=factor(event_subtype,levels=c("Creation","Change","Current"))]
@@ -88,12 +109,35 @@ address_create_stream <- function(freshness = as.difftime(7,units="days")) {
   setnafill(address_stream,"locf",cols = address_cols, by = "address_no")
   # And then fill back up for non-changes
   setnafill(address_stream,"nocb",cols = address_cols, by = "address_no")
+
+  stream_debounce(address_stream,group_customer_no,address_no)
 }
 
 
 
 if(FALSE)  {
+  address_prepare_fixtures <- function () {
+    audit <- read_tessi("audit",freshness=Inf) %>% filter(table_name=="T_ADDRESS") %>% collect %>% setDT %>%
+      .[,N:=.N,by=c("group_customer_no","alternate_key")] %>% .[N>25]
 
+    audit[,alternate_key:=as.integer(alternate_key)]
+
+    addresses <- read_tessi("addresses",freshness=Inf) %>% filter(group_customer_no %in% audit$group_customer_no) %>%
+      collect %>% setDT
+
+    address_map <- data.table(address_no=unique(c(audit$alternate_key,addresses$address_no)))[,I:=.I]
+    addresses <- merge(addresses,address_map,by="address_no") %>% .[,address_no:=I] %>% .[,I:=NULL]
+    audit <- merge(audit,address_map,by.x="alternate_key",by.y="address_no") %>% .[,alternate_key:=I] %>% .[,I:=NULL]
+
+    customer_map <- data.table(customer_no=unique(c(audit$customer_no,addresses$customer_no)))[,I:=.I]
+    addresses <- merge(addresses,customer_map,by="customer_no") %>% .[,`:=`(customer_no=I,group_customer_no=I)] %>% .[,I:=NULL]
+    audit <- merge(audit,customer_map,by="customer_no") %>% .[,`:=`(customer_no=I,group_customer_no=I)] %>% .[,I:=NULL]
+
+    audit[,alternate_key:=as.character(alternate_key)]
+
+    saveRDS(audit,test_path("address_audit.Rds"))
+    saveRDS(addresses,test_path("addresses.Rds"))
+  }
   # Lowercase and trim whitespace from address fields
   address_stream[,(address_cols):=lapply(.SD,function(.) {trimws(tolower(.))}),.SDcols=address_cols]
 

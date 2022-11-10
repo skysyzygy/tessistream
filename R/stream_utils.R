@@ -92,7 +92,7 @@ setnafill_factor_character <- function(x,type="const",fill=NA,cols=seq_along(x))
 
   args <- as.list(match.call())[-1]
 
-  classes = lapply(x[,..cols],class)
+  classes = lapply(x[,cols,with=F],class)
   char_fact_cols = cols[classes %in% c("character","factor")]
   char_cols = cols[classes %in% "character"]
 
@@ -100,7 +100,7 @@ setnafill_factor_character <- function(x,type="const",fill=NA,cols=seq_along(x))
     return(suppressWarnings(do.call(data.table::setnafill,args)))
 
   x[,(char_fact_cols):=lapply(.SD,factor),.SDcols=char_fact_cols]
-  levels = lapply(x[,..char_fact_cols],levels)
+  levels = lapply(x[,char_fact_cols,with=F],levels)
   x[,(char_fact_cols):=lapply(.SD,as.integer),.SDcols=char_fact_cols]
 
   if(!missing(fill)) {
@@ -133,6 +133,7 @@ setnafill_const_simple <- function(x,type="const",fill=NA,cols=seq_along(x)) {
 }
 
 #' @describeIn setnafill rolling join to quickly do setnafill by groups
+#' @importFrom stats na.omit
 setnafill_group <- function(x, type = "locf", cols=seq_along(x), by=NA) {
 
   x[,I:=.I]
@@ -140,7 +141,7 @@ setnafill_group <- function(x, type = "locf", cols=seq_along(x), by=NA) {
   roll = ifelse(type == "locf",Inf,-Inf)
 
   lapply(cols,function(col) {
-    i <- is.na(x[,..col][[1]])
+    i <- is.na(x[,col,with=F][[1]])
     x[i,(col) := x[!i][x[i], col, on = na.omit(c(by, "I")), roll = roll, with = F]]
   })
 
@@ -166,6 +167,7 @@ setnafill_group <- function(x, type = "locf", cols=seq_along(x), by=NA) {
 #' x=0:48,y=rep(0:4,12))
 #' stream_debounce(stream)
 stream_debounce <- function(stream,...) {
+  timestamp <- NULL
 
   cols <- sapply(rlang::enquos(...),rlang::quo_name)
   temp_col <- digest::sha1(Sys.time())

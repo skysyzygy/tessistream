@@ -17,7 +17,6 @@ LazyData: true
 Suggests: 
     covr,
     mockery,
-    purrr,
     rprojroot,
     testthat (>= 3.0.0),
     withr
@@ -32,8 +31,10 @@ Imports:
     future.callr,
     lubridate,
     magrittr,
+    purrr,
     reticulate,
     rlang,
+    stringr,
     targets,
     tessilake
 Remotes: 

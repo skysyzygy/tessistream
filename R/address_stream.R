@@ -113,59 +113,49 @@ address_fill_debounce_stream <- function(address_stream) {
   stream_debounce(address_stream,group_customer_no,address_no)
 }
 
+# Street cleaning ---------------------------------------------------------
 
+#' address_clean
+#'
+#' Removes newlines, tabs, lowercases, trims whitespace, and removes junk info
+#'
+#' @param address_stream data.table of addresses
+#'
+#' @return data.table of addresses cleaned
+#' @importFrom purrr map
+#' @importFrom stringr str_replace_all
+address_clean <- function(address_stream) {
 
-if(FALSE)  {
-  address_prepare_fixtures <- function () {
-    audit <- read_tessi("audit",freshness=Inf) %>% filter(table_name=="T_ADDRESS") %>% collect %>% setDT %>%
-      .[,N:=.N,by=c("group_customer_no","alternate_key")] %>% .[N>25]
+  # Remove newlines, tabs, etc.
+  address_stream[,(address_cols):=map(.SD,~str_replace_all(.,"\\s+"," ")),.SDcols=address_cols]
 
-    audit[,alternate_key:=as.integer(alternate_key)]
-
-    addresses <- read_tessi("addresses",freshness=Inf) %>% filter(group_customer_no %in% audit$group_customer_no) %>%
-      collect %>% setDT
-
-    address_map <- data.table(address_no=unique(c(audit$alternate_key,addresses$address_no)))[,I:=.I]
-    addresses <- merge(addresses,address_map,by="address_no") %>% .[,address_no:=I] %>% .[,I:=NULL]
-    audit <- merge(audit,address_map,by.x="alternate_key",by.y="address_no") %>% .[,alternate_key:=I] %>% .[,I:=NULL]
-
-    customer_map <- data.table(customer_no=unique(c(audit$customer_no,addresses$customer_no)))[,I:=.I]
-    addresses <- merge(addresses,customer_map,by="customer_no") %>% .[,`:=`(customer_no=I,group_customer_no=I)] %>% .[,I:=NULL]
-    audit <- merge(audit,customer_map,by="customer_no") %>% .[,`:=`(customer_no=I,group_customer_no=I)] %>% .[,I:=NULL]
-
-    audit[,alternate_key:=as.character(alternate_key)]
-
-    saveRDS(audit,test_path("address_audit.Rds"))
-    saveRDS(addresses,test_path("addresses.Rds"))
-  }
   # Lowercase and trim whitespace from address fields
   address_stream[,(address_cols):=lapply(.SD,function(.) {trimws(tolower(.))}),.SDcols=address_cols]
 
   # remove junk info
-  addressStream = addressStream[!(grepl("^30 lafayette|^tbd$",street1) & (city=="brooklyn" & state=="ny" | substr(postal_code,1,5)=="11217") |
-                                    grepl("^web add",street1) | grepl("^web add",postal_code) | grepl("no address",street1) |
-                                    grepl("^no add",street1))]
+  lapply(address_cols,function(col){
+        address_stream[grepl("^(web add|unknown|no add)|^$",get(col)),(col):=NA_character_]
+  })
 
-# Street cleaning ---------------------------------------------------------
+  address_stream = address_stream[!(grepl("^30 lafayette",street1) & (city=="brooklyn" & state=="ny" | substr(postal_code,1,5)=="11217"))]
 
-addressCols = c("street1","street2","city","state","postal_code","country")
-# Remove newlines, tabs, etc.
-address_stream[,(addressCols):=map(.SD,~str_replace_all(.,"(?=\\s)[^ ]"," ") %>%
-# Slashes
-                                       str_replace_all("[\\/]+",".") %>%
-# Trim whitespace
-                                       trimws %>%
-# And get rid of bogus info
-                                       {if_else(grepl("^unknown$|^web added|^no address|^$",.),NA_character_,.)}),.SDcols=addressCols]
+}
 
-# make address string for libpostal
-address_stream[,address:=unite(.SD,"address",sep=", ",na.rm=T),.SDcols=addressCols]
 
-#TODO: map english numbers to numerals
+#' address_parse_libpostal
+#'
+#' @param address_stream data.table of addresses
+#'
+#' @return data.table of addresses parsed
+address_parse_libpostal <- function(address_stream) {
+  # make address string for libpostal
+  address_stream[,address:=unite(.SD,"address",sep=", ",na.rm=T),.SDcols=addressCols]
 
-with_progress({
-  p = progressor(nbrOfFreeWorkers())
-  parsed = split(address_stream$address,1:nbrOfFreeWorkers()) %>% map(~future({
+  #TODO: map english numbers to numerals
+
+  with_progress({
+    p = progressor(nbrOfFreeWorkers())
+    parsed = split(address_stream$address,1:nbrOfFreeWorkers()) %>% map(~future({
       setwd(tempdir())
       # Encode UTF-8
       .x = enc2utf8(.x)
@@ -174,88 +164,101 @@ with_progress({
       ret = system2(libpostal,stdout=T,input=.x)
       p()
       ret
-  })) %>% value
-})
+    })) %>% value
+  })
 
-with_progress({
-  p = progressor(along=parsed)
-  parsed2 = parsed %>% map(~future({
-    # Convert from utf-8 to native
-    ret = iconv(.x,from="utf-8")
-    ret = tail(ret,-match("Result:",.)-1)
-    ret[which(ret=="Result:")]=","
-    ret = fromJSON(c("[",ret,"]"))
-    p()
-    ret
-  })) %>% value
-})
+  with_progress({
+    p = progressor(along=parsed)
+    parsed2 = parsed %>% map(~future({
+      # Convert from utf-8 to native
+      ret = iconv(.x,from="utf-8")
+      ret = tail(ret,-match("Result:",.)-1)
+      ret[which(ret=="Result:")]=","
+      ret = fromJSON(c("[",ret,"]"))
+      p()
+      ret
+    })) %>% value
+  })
 
-# reassemble
-parsed = rbindlist(parsed2,fill=T)
-t = data.table(group=rep(1:length(parsed2),length.out=nrow(parsed)),I=1:nrow(parsed))
-setkey(t,group)
-parsed[,I:=t$I]
-setkey(parsed,I)
-parsed[,I:=NULL]
+  # reassemble
+  parsed = rbindlist(parsed2,fill=T)
+  t = data.table(group=rep(1:length(parsed2),length.out=nrow(parsed)),I=1:nrow(parsed))
+  setkey(t,group)
+  parsed[,I:=t$I]
+  setkey(parsed,I)
+  parsed[,I:=NULL]
 
-libpostalCols = colnames(parsed)
+  libpostalCols = colnames(parsed)
 
-streets_regex = tolower("(ALLEY|ALLEE|ALY|ALLY|ANEX|ANX|ANNEX|ANNX|ARCADE|ARC|AVENUE|AV|AVE|AVEN|AVENU|AVN|AVNUE|BAYOU|BAYOO|BYU|BEACH|BCH|BEND|BND|BLUFF|BLF|BLUF|BLUFFS|BLFS|BOTTOM|BOT|BTM|BOTTM|BOULEVARD|BLVD|BOUL|BOULV|BRANCH|BR|BRNCH|BRIDGE|BRDGE|BRG|BROOK|BRK|BROOKS|BRKS|BURG|BG|BURGS|BGS|BYPASS|BYP|BYPA|BYPAS|BYPS|CAMP|CP|CMP|CANYON|CANYN|CYN|CNYN|CAPE|CPE|CAUSEWAY|CSWY|CAUSWA|CENTER|CEN|CTR|CENT|CENTR|CENTRE|CNTER|CNTR|CENTERS|CTRS|CIRCLE|CIR|CIRC|CIRCL|CRCL|CRCLE|CIRCLES|CIRS|CLIFF|CLF|CLIFFS|CLFS|CLUB|CLB|COMMON|CMN|COMMONS|CMNS|CORNER|COR|CORNERS|CORS|COURSE|CRSE|COURT|CT|COURTS|CTS|COVE|CV|COVES|CVS|CREEK|CRK|CRESCENT|CRES|CRSENT|CRSNT|CREST|CRST|CROSSING|XING|CRSSNG|CROSSROAD|XRD|CROSSROADS|XRDS|CURVE|CURV|DALE|DL|DAM|DM|DIVIDE|DIV|DV|DVD|DRIVE|DR|DRIV|DRV|DRIVES|DRS|ESTATE|EST|ESTATES|ESTS|EXPRESSWAY|EXP|EXPY|EXPR|EXPRESS|EXPW|EXTENSION|EXT|EXTN|EXTNSN|EXTENSIONS|EXTS|FALL|FALLS|FLS|FERRY|FRY|FRRY|FIELD|FLD|FIELDS|FLDS|FLAT|FLT|FLATS|FLTS|FORD|FRD|FORDS|FRDS|FOREST|FRST|FORESTS|FORGE|FORG|FRG|FORGES|FRGS|FORK|FRK|FORKS|FRKS|FORT|FT|FRT|FREEWAY|FWY|FREEWY|FRWAY|FRWY|GARDEN|GDN|GARDN|GRDEN|GRDN|GARDENS|GDNS|GRDNS|GATEWAY|GTWY|GATEWY|GATWAY|GTWAY|GLEN|GLN|GLENS|GLNS|GREEN|GRN|GREENS|GRNS|GROVE|GROV|GRV|GROVES|GRVS|HARBOR|HARB|HBR|HARBR|HRBOR|HARBORS|HBRS|HAVEN|HVN|HEIGHTS|HT|HTS|HIGHWAY|HWY|HIGHWY|HIWAY|HIWY|HWAY|HILL|HL|HILLS|HLS|HOLLOW|HLLW|HOLW|HOLLOWS|HOLWS|INLET|INLT|ISLAND|IS|ISLND|ISLANDS|ISS|ISLNDS|ISLE|ISLES|JUNCTION|JCT|JCTION|JCTN|JUNCTN|JUNCTON|JUNCTIONS|JCTNS|JCTS|KEY|KY|KEYS|KYS|KNOLL|KNL|KNOL|KNOLLS|KNLS|LAKE|LK|LAKES|LKS|LAND|LANDING|LNDG|LNDNG|LANE|LN|LIGHT|LGT|LIGHTS|LGTS|LOAF|LF|LOCK|LCK|LOCKS|LCKS|LODGE|LDG|LDGE|LODG|LOOP|LOOPS|MALL|MANOR|MNR|MANORS|MNRS|MEADOW|MDW|MEADOWS|MDWS|MEDOWS|MEWS|MILL|ML|MILLS|MLS|MISSION|MISSN|MSN|MSSN|MOTORWAY|MTWY|MOUNT|MNT|MT|MOUNTAIN|MNTAIN|MTN|MNTN|MOUNTIN|MTIN|MOUNTAINS|MNTNS|MTNS|NECK|NCK|ORCHARD|ORCH|ORCHRD|OVAL|OVL|OVERPASS|OPAS|PARK|PRK|PARKS|PARKWAY|PKWY|PARKWY|PKWAY|PKY|PARKWAYS|PKWYS|PASS|PASSAGE|PSGE|PATH|PATHS|PIKE|PIKES|PINE|PNE|PINES|PNES|PLACE|PL|PLAIN|PLN|PLAINS|PLNS|PLAZA|PLZ|PLZA|POINT|PT|POINTS|PTS|PORT|PRT|PORTS|PRTS|PRAIRIE|PR|PRR|RADIAL|RAD|RADL|RADIEL|RAMP|RANCH|RNCH|RANCHES|RNCHS|RAPID|RPD|RAPIDS|RPDS|REST|RST|RIDGE|RDG|RDGE|RIDGES|RDGS|RIVER|RIV|RVR|RIVR|ROAD|RD|ROADS|RDS|ROUTE|RTE|ROW|RUE|RUN|SHOAL|SHL|SHOALS|SHLS|SHORE|SHOAR|SHR|SHORES|SHOARS|SHRS|SKYWAY|SKWY|SPRING|SPG|SPNG|SPRNG|SPRINGS|SPGS|SPNGS|SPRNGS|SPUR|SPURS|SQUARE|SQ|SQR|SQRE|SQU|SQUARES|SQRS|SQS|STATION|STA|STATN|STN|STRAVENUE|STRA|STRAV|STRAVEN|STRAVN|STRVN|STRVNUE|STREAM|STRM|STREME|STREET|ST|STRT|STR|STREETS|STS|SUMMIT|SMT|SUMIT|SUMITT|TERRACE|TER|TERR|THROUGHWAY|TRWY|TRACE|TRCE|TRACES|TRACK|TRAK|TRACKS|TRK|TRKS|TRAFFICWAY|TRFY|TRAIL|TRL|TRAILS|TRLS|TRAILER|TRLR|TRLRS|TUNNEL|TUNEL|TUNL|TUNLS|TUNNELS|TUNNL|TURNPIKE|TRNPK|TPKE|TURNPK|UNDERPASS|UPAS|UNION|UN|UNIONS|UNS|VALLEY|VLY|VALLY|VLLY|VALLEYS|VLYS|VIADUCT|VDCT|VIA|VIADCT|VIEW|VW|VIEWS|VWS|VILLAGE|VILL|VLG|VILLAG|VILLG|VILLIAGE|VILLAGES|VLGS|VILLE|VL|VISTA|VIS|VIST|VST|VSTA|WALK|WALKS|WALL|WAY|WY|WAYS|WELL|WL|WELLS|WLS)")
-directions_regex = tolower("(N|NE|NW|S|SE|SW|E|W|NORTE|NORESTE|NOROESTE|SUR|SURESTE|SUROESTE|ESTE|OESTE|NORTH|NORTHEAST|NORTHWEST|SOUTH|SOUTHEAST|SOUTHWEST|EAST|WEST)")
-unit_regex = tolower("(Apartment(?!$)|APT(?!$)|Basement|BSMT|Building(?!$)|BLDG(?!$)|Department(?!$)|DEPT(?!$)|Floor|FL|Front|FRNT|Hanger(?!$)|HNGR(?!$)|Key(?!$)|KEY(?!$)|Lobby|LBBY|Lot(?!$)|LOT(?!$)|LOWR|Office|OFC|Penthouse|PH|Pier(?!$)|PIER(?!$)|Rear|REAR|Room(?!$)|RM(?!$)|Slip(?!$)|SLIP(?!$)|Space(?!$)|SPC(?!$)|Stop(?!$)|STOP(?!$)|Suite(?!$)|STE(?!$)|Trailer(?!$)|TRLR(?!$)|Unit(?!$)|UNIT(?!$)|UPPR|#(?!$))")
-unit_number_regex = "(\\d[\\d\\w]*|\\w\\d+|ph.{1,3})"
-ones <- c("one", "two", "three", "four", "five", "six", "seven", "eight", "nine")
-teens <- c("ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen")
-tens <- c("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
-hundreds <- c("hundred","thousand")
-number_regex = paste0("(((",paste(c(ones,teens,tens,hundreds),collapse="|"),")[\\-\\s]*)+|[\\d\\-]+)")
+  streets_regex = tolower("(ALLEY|ALLEE|ALY|ALLY|ANEX|ANX|ANNEX|ANNX|ARCADE|ARC|AVENUE|AV|AVE|AVEN|AVENU|AVN|AVNUE|BAYOU|BAYOO|BYU|BEACH|BCH|BEND|BND|BLUFF|BLF|BLUF|BLUFFS|BLFS|BOTTOM|BOT|BTM|BOTTM|BOULEVARD|BLVD|BOUL|BOULV|BRANCH|BR|BRNCH|BRIDGE|BRDGE|BRG|BROOK|BRK|BROOKS|BRKS|BURG|BG|BURGS|BGS|BYPASS|BYP|BYPA|BYPAS|BYPS|CAMP|CP|CMP|CANYON|CANYN|CYN|CNYN|CAPE|CPE|CAUSEWAY|CSWY|CAUSWA|CENTER|CEN|CTR|CENT|CENTR|CENTRE|CNTER|CNTR|CENTERS|CTRS|CIRCLE|CIR|CIRC|CIRCL|CRCL|CRCLE|CIRCLES|CIRS|CLIFF|CLF|CLIFFS|CLFS|CLUB|CLB|COMMON|CMN|COMMONS|CMNS|CORNER|COR|CORNERS|CORS|COURSE|CRSE|COURT|CT|COURTS|CTS|COVE|CV|COVES|CVS|CREEK|CRK|CRESCENT|CRES|CRSENT|CRSNT|CREST|CRST|CROSSING|XING|CRSSNG|CROSSROAD|XRD|CROSSROADS|XRDS|CURVE|CURV|DALE|DL|DAM|DM|DIVIDE|DIV|DV|DVD|DRIVE|DR|DRIV|DRV|DRIVES|DRS|ESTATE|EST|ESTATES|ESTS|EXPRESSWAY|EXP|EXPY|EXPR|EXPRESS|EXPW|EXTENSION|EXT|EXTN|EXTNSN|EXTENSIONS|EXTS|FALL|FALLS|FLS|FERRY|FRY|FRRY|FIELD|FLD|FIELDS|FLDS|FLAT|FLT|FLATS|FLTS|FORD|FRD|FORDS|FRDS|FOREST|FRST|FORESTS|FORGE|FORG|FRG|FORGES|FRGS|FORK|FRK|FORKS|FRKS|FORT|FT|FRT|FREEWAY|FWY|FREEWY|FRWAY|FRWY|GARDEN|GDN|GARDN|GRDEN|GRDN|GARDENS|GDNS|GRDNS|GATEWAY|GTWY|GATEWY|GATWAY|GTWAY|GLEN|GLN|GLENS|GLNS|GREEN|GRN|GREENS|GRNS|GROVE|GROV|GRV|GROVES|GRVS|HARBOR|HARB|HBR|HARBR|HRBOR|HARBORS|HBRS|HAVEN|HVN|HEIGHTS|HT|HTS|HIGHWAY|HWY|HIGHWY|HIWAY|HIWY|HWAY|HILL|HL|HILLS|HLS|HOLLOW|HLLW|HOLW|HOLLOWS|HOLWS|INLET|INLT|ISLAND|IS|ISLND|ISLANDS|ISS|ISLNDS|ISLE|ISLES|JUNCTION|JCT|JCTION|JCTN|JUNCTN|JUNCTON|JUNCTIONS|JCTNS|JCTS|KEY|KY|KEYS|KYS|KNOLL|KNL|KNOL|KNOLLS|KNLS|LAKE|LK|LAKES|LKS|LAND|LANDING|LNDG|LNDNG|LANE|LN|LIGHT|LGT|LIGHTS|LGTS|LOAF|LF|LOCK|LCK|LOCKS|LCKS|LODGE|LDG|LDGE|LODG|LOOP|LOOPS|MALL|MANOR|MNR|MANORS|MNRS|MEADOW|MDW|MEADOWS|MDWS|MEDOWS|MEWS|MILL|ML|MILLS|MLS|MISSION|MISSN|MSN|MSSN|MOTORWAY|MTWY|MOUNT|MNT|MT|MOUNTAIN|MNTAIN|MTN|MNTN|MOUNTIN|MTIN|MOUNTAINS|MNTNS|MTNS|NECK|NCK|ORCHARD|ORCH|ORCHRD|OVAL|OVL|OVERPASS|OPAS|PARK|PRK|PARKS|PARKWAY|PKWY|PARKWY|PKWAY|PKY|PARKWAYS|PKWYS|PASS|PASSAGE|PSGE|PATH|PATHS|PIKE|PIKES|PINE|PNE|PINES|PNES|PLACE|PL|PLAIN|PLN|PLAINS|PLNS|PLAZA|PLZ|PLZA|POINT|PT|POINTS|PTS|PORT|PRT|PORTS|PRTS|PRAIRIE|PR|PRR|RADIAL|RAD|RADL|RADIEL|RAMP|RANCH|RNCH|RANCHES|RNCHS|RAPID|RPD|RAPIDS|RPDS|REST|RST|RIDGE|RDG|RDGE|RIDGES|RDGS|RIVER|RIV|RVR|RIVR|ROAD|RD|ROADS|RDS|ROUTE|RTE|ROW|RUE|RUN|SHOAL|SHL|SHOALS|SHLS|SHORE|SHOAR|SHR|SHORES|SHOARS|SHRS|SKYWAY|SKWY|SPRING|SPG|SPNG|SPRNG|SPRINGS|SPGS|SPNGS|SPRNGS|SPUR|SPURS|SQUARE|SQ|SQR|SQRE|SQU|SQUARES|SQRS|SQS|STATION|STA|STATN|STN|STRAVENUE|STRA|STRAV|STRAVEN|STRAVN|STRVN|STRVNUE|STREAM|STRM|STREME|STREET|ST|STRT|STR|STREETS|STS|SUMMIT|SMT|SUMIT|SUMITT|TERRACE|TER|TERR|THROUGHWAY|TRWY|TRACE|TRCE|TRACES|TRACK|TRAK|TRACKS|TRK|TRKS|TRAFFICWAY|TRFY|TRAIL|TRL|TRAILS|TRLS|TRAILER|TRLR|TRLRS|TUNNEL|TUNEL|TUNL|TUNLS|TUNNELS|TUNNL|TURNPIKE|TRNPK|TPKE|TURNPK|UNDERPASS|UPAS|UNION|UN|UNIONS|UNS|VALLEY|VLY|VALLY|VLLY|VALLEYS|VLYS|VIADUCT|VDCT|VIA|VIADCT|VIEW|VW|VIEWS|VWS|VILLAGE|VILL|VLG|VILLAG|VILLG|VILLIAGE|VILLAGES|VLGS|VILLE|VL|VISTA|VIS|VIST|VST|VSTA|WALK|WALKS|WALL|WAY|WY|WAYS|WELL|WL|WELLS|WLS)")
+  directions_regex = tolower("(N|NE|NW|S|SE|SW|E|W|NORTE|NORESTE|NOROESTE|SUR|SURESTE|SUROESTE|ESTE|OESTE|NORTH|NORTHEAST|NORTHWEST|SOUTH|SOUTHEAST|SOUTHWEST|EAST|WEST)")
+  unit_regex = tolower("(Apartment(?!$)|APT(?!$)|Basement|BSMT|Building(?!$)|BLDG(?!$)|Department(?!$)|DEPT(?!$)|Floor|FL|Front|FRNT|Hanger(?!$)|HNGR(?!$)|Key(?!$)|KEY(?!$)|Lobby|LBBY|Lot(?!$)|LOT(?!$)|LOWR|Office|OFC|Penthouse|PH|Pier(?!$)|PIER(?!$)|Rear|REAR|Room(?!$)|RM(?!$)|Slip(?!$)|SLIP(?!$)|Space(?!$)|SPC(?!$)|Stop(?!$)|STOP(?!$)|Suite(?!$)|STE(?!$)|Trailer(?!$)|TRLR(?!$)|Unit(?!$)|UNIT(?!$)|UPPR|#(?!$))")
+  unit_number_regex = "(\\d[\\d\\w]*|\\w\\d+|ph.{1,3})"
+  ones <- c("one", "two", "three", "four", "five", "six", "seven", "eight", "nine")
+  teens <- c("ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen")
+  tens <- c("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+  hundreds <- c("hundred","thousand")
+  number_regex = paste0("(((",paste(c(ones,teens,tens,hundreds),collapse="|"),")[\\-\\s]*)+|[\\d\\-]+)")
 
-# parsed has (house_number/po_box), road, (unit/level/house/entrance/staircase), (category/near), (city/city_district/suburb/island),
-#             (state/state_district), postcode, (country/country_region/world_region)
-# the goal here is to end up with house_number, road, unit, house, city, state, country, postcode. The challenge is figuring out what to do
-# with the other data. Largely we want to trust city, state, country, postcode in Tessi but there may be exceptions to this too...
+  # parsed has (house_number/po_box), road, (unit/level/house/entrance/staircase), (category/near), (city/city_district/suburb/island),
+  #             (state/state_district), postcode, (country/country_region/world_region)
+  # the goal here is to end up with house_number, road, unit, house, city, state, country, postcode. The challenge is figuring out what to do
+  # with the other data. Largely we want to trust city, state, country, postcode in Tessi but there may be exceptions to this too...
 
-parsed[,I:=.I]
+  parsed[,I:=.I]
 
-#lapply(parsed,function(.){str_locate(addressStream$address,fixed(.))}) %>% map(~.[,1]) %>% as.data.table -> parsedLocs
+  #lapply(parsed,function(.){str_locate(addressStream$address,fixed(.))}) %>% map(~.[,1]) %>% as.data.table -> parsedLocs
 
-# for some reason a lot of units end up in postcode!!!
-# parsed[postcode!=addressStream$postal_code & !is.na(unit) &
-#          str_detect(postcode,"^\\d+$"),.(house_number,postcode,addressStream$postal_code[I],addressStream$address[I])]
-parsed[postcode!=address_stream$postal_code & is.na(unit),unit:=postcode]
-# ... some units don't get detected in street2
-parsed[is.na(unit) & str_detect(address_stream$street2,paste0("^",unit_regex,"?\\s*",unit_number_regex,"$")),
-                  `:=`(unit=address_stream$street2[I],
-                       road=str_remove(road,fixed(paste0(" ",address_stream$street2[I]))))]
-# ... and if the road has the unit in it, put it in unit
-parsed[str_detect(road,paste0("\\W+",streets_regex,"\\W+","(",unit_regex,"|",unit_number_regex,")")),
-                  `:=`(unit=str_match(road,paste0("\\W+",streets_regex,"\\W+((",unit_regex,"|",unit_number_regex,").*$",")"))[,3],
-                       road=str_replace(road,paste0("(\\W+",streets_regex,"\\W+)((",unit_regex,"|",unit_number_regex,").*$",")"),
-                                                  "\\1"))]
-# ... and if the unit is doubled or tripled or .... whatever, reduce it to the first one
-parsed[strsplit(unit,split=" ") %>%
-         map_lgl(~any(head(.,-1)==tail(.,-1)) | any(head(.,-2)==tail(.,-2))) &
-      str_match(unit,paste0(unit_regex,".+?",unit_number_regex)),
-      unit:=str_match(unit,paste0(unit_regex,".+?",unit_number_regex))[,1]]
+  # for some reason a lot of units end up in postcode!!!
+  # parsed[postcode!=addressStream$postal_code & !is.na(unit) &
+  #          str_detect(postcode,"^\\d+$"),.(house_number,postcode,addressStream$postal_code[I],addressStream$address[I])]
+  parsed[postcode!=address_stream$postal_code & is.na(unit),unit:=postcode]
+  # ... some units don't get detected in street2
+  parsed[is.na(unit) & str_detect(address_stream$street2,paste0("^",unit_regex,"?\\s*",unit_number_regex,"$")),
+         `:=`(unit=address_stream$street2[I],
+              road=str_remove(road,fixed(paste0(" ",address_stream$street2[I]))))]
+  # ... and if the road has the unit in it, put it in unit
+  parsed[str_detect(road,paste0("\\W+",streets_regex,"\\W+","(",unit_regex,"|",unit_number_regex,")")),
+         `:=`(unit=str_match(road,paste0("\\W+",streets_regex,"\\W+((",unit_regex,"|",unit_number_regex,").*$",")"))[,3],
+              road=str_replace(road,paste0("(\\W+",streets_regex,"\\W+)((",unit_regex,"|",unit_number_regex,").*$",")"),
+                               "\\1"))]
+  # ... and if the unit is doubled or tripled or .... whatever, reduce it to the first one
+  parsed[strsplit(unit,split=" ") %>%
+           map_lgl(~any(head(.,-1)==tail(.,-1)) | any(head(.,-2)==tail(.,-2))) &
+           str_match(unit,paste0(unit_regex,".+?",unit_number_regex)),
+         unit:=str_match(unit,paste0(unit_regex,".+?",unit_number_regex))[,1]]
 
-# let's leave country alone -- the only ones we'll miss trying to geocode are the ones that are  fake addresses.
-# parsed[country!=addressStream$country & !country %in% c(tolower(state.abb),"pr","vi") & addressStream$country!="usa" &
-#          grepl("united|usa",country),.(country,addressStream$country[I],addressStream$address[I])]
+  # let's leave country alone -- the only ones we'll miss trying to geocode are the ones that are  fake addresses.
+  # parsed[country!=addressStream$country & !country %in% c(tolower(state.abb),"pr","vi") & addressStream$country!="usa" &
+  #          grepl("united|usa",country),.(country,addressStream$country[I],addressStream$address[I])]
 
-# same with state and city -- we will validate this based on address existence
-#parsed[state!=addressStream$state & country=="usa" & !grepl("new",state),.(state,addressStream$state[I],addressStream$address[I],I)]
-# parsed[city!=addressStream$city & city_district!=addressStream$city & suburb!=addressStream$city,
-#        .(city,city_district,addressStream$city[I],addressStream$address[I],I)]
+  # same with state and city -- we will validate this based on address existence
+  #parsed[state!=addressStream$state & country=="usa" & !grepl("new",state),.(state,addressStream$state[I],addressStream$address[I],I)]
+  # parsed[city!=addressStream$city & city_district!=addressStream$city & suburb!=addressStream$city,
+  #        .(city,city_district,addressStream$city[I],addressStream$address[I],I)]
 
-# address almost always starts with house or house_number ...
-# parsed[parsedLocs[,I:=.I][house_number!=1 & house!=1 & coalesce(po_box,-1)!=1
-#                           & !grepl("^c/o",parsed$road) & addressStream$country=="usa"]$I,.(house_number,road,unit,addressStream$address[I],I)]
+  # address almost always starts with house or house_number ...
+  # parsed[parsedLocs[,I:=.I][house_number!=1 & house!=1 & coalesce(po_box,-1)!=1
+  #                           & !grepl("^c/o",parsed$road) & addressStream$country=="usa"]$I,.(house_number,road,unit,addressStream$address[I],I)]
 
-# ok maybe we're finally done. Let's clean up
-parsed = parsed[,.(house_number,road,unit,house,po_box,level,staircase,entrance)]
+  # ok maybe we're finally done. Let's clean up
+  parsed = parsed[,.(house_number,road,unit,house,po_box,level,staircase,entrance)]
 
-addressStream = cbind(addressStream,libpostal=parsed)
-rm(parsed2,parsed)
+  addressStream = cbind(addressStream,libpostal=parsed)
+  rm(parsed2,parsed)
+}
+
+
+
+if(FALSE)  {
+
+
+
+
+
+
+
+
 
 # Geocoding ---------------------------------------------------------------
 

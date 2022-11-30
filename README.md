@@ -42,6 +42,9 @@ You can install the development version of tessistream from
 ``` r
 # install.packages("devtools")
 devtools::install_github("skysyzygy/tessistream")
+
+# to install libpostal, run in the RStudio terminal:
+scripts/install_libpostal.sh
 ```
 
 ## Example

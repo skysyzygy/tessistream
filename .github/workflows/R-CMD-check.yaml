@@ -31,6 +31,16 @@ jobs:
           remotes::install_github("ffbase=edwindj/ffbase/pkg")'
         shell: bash
 
+      - name: cache libpostal
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/libpostal
+            ~/libpostal-data
+
+      - name: install libpostal
+        run: scripts/install_libpostal.sh ~/libpostal ~/libpostal-data
+
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           extra-packages: any::rcmdcheck

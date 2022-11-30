@@ -21,4 +21,13 @@ address_prepare_fixtures <- function () {
 
   saveRDS(audit,testthat::test_path("address_audit.Rds"))
   saveRDS(addresses,testthat::test_path("addresses.Rds"))
+
+  mockery::stub(address_load, "read_tessi", addresses)
+  mockery::stub(address_load_audit, "read_tessi", audit)
+  mockery::stub(address_create_stream, "address_load", address_load)
+  mockery::stub(address_create_stream, "address_load_audit", address_load_audit)
+
+  stream <- address_create_stream()
+
+  saveRDS(stream,testthat::test_path("address_stream.Rds"))
 }

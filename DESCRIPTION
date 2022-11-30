@@ -29,6 +29,7 @@ Imports:
     future,
     future.batchtools,
     future.callr,
+    jsonlite,
     lubridate,
     magrittr,
     purrr,
@@ -36,6 +37,7 @@ Imports:
     rlang,
     stringr,
     targets,
-    tessilake
+    tessilake,
+    tidyr
 Remotes: 
     skysyzygy/tessilake

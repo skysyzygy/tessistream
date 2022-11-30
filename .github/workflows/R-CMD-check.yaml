@@ -37,6 +37,7 @@ jobs:
           path: |
             ~/libpostal
             ~/libpostal-data
+          key: ${{ runner.os }}-libpostal
 
       - name: install libpostal
         run: scripts/install_libpostal.sh ~/libpostal ~/libpostal-data

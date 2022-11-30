@@ -1,0 +1,2 @@
+default:
+  libpostal.installdir: C:/BAM/Python/libpostal

@@ -114,8 +114,8 @@ test_that("address_exec_libpostal complains if addresses are not a character vec
   expect_error(address_exec_libpostal(NA),"addresses.+missing")
 })
 test_that("address_exec_libpostal complains if libpostal can't be found",{
-  stub(address_exec_libpostal,"config::get","no_libpostal")
-  expect_error(address_exec_libpostal("test"),"Directory.+libpostal.+not exist")
+  stub(address_exec_libpostal,"Sys.which","")
+  expect_error(address_exec_libpostal("test"),"address_parser.+not found")
 })
 test_that("address_exec_libpostal gets back data from libpostal",{
   expect_mapequal(address_exec_libpostal("Brooklyn Academy of Music, 30 lafayette ave, brooklyn, ny 11217"),

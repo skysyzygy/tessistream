@@ -39,7 +39,9 @@ jobs:
           key: libpostal-${{ runner.os }}
 
       - name: install libpostal
-        run: bash scripts/install_libpostal.sh .. ..
+        run: |
+          bash scripts/install_libpostal.sh "$GITHUB_WORKSPACE/.." "$GITHUB_WORKSPACE/../libpostal"
+          echo "$GITHUB_WORKSPACE/libpostal/src" >> $GITHUB_PATH
         shell: bash
 
       - uses: r-lib/actions/setup-r-dependencies@v2

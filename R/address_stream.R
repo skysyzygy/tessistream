@@ -155,11 +155,9 @@ address_exec_libpostal <- function(addresses) {
   . <- NULL
 
   assert_character(addresses,any.missing=FALSE,min.len=1)
-  installdir <- config::get("libpostal.installdir")
-
-  assert_directory_exists(file.path(installdir,"src"))
-  libpostal <- dir(file.path(installdir,"src"),"^address_parser(.exe)?$",full.names=T)[1]
-  assert_character(libpostal,len=1)
+  libpostal <- Sys.which("address_parser")
+  if(libpostal=="")
+    stop("libpostal address_parser executable not found, add to PATH")
 
   ret = withr::with_dir(tempdir(),{
     # Encode UTF-8

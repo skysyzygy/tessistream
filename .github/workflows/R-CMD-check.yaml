@@ -35,12 +35,12 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ~/libpostal
-            ~/libpostal-data
-          key: ${{ runner.os }}-libpostal
+            ../libpostal
+            ../libpostal-data
+          key: libpostal-${{ runner.os }}
 
       - name: install libpostal
-        run: bash scripts/install_libpostal.sh ~/libpostal ~/libpostal-data
+        run: bash scripts/install_libpostal.sh ../libpostal ../libpostal-data
         shell: bash
 
       - uses: r-lib/actions/setup-r-dependencies@v2
@@ -48,9 +48,9 @@ jobs:
           extra-packages: any::rcmdcheck
           needs: check
 
-      - name: Install miniconda
-        run: reticulate::install_miniconda()
-        shell: Rscript {0}
+      # - name: Install miniconda
+      #   run: reticulate::install_miniconda()
+      #   shell: Rscript {0}
 
       - uses: r-lib/actions/check-r-package@v2
 

@@ -36,11 +36,10 @@ jobs:
         with:
           path: |
             ../libpostal
-            ../libpostal-data
           key: libpostal-${{ runner.os }}
 
       - name: install libpostal
-        run: bash scripts/install_libpostal.sh ../libpostal ../libpostal-data
+        run: bash scripts/install_libpostal.sh .. ..
         shell: bash
 
       - uses: r-lib/actions/setup-r-dependencies@v2

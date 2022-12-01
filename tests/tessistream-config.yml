@@ -1,2 +1,2 @@
 default:
-  libpostal.installdir: !expr rprojroot::find_package_root_file("libpostal")
+  libpostal.installdir: !expr rprojroot::find_package_root_file("../libpostal")

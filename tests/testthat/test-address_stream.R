@@ -3,7 +3,8 @@ withr::local_package("dplyr")
 
 audit <- readRDS(test_path("address_audit.Rds"))
 addresses <- readRDS(test_path("addresses.Rds"))
-
+# Use this to turn off libpostal execution
+#stub(address_exec_libpostal,"Sys.which","")
 
 # address_create_stream ---------------------------------------------------
 
@@ -14,7 +15,7 @@ test_that("address_create_stream builds a stream using all data from audit table
   stub(address_create_stream, "address_fill_debounce_stream", return)
   expect_equal(
     nrow(address_create_stream()),
-    nrow(distinct(audit[column_updated %in% address_cols, .(alternate_key, date)])) + 1
+    nrow(distinct(audit[column_updated %in% c(address_cols,"primary_ind"), .(alternate_key, date)])) + 1
   )
 })
 
@@ -98,7 +99,7 @@ test_that("address_clean removes junk info", {
   # replaced with NA
   junk_type_1 <- c("unknown", "Web Added", "NO ADDRESS")
   # row removed
-  junk_type_2 <- setNames(list("30 Lafayette Ave.", "Development", "Brooklyn", "NY", "11217-0000", "", ""), address_cols)
+  junk_type_2 <- setNames(list("30 Lafayette Ave.", "Development", "Brooklyn", "NY", "11217-0000", ""), address_cols)
   cleaned <- c(NA_character_, NA_character_, NA_character_)
   address_stream <- do.call(data.table, setNames(rep(list(junk_type_1), length(address_cols)), address_cols))
   address_stream <- rbind(address_stream, junk_type_2)
@@ -202,7 +203,7 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
   parsed <- address_parse_libpostal(address_stream)
 
   expect_equal(colnames(parsed),c(
-    as.character(address_cols),"address",paste0("libpostal.",
+    as.character(address_cols),paste0("libpostal.",
                                   c("house_number","road","unit","house","po_box","city","state","country","postcode"))))
 
   expect_equal(parsed$libpostal.house_number,rep("house_number",8))
@@ -212,3 +213,100 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
   expect_equal(parsed$libpostal.state,rep(paste("state_district","state",sep=", "),8))
   expect_equal(parsed$libpostal.country,rep(paste("country_region","country","world_region",sep=", "),8))
 })
+
+# address_parse -----------------------------------------------------------
+tessilake:::local_cache_dirs()
+address_stream_parsed <- data.table(house_number="30",
+                                    road="lafayette ave",
+                                    house="brooklyn academy of music",
+                                    city="brooklyn",
+                                    state="ny",
+                                    country=NA,
+                                    unit=NA,
+                                    postcode="11217")
+
+test_that("address_parse handles cache non-existence and writes a cache file containing only address_cols and libpostal cols",{
+
+  address_stream <- data.table(street1="Brooklyn Academy of Music",
+                               street2="30 Lafeyette Ave",
+                               city="Brooklyn",
+                               state="NY",
+                               postal_code="11217",
+                               country="")
+
+  stub(address_parse_libpostal,"address_exec_libpostal",address_stream_parsed)
+  stub(address_parse,"address_parse_libpostal",address_parse_libpostal)
+
+  expect_equal(tessilake:::cache_exists("address_parse","deep","stream"),FALSE)
+  expect_message(address_parse(address_stream),"Cache file not found")
+  expect_equal(tessilake:::cache_exists("address_parse","deep","stream"),TRUE)
+  expect_named(tessilake:::cache_read("address_parse","deep","stream"),
+               as.character(c(address_cols,paste0("libpostal.",colnames(address_stream_parsed)))),
+               ignore.order = TRUE)
+
+})
+
+
+
+test_that("address_parse only send cache misses to address_parse_libpostal",{
+  address_stream <- expand.grid(street1=c("Brooklyn Academy of Music","BAM"),
+                               street2=c("30 Lafeyette Ave","30 Lafayette"),
+                               city=c("Brooklyn","NYC"),
+                               state=c("NY","New York"),
+                               postal_code=c("11217","00000"),
+                               country=c("","US"),
+                               # should not be a cache miss
+                               primary_ind=c("Y","N")) %>% setDT
+
+  address_stream_parsed <- data.table::rbindlist(rep(list(address_stream_parsed),63))
+
+  address_exec_libpostal <- mock(address_stream_parsed)
+  stub(address_parse_libpostal,"address_exec_libpostal",address_exec_libpostal)
+  stub(address_parse,"address_parse_libpostal",address_parse_libpostal)
+  address_parse(address_stream)
+  expect_equal(length(mock_args(address_exec_libpostal)[[1]][[1]]),63)
+
+})
+
+test_that("address_parse updates the the cache file after cache misses",{
+
+  expect_equal(nrow(tessilake:::cache_read("address_parse","deep","stream")),64)
+  expect_named(tessilake:::cache_read("address_parse","deep","stream"),
+               as.character(c(address_cols,paste0("libpostal.",colnames(address_stream_parsed)))),
+               ignore.order = TRUE)
+})
+
+test_that("address_parse incremental runs match address_parse full runs",{
+  address_stream <- data.table(street1=c("Brooklyn Academy of Music","BAM"),
+                               street2="30 Lafeyette Ave",
+                               city="Brooklyn",
+                               state="NY",
+                               postal_code="11217",
+                               country="")
+
+  tessilake:::cache_delete("address_parse","deep","stream")
+
+  stub(address_parse_libpostal,"address_exec_libpostal",address_stream_parsed[,house_number])
+  stub(address_parse,"address_parse_libpostal",address_parse_libpostal)
+
+  expect_equal(tessilake:::cache_exists("incremental","deep","stream"),FALSE)
+  expect_message(address_parse(address_stream[1]),"Cache file not found")
+
+  rm(address_parse_libpostal,address_parse)
+
+  stub(address_parse_libpostal,"address_exec_libpostal",address_stream_parsed)
+  stub(address_parse,"address_parse_libpostal",address_parse_libpostal)
+
+  incremental <- address_parse(address_stream)
+
+  rm(address_parse_libpostal,address_parse)
+  tessilake:::cache_delete("address_parse","deep","stream")
+
+  stub(address_parse_libpostal,"address_exec_libpostal",rbind(address_stream_parsed[,house_number],address_stream_parsed,fill=T))
+  stub(address_parse,"address_parse_libpostal",address_parse_libpostal)
+
+  expect_message(full <- address_parse(address_stream),"Cache file not found")
+
+  expect_mapequal(incremental,full)
+})
+

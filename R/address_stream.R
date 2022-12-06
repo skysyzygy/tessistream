@@ -14,8 +14,7 @@ address_cols = c("street1"="street1",
                  "city"="city",
                  "state_desc"="state",
                  "postal_code"="postal_code",
-                 "country_desc"="country",
-                 "primary_ind"="primary_ind")
+                 "country_desc"="country")
 
 #' @importFrom dplyr transmute select filter coalesce
 #' @importFrom data.table setDT dcast
@@ -25,7 +24,7 @@ address_load_audit <- function(freshness) {
 
   # Address changes
   aa = read_tessi("audit", freshness = freshness) %>%
-    filter(table_name=="T_ADDRESS" & column_updated %in% address_cols) %>%
+    filter(table_name=="T_ADDRESS" & column_updated %in% c(address_cols,"primary_ind")) %>%
     transmute(group_customer_no,
               timestamp=date,
               new_value=coalesce(new_value,""),
@@ -44,6 +43,8 @@ address_load <- function(freshness) {
 
   a = read_tessi("addresses", freshness = freshness) %>% collect %>% setDT
 
+  cols = c(address_cols,primary_ind="primary_ind")
+
   rbind(
     # Address creations
     a[,.(group_customer_no,event_type="Address",event_subtype="Creation",
@@ -55,8 +56,8 @@ address_load <- function(freshness) {
          timestamp=last_update_dt,
          address_no,
          last_updated_by)],
-         a[,names(address_cols),with=F] %>%
-           setnames(names(address_cols),address_cols)),
+         a[,names(cols),with=F] %>%
+           setnames(names(cols),cols)),
     fill = T
   )
 }
@@ -88,9 +89,11 @@ address_create_stream <- function(freshness = as.difftime(7,units="days")) {
 
   address_stream = rbind(address_load(freshness), address_audit_stream, fill = TRUE)
 
+  cols <- c(address_cols,"primary_ind")
+
   # Address creation fill-up based on audit old_value -- all other old_values are captured within the audit table itself
   address_stream[address_audit_creation,
-                 (address_cols):=mget(paste0("i.",address_cols),ifnotfound = NA),
+                 (cols):=mget(paste0("i.",cols),ifnotfound = NA),
                  on=c("address_no","event_subtype")]
 
   setkey(address_stream,address_no,timestamp)
@@ -100,15 +103,16 @@ address_create_stream <- function(freshness = as.difftime(7,units="days")) {
 
 address_fill_debounce_stream <- function(address_stream) {
   event_subtype <- address_no <- timestamp <- group_customer_no <- NULL
+  cols <- c(address_cols,"primary_ind")
 
   # Factorize event_subtype
   address_stream[,event_subtype:=factor(event_subtype,levels=c("Creation","Change","Current"))]
 
   setkey(address_stream,address_no,event_subtype,timestamp)
   # Fill-down changes
-  setnafill(address_stream,"locf",cols = address_cols, by = "address_no")
+  setnafill(address_stream,"locf",cols = cols, by = "address_no")
   # And then fill back up for non-changes
-  setnafill(address_stream,"nocb",cols = address_cols, by = "address_no")
+  setnafill(address_stream,"nocb",cols = cols, by = "address_no")
 
   stream_debounce(address_stream,group_customer_no,address_no)
 }
@@ -146,11 +150,12 @@ address_clean <- function(address_stream) {
 #'
 #' @param addresses character vector of addresses
 #'
-#' @return data.frame of parsed addresses
+#' @return data.frame of parsed addresses, one row per vector i
 #'
 #' @importFrom checkmate assert_directory_exists assert_character
 #' @importFrom jsonlite fromJSON
 #' @importFrom utils tail
+#' @describeIn address_parse execute address_parser and query it with a vector of addresses
 address_exec_libpostal <- function(addresses) {
   . <- NULL
 
@@ -179,24 +184,31 @@ address_exec_libpostal <- function(addresses) {
 #'
 #' @param address_stream data.table of addresses
 #'
-#' @return data.table of addresses parsed
+#' @return data.table of addresses parsed, one per unique address in address_stream
 #' @importFrom tidyr unite
 #' @importFrom stringr str_detect str_match str_remove fixed
-#' @importFrom dplyr any_of
+#' @importFrom dplyr any_of distinct
+#' @describeIn address_parse handle parsing by libpostal
 address_parse_libpostal <- function(address_stream) {
   address <- unit <- postcode <- street2 <- road <- NULL
 
   assert_data_table(address_stream)
 
+  # one row per unique address
+  address_stream <- address_stream[,..address_cols] %>% distinct %>% setDT
+
   # make address string for libpostal
   address_stream[,address:=unite(.SD,"address",sep=", ",na.rm=T),.SDcols=address_cols]
-
-  addresses <- unique(tolower(address_stream[!is.na(address),address]))
+  addresses <- tolower(address_stream[!is.na(address),address])
 
   #TODO: map english numbers to numerals
   parsed <- data.table(address=addresses,address_exec_libpostal(addresses))
-  parsed <- parsed[address_stream,on="address"]
+  parsed <- parsed[address_stream$address,on="address"]
   parsed[,I:=.I]
+
+  # add columns if they don't exist
+  parsed <- rbind(parsed,data.table(address=character(0),unit=character(0),postcode=character(0),road=character(0)),fill = TRUE)
+  address_stream <- rbind(address_stream,data.table(street2=character(0)), fill = TRUE)
 
   streets_regex = tolower("(ALLEY|ALLEE|ALY|ALLY|ANEX|ANX|ANNEX|ANNX|ARCADE|ARC|AVENUE|AV|AVE|AVEN|AVENU|AVN|AVNUE|BAYOU|BAYOO|BYU|BEACH|BCH|BEND|BND|BLUFF|BLF|BLUF|BLUFFS|BLFS|BOTTOM|BOT|BTM|BOTTM|BOULEVARD|BLVD|BOUL|BOULV|BRANCH|BR|BRNCH|BRIDGE|BRDGE|BRG|BROOK|BRK|BROOKS|BRKS|BURG|BG|BURGS|BGS|BYPASS|BYP|BYPA|BYPAS|BYPS|CAMP|CP|CMP|CANYON|CANYN|CYN|CNYN|CAPE|CPE|CAUSEWAY|CSWY|CAUSWA|CENTER|CEN|CTR|CENT|CENTR|CENTRE|CNTER|CNTR|CENTERS|CTRS|CIRCLE|CIR|CIRC|CIRCL|CRCL|CRCLE|CIRCLES|CIRS|CLIFF|CLF|CLIFFS|CLFS|CLUB|CLB|COMMON|CMN|COMMONS|CMNS|CORNER|COR|CORNERS|CORS|COURSE|CRSE|COURT|CT|COURTS|CTS|COVE|CV|COVES|CVS|CREEK|CRK|CRESCENT|CRES|CRSENT|CRSNT|CREST|CRST|CROSSING|XING|CRSSNG|CROSSROAD|XRD|CROSSROADS|XRDS|CURVE|CURV|DALE|DL|DAM|DM|DIVIDE|DIV|DV|DVD|DRIVE|DR|DRIV|DRV|DRIVES|DRS|ESTATE|EST|ESTATES|ESTS|EXPRESSWAY|EXP|EXPY|EXPR|EXPRESS|EXPW|EXTENSION|EXT|EXTN|EXTNSN|EXTENSIONS|EXTS|FALL|FALLS|FLS|FERRY|FRY|FRRY|FIELD|FLD|FIELDS|FLDS|FLAT|FLT|FLATS|FLTS|FORD|FRD|FORDS|FRDS|FOREST|FRST|FORESTS|FORGE|FORG|FRG|FORGES|FRGS|FORK|FRK|FORKS|FRKS|FORT|FT|FRT|FREEWAY|FWY|FREEWY|FRWAY|FRWY|GARDEN|GDN|GARDN|GRDEN|GRDN|GARDENS|GDNS|GRDNS|GATEWAY|GTWY|GATEWY|GATWAY|GTWAY|GLEN|GLN|GLENS|GLNS|GREEN|GRN|GREENS|GRNS|GROVE|GROV|GRV|GROVES|GRVS|HARBOR|HARB|HBR|HARBR|HRBOR|HARBORS|HBRS|HAVEN|HVN|HEIGHTS|HT|HTS|HIGHWAY|HWY|HIGHWY|HIWAY|HIWY|HWAY|HILL|HL|HILLS|HLS|HOLLOW|HLLW|HOLW|HOLLOWS|HOLWS|INLET|INLT|ISLAND|IS|ISLND|ISLANDS|ISS|ISLNDS|ISLE|ISLES|JUNCTION|JCT|JCTION|JCTN|JUNCTN|JUNCTON|JUNCTIONS|JCTNS|JCTS|KEY|KY|KEYS|KYS|KNOLL|KNL|KNOL|KNOLLS|KNLS|LAKE|LK|LAKES|LKS|LAND|LANDING|LNDG|LNDNG|LANE|LN|LIGHT|LGT|LIGHTS|LGTS|LOAF|LF|LOCK|LCK|LOCKS|LCKS|LODGE|LDG|LDGE|LODG|LOOP|LOOPS|MALL|MANOR|MNR|MANORS|MNRS|MEADOW|MDW|MEADOWS|MDWS|MEDOWS|MEWS|MILL|ML|MILLS|MLS|MISSION|MISSN|MSN|MSSN|MOTORWAY|MTWY|MOUNT|MNT|MT|MOUNTAIN|MNTAIN|MTN|MNTN|MOUNTIN|MTIN|MOUNTAINS|MNTNS|MTNS|NECK|NCK|ORCHARD|ORCH|ORCHRD|OVAL|OVL|OVERPASS|OPAS|PARK|PRK|PARKS|PARKWAY|PKWY|PARKWY|PKWAY|PKY|PARKWAYS|PKWYS|PASS|PASSAGE|PSGE|PATH|PATHS|PIKE|PIKES|PINE|PNE|PINES|PNES|PLACE|PL|PLAIN|PLN|PLAINS|PLNS|PLAZA|PLZ|PLZA|POINT|PT|POINTS|PTS|PORT|PRT|PORTS|PRTS|PRAIRIE|PR|PRR|RADIAL|RAD|RADL|RADIEL|RAMP|RANCH|RNCH|RANCHES|RNCHS|RAPID|RPD|RAPIDS|RPDS|REST|RST|RIDGE|RDG|RDGE|RIDGES|RDGS|RIVER|RIV|RVR|RIVR|ROAD|RD|ROADS|RDS|ROUTE|RTE|ROW|RUE|RUN|SHOAL|SHL|SHOALS|SHLS|SHORE|SHOAR|SHR|SHORES|SHOARS|SHRS|SKYWAY|SKWY|SPRING|SPG|SPNG|SPRNG|SPRINGS|SPGS|SPNGS|SPRNGS|SPUR|SPURS|SQUARE|SQ|SQR|SQRE|SQU|SQUARES|SQRS|SQS|STATION|STA|STATN|STN|STRAVENUE|STRA|STRAV|STRAVEN|STRAVN|STRVN|STRVNUE|STREAM|STRM|STREME|STREET|ST|STRT|STR|STREETS|STS|SUMMIT|SMT|SUMIT|SUMITT|TERRACE|TER|TERR|THROUGHWAY|TRWY|TRACE|TRCE|TRACES|TRACK|TRAK|TRACKS|TRK|TRKS|TRAFFICWAY|TRFY|TRAIL|TRL|TRAILS|TRLS|TRAILER|TRLR|TRLRS|TUNNEL|TUNEL|TUNL|TUNLS|TUNNELS|TUNNL|TURNPIKE|TRNPK|TPKE|TURNPK|UNDERPASS|UPAS|UNION|UN|UNIONS|UNS|VALLEY|VLY|VALLY|VLLY|VALLEYS|VLYS|VIADUCT|VDCT|VIA|VIADCT|VIEW|VW|VIEWS|VWS|VILLAGE|VILL|VLG|VILLAG|VILLG|VILLIAGE|VILLAGES|VLGS|VILLE|VL|VISTA|VIS|VIST|VST|VSTA|WALK|WALKS|WALL|WAY|WY|WAYS|WELL|WL|WELLS|WLS)")
   directions_regex = tolower("(N|NE|NW|S|SE|SW|E|W|NORTE|NORESTE|NOROESTE|SUR|SURESTE|SUROESTE|ESTE|OESTE|NORTH|NORTHEAST|NORTHWEST|SOUTH|SOUTHEAST|SOUTHWEST|EAST|WEST)")
@@ -223,7 +235,7 @@ address_parse_libpostal <- function(address_stream) {
                  unit:=postcode]
   # ... some units don't get detected in street2
   parsed[is.na(unit) & str_detect(address_stream$street2[I],unit_regex2),
-                 unit:=street2]
+                 unit:=address_stream$street2[I]]
   # ... and if the road has the unit in it, put it in unit
   parsed[is.na(unit) & str_detect(road,paste0(street_unit_regex,")")),
                  unit:=str_match(road,paste0(street_unit_regex,".*$)"))[,5]]
@@ -262,8 +274,45 @@ address_parse_libpostal <- function(address_stream) {
            parsed[get(col)=="",(col):=NA_character_]
          })
 
+  address_stream[,address:=NULL]
+
   address_stream = cbind(address_stream,libpostal=parsed)
+
 }
+
+#' address_parse
+#'
+#' Parses addresses using libpostal and handles caching of already-parsed addresses so that they're only parsed once
+#'
+#' @param address_stream data.table of addresses
+#'
+#' @return data.table of addresses parsed
+#' @importFrom dplyr collect
+address_parse <- function(address_stream) {
+  ..address_cols <- ..columns <- NULL
+
+  assert_data_table(address_stream)
+
+  cache <- tessilake:::cache_read("address_parse","deep","stream")
+
+  if(cache == FALSE) {
+    # Cache doesn't yet exist
+    address_stream <- cache <- address_parse_libpostal(address_stream)
+  } else {
+    cache <- collect(cache)
+    cache_miss <- address_stream[!cache,..address_cols,on=as.character(address_cols)]
+    cache <- rbind(cache,address_parse_libpostal(cache_miss),fill = TRUE)
+    address_stream <- cache[address_stream,on=as.character(address_cols)]
+  }
+
+  # only save needed columns
+  columns <- c(grep("^libpostal",colnames(cache),value = TRUE),address_cols)
+  tessilake:::cache_write(cache[,..columns],"address_parse","deep","stream",overwrite = TRUE)
+
+  return(address_stream)
+}
+
+# Geocoding ---------------------------------------------------------------
 
 
 
@@ -276,10 +325,7 @@ if(FALSE)  {
 
 
 
-
-# Geocoding ---------------------------------------------------------------
-
-# Add geocode info from the zipcodeR database
+  # Add geocode info from the zipcodeR database
 
 zip_code_db = as.data.table(zip_code_db)
 BAM_center = c(-73.977765,40.686876)

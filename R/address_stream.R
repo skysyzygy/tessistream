@@ -274,9 +274,7 @@ address_parse_libpostal <- function(address_stream) {
            parsed[get(col)=="",(col):=NA_character_]
          })
 
-  address_stream[,address:=NULL]
-
-  address_stream = cbind(address_stream,libpostal=parsed)
+  address_stream = cbind(address_stream[,..address_cols],libpostal=parsed)
 
 }
 
@@ -289,25 +287,40 @@ address_parse_libpostal <- function(address_stream) {
 #' @return data.table of addresses parsed
 #' @importFrom dplyr collect
 address_parse <- function(address_stream) {
-  ..address_cols <- ..columns <- NULL
 
+  address_cache(address_stream,"address_parse",address_parse_libpostal)
+
+}
+
+#' address_cache
+#'
+#' Handles caching of already-processed addresses so that they're only processed once
+#'
+#' @param address_stream data.table of addresses
+#' @param cache_name name of cache file passed to `tessilake::cache_write`
+#' @param .function function to be called for processing
+#' @param ... additional options passed to `.function`
+#'
+#' @return data.table of addresses processed
+#' @importFrom dplyr collect
+address_cache <- function(address_stream,cache_name,.function,...) {
   assert_data_table(address_stream)
 
-  cache <- tessilake:::cache_read("address_parse","deep","stream")
+  cache <- tessilake:::cache_read(cache_name,"deep","stream")
+  address_cols <- intersect(address_cols,colnames(address_stream))
 
   if(cache == FALSE) {
     # Cache doesn't yet exist
-    address_stream <- cache <- address_parse_libpostal(address_stream)
+    address_stream <- cache <- .function(address_stream,...)
   } else {
     cache <- collect(cache)
     cache_miss <- address_stream[!cache,..address_cols,on=as.character(address_cols)]
-    cache <- rbind(cache,address_parse_libpostal(cache_miss),fill = TRUE)
-    address_stream <- cache[address_stream,on=as.character(address_cols)]
+    cache <- rbind(cache,.function(cache_miss,...),fill = TRUE)
+    address_stream <- cache[address_stream[,..address_cols],on=as.character(address_cols)]
   }
 
   # only save needed columns
-  columns <- c(grep("^libpostal",colnames(cache),value = TRUE),address_cols)
-  tessilake:::cache_write(cache[,..columns],"address_parse","deep","stream",overwrite = TRUE)
+  tessilake:::cache_write(cache,cache_name,"deep","stream",overwrite = TRUE)
 
   return(address_stream)
 }

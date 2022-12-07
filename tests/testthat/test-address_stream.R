@@ -4,7 +4,7 @@ withr::local_package("dplyr")
 audit <- readRDS(test_path("address_audit.Rds"))
 addresses <- readRDS(test_path("addresses.Rds"))
 # Use this to turn off libpostal execution
-#stub(address_exec_libpostal,"Sys.which","")
+stub(address_exec_libpostal,"Sys.which","")
 
 # address_create_stream ---------------------------------------------------
 
@@ -214,8 +214,41 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
   expect_equal(parsed$libpostal.country,rep(paste("country_region","country","world_region",sep=", "),8))
 })
 
-# address_parse -----------------------------------------------------------
+# address_cache -----------------------------------------------------------
 tessilake:::local_cache_dirs()
+
+address_stream <- data.table(street1=paste(1:100,"example lane"),something="extra")
+address_processor <- function(address_stream) {
+  address_stream[,.(street1,processed=strsplit(street1," ",) %>% purrr::map_chr(1))]
+}
+
+test_that("address_cache handles cache non-existence and writes a cache file containing only address_processed cols",{
+  expect_equal(tessilake:::cache_exists("address_cache","deep","stream"),FALSE)
+  expect_message(address_cache(address_stream[1:50],"address_cache",address_processor),"Cache file not found")
+  expect_equal(tessilake:::cache_exists("address_cache","deep","stream"),TRUE)
+  expect_named(tessilake:::cache_read("address_cache","deep","stream"),c("street1","processed"))
+})
+
+test_that("address_cache only send cache misses to .function",{
+  address_result <- address_processor(address_stream)
+  address_processor <- mock(address_result[51:100])
+  address_cache(address_stream,"address_cache",address_processor)
+  expect_equal(nrow(mock_args(address_processor)[[1]][[1]]),50)
+})
+
+test_that("address_cache updates the the cache file after cache misses",{
+  expect_equal(nrow(tessilake:::cache_read("address_cache","deep","stream")),100)
+  expect_named(tessilake:::cache_read("address_cache","deep","stream"),c("street1","processed"))
+})
+
+test_that("address_parse incremental runs match address_parse full runs",{
+  incremental <- tessilake:::cache_read("address_cache","deep","stream") %>% collect
+  expect_message(full <- address_cache(address_stream,"address_cache_full",address_processor),"Cache file not found")
+
+  expect_mapequal(incremental,full)
+})
+
+# address_parse -----------------------------------------------------------
 address_stream_parsed <- data.table(house_number="30",
                                     road="lafayette ave",
                                     house="brooklyn academy of music",

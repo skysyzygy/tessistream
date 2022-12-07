@@ -6,6 +6,8 @@
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/skysyzygy/tessistream/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/skysyzygy/tessistream/actions/workflows/R-CMD-check.yaml)
+[![Codecov test
+coverage](https://codecov.io/gh/skysyzygy/tessistream/branch/main/graph/badge.svg)](https://app.codecov.io/gh/skysyzygy/tessistream?branch=main)
 <!-- badges: end -->
 
 Builds timestamped datasets based on contributions, ticket sales,

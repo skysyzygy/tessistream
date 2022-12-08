@@ -22,9 +22,11 @@ Suggests:
     withr
 Config/testthat/edition: 3
 Imports:
+    censusxy,
     checkmate,
     config,
     data.table,
+    DBI,
     digest,
     dplyr,
     future,
@@ -36,6 +38,7 @@ Imports:
     purrr,
     reticulate,
     rlang,
+    RSQLite,
     stringr,
     targets,
     tessilake,

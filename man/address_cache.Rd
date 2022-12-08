@@ -9,7 +9,7 @@ address_cache(address_stream, cache_name, .function, ...)
 \arguments{
 \item{address_stream}{data.table of addresses}
 
-\item{cache_name}{name of cache file passed to \code{tessilake::cache_write}}
+\item{cache_name}{name of cache file}
 
 \item{.function}{function to be called for processing}
 

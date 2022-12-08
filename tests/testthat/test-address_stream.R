@@ -202,7 +202,7 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
 
   parsed <- address_parse_libpostal(address_stream)
 
-  expect_equal(colnames(parsed),c(
+  expect_named(parsed,c(
     as.character(address_cols),paste0("libpostal.",
                                   c("house_number","road","unit","house","po_box","city","state","country","postcode"))))
 
@@ -222,11 +222,15 @@ address_processor <- function(address_stream) {
   address_stream[,.(street1,processed=strsplit(street1," ",) %>% purrr::map_chr(1))]
 }
 
+sqlite_file <- file.path(config::get("tessilake.deep"),"address_cache.sqlite")
+db <- NULL
+
 test_that("address_cache handles cache non-existence and writes a cache file containing only address_processed cols",{
-  expect_equal(tessilake:::cache_exists("address_cache","deep","stream"),FALSE)
-  expect_message(address_cache(address_stream[1:50],"address_cache",address_processor),"Cache file not found")
-  expect_equal(tessilake:::cache_exists("address_cache","deep","stream"),TRUE)
-  expect_named(tessilake:::cache_read("address_cache","deep","stream"),c("street1","processed"))
+  expect_false(file.exists(sqlite_file))
+  address_cache(address_stream[1:50],"address_cache",address_processor)
+  expect_true(file.exists(sqlite_file))
+  db <<- DBI::dbConnect(RSQLite::SQLite(),sqlite_file)
+  expect_named(DBI::dbReadTable(db,"address_cache"),c("street1","processed"))
 })
 
 test_that("address_cache only send cache misses to .function",{
@@ -237,13 +241,13 @@ test_that("address_cache only send cache misses to .function",{
 })
 
 test_that("address_cache updates the the cache file after cache misses",{
-  expect_equal(nrow(tessilake:::cache_read("address_cache","deep","stream")),100)
-  expect_named(tessilake:::cache_read("address_cache","deep","stream"),c("street1","processed"))
+  expect_equal(nrow(DBI::dbReadTable(db,"address_cache")),100)
+  expect_named(DBI::dbReadTable(db,"address_cache"),c("street1","processed"))
 })
 
 test_that("address_parse incremental runs match address_parse full runs",{
-  incremental <- tessilake:::cache_read("address_cache","deep","stream") %>% collect
-  expect_message(full <- address_cache(address_stream,"address_cache_full",address_processor),"Cache file not found")
+  incremental <- DBI::dbReadTable(db,"address_cache") %>% collect %>% setDT
+  full <- address_cache(address_stream,"address_cache_full",address_processor)
 
   expect_mapequal(incremental,full)
 })
@@ -255,8 +259,13 @@ address_stream_parsed <- data.table(house_number="30",
                                     city="brooklyn",
                                     state="ny",
                                     country=NA,
+                                    po_box=NA,
                                     unit=NA,
                                     postcode="11217")
+
+sqlite_file <- file.path(config::get("tessilake.deep"),"address_parse.sqlite")
+DBI::dbDisconnect(db)
+
 
 test_that("address_parse handles cache non-existence and writes a cache file containing only address_cols and libpostal cols",{
 
@@ -270,10 +279,12 @@ test_that("address_parse handles cache non-existence and writes a cache file con
   stub(address_parse_libpostal,"address_exec_libpostal",address_stream_parsed)
   stub(address_parse,"address_parse_libpostal",address_parse_libpostal)
 
-  expect_equal(tessilake:::cache_exists("address_parse","deep","stream"),FALSE)
-  expect_message(address_parse(address_stream),"Cache file not found")
-  expect_equal(tessilake:::cache_exists("address_parse","deep","stream"),TRUE)
-  expect_named(tessilake:::cache_read("address_parse","deep","stream"),
+  expect_false(file.exists(sqlite_file))
+  address_parse(address_stream)
+  expect_true(file.exists(sqlite_file))
+  db <<- DBI::dbConnect(RSQLite::SQLite(),sqlite_file)
+
+  expect_named(DBI::dbReadTable(db,"address_parse"),
                as.character(c(address_cols,paste0("libpostal.",colnames(address_stream_parsed)))),
                ignore.order = TRUE)
 
@@ -289,7 +300,7 @@ test_that("address_parse only send cache misses to address_parse_libpostal",{
                                postal_code=c("11217","00000"),
                                country=c("","US"),
                                # should not be a cache miss
-                               primary_ind=c("Y","N")) %>% setDT
+                               primary_ind=c("Y","N")) %>% lapply(as.character) %>% setDT
 
   address_stream_parsed <- data.table::rbindlist(rep(list(address_stream_parsed),63))
 
@@ -303,8 +314,8 @@ test_that("address_parse only send cache misses to address_parse_libpostal",{
 
 test_that("address_parse updates the the cache file after cache misses",{
 
-  expect_equal(nrow(tessilake:::cache_read("address_parse","deep","stream")),64)
-  expect_named(tessilake:::cache_read("address_parse","deep","stream"),
+  expect_equal(nrow(DBI::dbReadTable(db,"address_parse")),64)
+  expect_named(DBI::dbReadTable(db,"address_parse"),
                as.character(c(address_cols,paste0("libpostal.",colnames(address_stream_parsed)))),
                ignore.order = TRUE)
 })
@@ -317,13 +328,14 @@ test_that("address_parse incremental runs match address_parse full runs",{
                                postal_code="11217",
                                country="")
 
-  tessilake:::cache_delete("address_parse","deep","stream")
+  DBI::dbDisconnect(db)
+  file.remove(sqlite_file)
 
   stub(address_parse_libpostal,"address_exec_libpostal",address_stream_parsed[,house_number])
   stub(address_parse,"address_parse_libpostal",address_parse_libpostal)
 
-  expect_equal(tessilake:::cache_exists("incremental","deep","stream"),FALSE)
-  expect_message(address_parse(address_stream[1]),"Cache file not found")
+  expect_false(file.exists(sqlite_file))
+  address_parse(address_stream[1])
 
   rm(address_parse_libpostal,address_parse)
 
@@ -333,12 +345,12 @@ test_that("address_parse incremental runs match address_parse full runs",{
   incremental <- address_parse(address_stream)
 
   rm(address_parse_libpostal,address_parse)
-  tessilake:::cache_delete("address_parse","deep","stream")
+  file.remove(sqlite_file)
 
   stub(address_parse_libpostal,"address_exec_libpostal",rbind(address_stream_parsed[,house_number],address_stream_parsed,fill=T))
   stub(address_parse,"address_parse_libpostal",address_parse_libpostal)
 
-  expect_message(full <- address_parse(address_stream),"Cache file not found")
+  full <- address_parse(address_stream)
 
   expect_mapequal(incremental,full)
 })

@@ -298,14 +298,18 @@ address_parse <- function(address_stream) {
 #' @param address_stream data.table of addresses
 #' @param cache_name name of cache file
 #' @param .function function to be called for processing
+#' @param db_name path to sqlite database, defaults to `tessilake:::cache_path("address_stream.sqlite","deep","stream")`
 #' @param ... additional options passed to `.function`
 #'
 #' @return data.table of addresses processed
 #' @importFrom dplyr collect
-address_cache <- function(address_stream,cache_name,.function,...) {
+address_cache <- function(address_stream, cache_name, .function, db_name = tessilake:::cache_path("address_stream.sqlite","deep","stream"),...) {
   assert_data_table(address_stream)
 
-  cache_db <- DBI::dbConnect(RSQLite::SQLite(), file.path(config::get("tessilake.deep"),paste0(cache_name,".sqlite")))
+  if(!dir.exists(dirname(db_name)))
+    dir.create(dirname(db_name))
+
+  cache_db <- DBI::dbConnect(RSQLite::SQLite(), db_name)
 
   address_cols <- intersect(address_cols,colnames(address_stream))
 

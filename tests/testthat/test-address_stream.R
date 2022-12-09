@@ -222,7 +222,7 @@ address_processor <- function(address_stream) {
   address_stream[,.(street1,processed=strsplit(street1," ",) %>% purrr::map_chr(1))]
 }
 
-sqlite_file <- file.path(config::get("tessilake.deep"),"address_cache.sqlite")
+sqlite_file <- tessilake:::cache_path("address_stream.sqlite","deep","stream")
 db <- NULL
 
 test_that("address_cache handles cache non-existence and writes a cache file containing only address_processed cols",{
@@ -263,9 +263,8 @@ address_stream_parsed <- data.table(house_number="30",
                                     unit=NA,
                                     postcode="11217")
 
-sqlite_file <- file.path(config::get("tessilake.deep"),"address_parse.sqlite")
 DBI::dbDisconnect(db)
-
+file.remove(tessilake:::cache_path("address_stream.sqlite","deep","stream"))
 
 test_that("address_parse handles cache non-existence and writes a cache file containing only address_cols and libpostal cols",{
 

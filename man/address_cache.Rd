@@ -4,7 +4,13 @@
 \alias{address_cache}
 \title{address_cache}
 \usage{
-address_cache(address_stream, cache_name, .function, ...)
+address_cache(
+  address_stream,
+  cache_name,
+  .function,
+  db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"),
+  ...
+)
 }
 \arguments{
 \item{address_stream}{data.table of addresses}
@@ -12,6 +18,8 @@ address_cache(address_stream, cache_name, .function, ...)
 \item{cache_name}{name of cache file}
 
 \item{.function}{function to be called for processing}
+
+\item{db_name}{path to sqlite database, defaults to \code{tessilake:::cache_path("address_stream.sqlite","deep","stream")}}
 
 \item{...}{additional options passed to \code{.function}}
 }

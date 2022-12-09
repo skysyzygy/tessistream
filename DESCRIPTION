@@ -24,7 +24,6 @@ Config/testthat/edition: 3
 Imports:
     censusxy,
     checkmate,
-    config,
     data.table,
     DBI,
     digest,
@@ -36,7 +35,6 @@ Imports:
     lubridate,
     magrittr,
     purrr,
-    reticulate,
     rlang,
     RSQLite,
     stringr,

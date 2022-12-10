@@ -37,6 +37,7 @@ Imports:
     purrr,
     rlang,
     RSQLite,
+    sf,
     stringr,
     targets,
     tessilake,

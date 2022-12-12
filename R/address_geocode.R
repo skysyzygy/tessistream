@@ -15,7 +15,7 @@
 #' @importFrom tessilake setleftjoin
 address_geocode_census <- function(address_stream) {
   . <- isDefault <- id <- vintageName <- timestamp <- street1 <- street2 <- city <- state <- postal_code <- NULL
-  libpostal.houuse_number <- libpostal.road <- libpostal.city <- libpostal.postalcode <- NULL
+  libpostal.house_number <- libpostal.road <- libpostal.city <- libpostal.state <- libpostal.postcode <- NULL
   census.state <- census.postal_code <- census.city <- census.vintageName <- census.type <- cxy_quality <- NULL
 
   assert_data_table(address_stream)

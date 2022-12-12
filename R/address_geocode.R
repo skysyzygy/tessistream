@@ -2,11 +2,11 @@
 
 #' address_geocode_census
 #'
-#' Geocodes addresses using the US census geocoding API. Tries each address up to three times, using `libpostal` parsing, street1, and street2.
+#' Geocodes addresses using the US census geocoding API. Tries each address up to three times, using `libpostal` parsing, `street1`, and `street2`.
 #'
 #' @param address_stream data.table of addresses, must include `address_cols` and `timestamp`
 #'
-#' @return data.table of addresses, one row per unique parseable address, with geocode information appended
+#' @return data.table of addresses, one row per unique geocoded address, with census geocode information appended
 #'
 #' @importFrom censusxy cxy_benchmarks cxy_vintages cxy_geocode
 #' @importFrom stringr str_extract
@@ -43,56 +43,62 @@ address_geocode_census <- function(address_stream) {
     address_parse <- DBI::dbReadTable(db,"address_parse")
     setleftjoin(address_stream,address_parse,by=as.character(address_cols))
 
-    census = rbind(census,
-                   address_stream[,.(street=paste(libpostal.house_number,libpostal.road),
+    census = rbind(address_stream[,.(street=paste(libpostal.house_number,libpostal.road),
                                      city=libpostal.city,state=libpostal.state,
-                                     postal_code=libpostal.postcode,vintageName,type="libpostal")])
+                                     postal_code=libpostal.postcode,vintageName,type="libpostal")],
+                   census)
     DBI::dbDisconnect(db)
   }
 
-  # build queue of addresses to test
-  address_stream <- cbind(address_stream[,..address_cols],census=census) %>%
+  # Build table to match address_stream to census queries
+  census_cols <- setdiff(colnames(census),"type")
+  census[,I:=.GRP,by=census_cols]
+  address_stream_census <- cbind(address_stream[,..address_cols],I=census$I)
+
   # only look at addresses that we have a chance of matching with the census matcher.
-    .[ !is.na(census.state) & !is.na(census.postal_code) & !is.na(census.city) & !is.na(census.vintageName) &
-      grepl("^\\d{5,}$",census.postal_code) & grepl("[1-9]",census.postal_code) &
-      grepl("^[A-z]",census.city) & grepl("^[A-z]",census.state) ]
+  census <- census[ !is.na(state) & !is.na(postal_code) & !is.na(city) & !is.na(vintageName) &
+      grepl("^\\d{5,}$",postal_code) & grepl("[1-9]",postal_code) &
+      grepl("^[A-z]",city) & grepl("^[A-z]",state) ] %>%
+    # and deduplicate
+      .[,.SD[1],by=census_cols]
 
-  geocode <- address_stream[census.type=="libpostal"] %>%
-    address_exec_census() %>% .[ cxy_quality == "Exact" ]
+  geocode <- census[type=="libpostal"] %>% address_exec_census()
 
-  geocode <- address_stream[census.type=="street1"][!geocode,on=c(as.character(address_cols),"census.vintageName")] %>%
-    address_exec_census() %>% .[ cxy_quality == "Exact" ] %>% rbind(geocode)
+  geocode <- census[type=="street1"] %>%
+    .[I %in% address_stream_census[!address_stream_census[geocode[cxy_quality=="Exact"],on="I"],on=as.character(address_cols)]$I] %>%
+    address_exec_census() %>% rbind(geocode)
 
-  geocode <- address_stream[census.type=="street2"][!geocode,on=c(as.character(address_cols),"census.vintageName")] %>%
-    address_exec_census() %>% .[ cxy_quality == "Exact" ] %>% rbind(geocode)
+  geocode <- census[type=="street2"] %>%
+    .[I %in% address_stream_census[!address_stream_census[geocode[cxy_quality=="Exact"],on="I"],on=as.character(address_cols)]$I] %>%
+    address_exec_census() %>% rbind(geocode)
 
-  geocode
+  address_stream_census[geocode,on="I"][,I:=NULL]
 
 }
 
 
 #' address_exec_census
 #'
-#' @param address_stream data.table of addressses, containing at least `census.street`, `census.city`, `census.state`, `census.postal_code`, `census.vintageName`
+#' @param address_stream data.table of addressses, containing at least `street`, `city`, `state`, `postal_code`, `vintageName`
 #'
 #' @return data.table with census geocoding data appended as additional columns
 #' @importFrom censusxy cxy_geocode cxy_benchmarks
 #' @importFrom data.table rbindlist
 #'
 address_exec_census <- function(address_stream) {
-  . <- isDefault <- id <- census.vintageName <- benchmarkName <- NULL
+  . <- isDefault <- id <- vintageName <- benchmarkName <- NULL
 
   assert_data_table(address_stream)
-  assert_names(colnames(address_stream),must.include = c("census.street","census.city","census.state","census.postal_code","census.vintageName"))
+  assert_names(colnames(address_stream),must.include = c("street","city","state","postal_code","vintageName"))
 
   if(nrow(address_stream) == 0)
     return(cbind(address_stream,cxy_quality=character(0)))
 
   benchmark = cxy_benchmarks() %>% setDT %>% .[isDefault == TRUE,benchmarkName]
 
-  address_stream[,cxy_geocode(.SD,street = "census.street",city = "census.city",state = "census.state",zip = "census.postal_code",vintage = census.vintageName[[1]],
+  address_stream[,cxy_geocode(.SD,street = "street",city = "city",state = "state",zip = "postal_code",vintage = vintageName[[1]],
               return = "geographies",benchmark = benchmark,output = "full",class = "dataframe"),
-  by="census.vintageName"]
+  by="vintageName"]
 
 }
 
@@ -164,6 +170,9 @@ address_exec_census <- function(address_stream) {
             (google.status!="OK" | is.na(google.status)) & street1_geocode$google.status=="OK",
           colnames(street1_geocode):=street1_geocode[I]]
 
+}
+
+if(FALSE) {
   # TEST: Address stream and geocode are the same length
   testit::assert(nrow(addressStream)==nrow(geocode))
 

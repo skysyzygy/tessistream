@@ -13,5 +13,5 @@ address_exec_census(address_stream)
 data.table with census geocoding data appended as additional columns
 }
 \description{
-address_exec_census
+Wrapper for \link[censusxy:cxy_geocode]{censusxy::cxy_geocode}
 }

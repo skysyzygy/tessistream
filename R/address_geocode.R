@@ -56,7 +56,7 @@ address_geocode_census <- function(address_stream) {
   address_stream_census <- cbind(address_stream[,..address_cols],I=census$I)
 
   # only look at addresses that we have a chance of matching with the census matcher.
-  census <- census[ !is.na(state) & !is.na(postal_code) & !is.na(city) & !is.na(vintageName) &
+  census <- census[!is.na(street) & !is.na(city) & !is.na(state) & !is.na(postal_code) & !is.na(vintageName) &
       grepl("^\\d{5,}$",postal_code) & grepl("[1-9]",postal_code) &
       grepl("^[A-z]",city) & grepl("^[A-z]",state) ] %>%
     # and deduplicate

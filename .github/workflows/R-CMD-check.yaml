@@ -35,7 +35,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            $GITHUB_WORKSPACE/libpostal
+            ~/libpostal
           key: libpostal-${{ runner.os }}
 
       - name: install libpostal

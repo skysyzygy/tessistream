@@ -25,7 +25,7 @@ address_load_audit <- function(freshness) {
   table_name <- column_updated <- group_customer_no <- new_value <- old_value <- alternate_key <- userid <- NULL
 
   # Address changes
-  aa <- read_tessi("audit", freshness = freshness) %>%
+  read_tessi("audit", freshness = freshness) %>%
     filter(table_name == "T_ADDRESS" & column_updated %in% c(address_cols, "primary_ind")) %>%
     transmute(group_customer_no,
       timestamp = date,
@@ -67,10 +67,10 @@ address_load <- function(freshness) {
         address_no,
         last_updated_by
       )],
-      a[, names(cols), with = F] %>%
+      a[, names(cols), with = FALSE] %>%
         setnames(names(cols), cols)
     ),
-    fill = T
+    fill = TRUE
   )
 }
 
@@ -185,7 +185,7 @@ address_exec_libpostal <- function(addresses) {
     addresses <- enc2utf8(addresses)
     # and stop writeLines from re-encoding
     Encoding(addresses) <- "bytes"
-    ret <- system2(libpostal, stdout = T, input = addresses)
+    ret <- system2(libpostal, stdout = TRUE, input = addresses)
   })
 
 
@@ -206,7 +206,7 @@ address_exec_libpostal <- function(addresses) {
 #' @importFrom dplyr any_of distinct
 #' @describeIn address_parse handle parsing by libpostal
 address_parse_libpostal <- function(address_stream) {
-  address <- unit <- postcode <- street2 <- road <- NULL
+  address <- unit <- postcode <- road <- NULL
 
   assert_data_table(address_stream)
 
@@ -216,7 +216,7 @@ address_parse_libpostal <- function(address_stream) {
     setDT()
 
   # make address string for libpostal
-  address_stream[, address := unite(.SD, "address", sep = ", ", na.rm = T), .SDcols = address_cols]
+  address_stream[, address := unite(.SD, "address", sep = ", ", na.rm = TRUE), .SDcols = address_cols]
   addresses <- tolower(address_stream[!is.na(address), address])
 
   # TODO: map english numbers to numerals
@@ -281,25 +281,25 @@ address_parse_libpostal <- function(address_stream) {
 
   # Now merge everything else together
   if (any(c("unit", "level", "entrance", "staircase") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = T)
+    parsed <- parsed %>% unite("unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = TRUE)
   }
   if (any(c("house", "category", "near") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("house", any_of(c("house", "category", "near")), sep = " ", na.rm = T)
+    parsed <- parsed %>% unite("house", any_of(c("house", "category", "near")), sep = " ", na.rm = TRUE)
   }
   if (any(c("suburb", "city_district", "city", "island") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = T)
+    parsed <- parsed %>% unite("city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = TRUE)
   }
   if (any(c("state_district", "state") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("state", any_of(c("state_district", "state")), sep = ", ", na.rm = T)
+    parsed <- parsed %>% unite("state", any_of(c("state_district", "state")), sep = ", ", na.rm = TRUE)
   }
   if (any(c("country_region", "country", "world_region") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = T)
+    parsed <- parsed %>% unite("country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = TRUE)
   }
 
   # ok maybe we're finally done. Let's clean up
   parsed_cols <- c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode")
 
-  parsed <- rbind(parsed, structure(rep(list(character(0)), length(parsed_cols)), names = parsed_cols), fill = T)
+  parsed <- rbind(parsed, structure(rep(list(character(0)), length(parsed_cols)), names = parsed_cols), fill = TRUE)
 
   lapply(
     colnames(parsed),

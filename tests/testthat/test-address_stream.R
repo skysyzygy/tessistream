@@ -382,7 +382,7 @@ test_that("address_parse incremental runs match address_parse full runs", {
   rm(address_parse_libpostal, address_parse)
   file.remove(sqlite_file)
 
-  stub(address_parse_libpostal, "address_exec_libpostal", rbind(address_stream_parsed[, house_number], address_stream_parsed, fill = T))
+  stub(address_parse_libpostal, "address_exec_libpostal", rbind(address_stream_parsed[, house_number], address_stream_parsed, fill = TRUE))
   stub(address_parse, "address_parse_libpostal", address_parse_libpostal)
 
   full <- address_parse(address_stream)

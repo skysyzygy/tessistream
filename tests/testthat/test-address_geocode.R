@@ -85,7 +85,7 @@ test_that("address_geocode_census adds parsing to address_stream if it exists", 
 })
 
 test_that("address_geocode_census doesn't send duplicate addresses", {
-  cxy_geocode <- mock(cbind(rlang::env_get(rlang::caller_env(3), ".SD"), cxy_quality = "Really bad"), cycle = T)
+  cxy_geocode <- mock(cbind(rlang::env_get(rlang::caller_env(3), ".SD"), cxy_quality = "Really bad"), cycle = TRUE)
   stub(address_exec_census, "cxy_geocode", cxy_geocode)
   stub(address_geocode_census, "address_exec_census", address_exec_census)
 
@@ -107,7 +107,7 @@ test_that("address_geocode_census doesn't send duplicate addresses", {
 })
 
 test_that("address_geocode_census only sends US addresses to census parser", {
-  cxy_geocode <- mock(cbind(rlang::env_get(rlang::caller_env(3), ".SD"), cxy_quality = "Really bad"), cycle = T)
+  cxy_geocode <- mock(cbind(rlang::env_get(rlang::caller_env(3), ".SD"), cxy_quality = "Really bad"), cycle = TRUE)
   stub(address_exec_census, "cxy_geocode", cxy_geocode)
   stub(address_geocode_census, "address_exec_census", address_exec_census)
 
@@ -133,7 +133,7 @@ test_that("address_geocode_census only sends US addresses to census parser", {
 })
 
 test_that("address_geocode_census does not retry successfully geocoded addresses", {
-  cxy_geocode <- mock(cbind(rlang::env_get(rlang::caller_env(3), ".SD"), cxy_quality = "Exact"), cycle = T)
+  cxy_geocode <- mock(cbind(rlang::env_get(rlang::caller_env(3), ".SD"), cxy_quality = "Exact"), cycle = TRUE)
   stub(address_exec_census, "cxy_geocode", cxy_geocode)
   stub(address_geocode_census, "address_exec_census", address_exec_census)
 

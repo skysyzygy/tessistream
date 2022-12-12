@@ -92,7 +92,7 @@ setnafill <- function(x, type = c("const", "locf", "nocb"), fill = NA, cols = se
 setnafill_factor_character <- function(x, type = "const", fill = NA, cols = seq_along(x)) {
   args <- as.list(match.call())[-1]
 
-  classes <- lapply(x[, cols, with = F], class)
+  classes <- lapply(x[, cols, with = FALSE], class)
   char_fact_cols <- cols[classes %in% c("character", "factor")]
   char_cols <- cols[classes %in% "character"]
 
@@ -101,7 +101,7 @@ setnafill_factor_character <- function(x, type = "const", fill = NA, cols = seq_
   }
 
   x[, (char_fact_cols) := lapply(.SD, factor), .SDcols = char_fact_cols]
-  levels <- lapply(x[, char_fact_cols, with = F], levels)
+  levels <- lapply(x[, char_fact_cols, with = FALSE], levels)
   x[, (char_fact_cols) := lapply(.SD, as.integer), .SDcols = char_fact_cols]
 
   if (!missing(fill)) {
@@ -149,8 +149,8 @@ setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
   roll <- ifelse(type == "locf", Inf, -Inf)
 
   lapply(cols, function(col) {
-    i <- is.na(x[, col, with = F][[1]])
-    x[i, (col) := x[!i][x[i], col, on = na.omit(c(by, "I")), roll = roll, with = F]]
+    i <- is.na(x[, col, with = FALSE][[1]])
+    x[i, (col) := x[!i][x[i], col, on = na.omit(c(by, "I")), roll = roll, with = FALSE]]
   })
 
   x[, I := NULL]

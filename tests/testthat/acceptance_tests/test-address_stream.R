@@ -10,7 +10,7 @@ aCurrent <- a[, .(group_customer_no, address_no, last_updated_by,
   .[, `:=`(old_value = NA, new_value = trimws(tolower(new_value)))]
 
 aTest <- aAudit[, .SD[.N], by = c("address_no", "column_updated")] %>%
-  merge(aCurrent, by = c("address_no", "column_updated"), all.x = T, suffix = c(".a", ".c"))
+  merge(aCurrent, by = c("address_no", "column_updated"), all.x = TRUE, suffix = c(".a", ".c"))
 
 aTestFail <- aTest[column_updated %in% c("street1", "city", "state", "postal_code", "primary_ind")] %>%
   .[column_updated == "postal_code", c("new_value.a", "new_value.c") := lapply(.SD, substr, 1, 5),
@@ -35,7 +35,7 @@ testit::assert(aAudit[, .(old_value == lag(new_value) & !is.na(old_value) |
   } > .999)
 
 # 99.9% of customers have a primary address
-testit::assert(nrow(addressStream[, any(primary_ind == "y"), by = "group_customer_no"][V1 == T]) /
+testit::assert(nrow(addressStream[, any(primary_ind == "y"), by = "group_customer_no"][V1 == TRUE]) /
   dplyr::n_distinct(addressStream$group_customer_no) > .999)
 # 99% of addresses now have a postal code
 testit::assert(nrow(addressStream[is.na(postal_code)]) / nrow(addressStream) < .01)

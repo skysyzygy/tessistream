@@ -35,13 +35,13 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            $RUNNER_TEMP/libpostal
+            $GITHUB_WORKSPACE/libpostal
           key: libpostal-${{ runner.os }}
 
       - name: install libpostal
         run: |
-          bash scripts/install_libpostal.sh "$RUNNER_TEMP" "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/libpostal/src" >> $GITHUB_PATH
+          bash scripts/install_libpostal.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE"
+          echo "$GITHUB_WORKSPACE/libpostal/src" >> $GITHUB_PATH
         shell: bash
 
       - uses: r-lib/actions/setup-r-dependencies@v2

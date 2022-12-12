@@ -3,7 +3,6 @@ withr::local_package("mockery")
 
 tessilake:::local_cache_dirs()
 
-
 #stub(address_geocode_census,"address_exec_census",function(.){dplyr::mutate(.,cxy_quality="Oops")})
 
 # address_exec_census -----------------------------------------------------
@@ -42,7 +41,7 @@ address_stream <- data.table(street1="30 Lafayette Ave",
                              country="USA",
                              postal_code="11217")
 
-rm(address_geocode_census)
+suppressWarnings(rm(address_geocode_census))
 
 test_that("address_geocode_census adds census vintages to address_stream",{
   stub(address_geocode_census,"setleftjoin",function(...){rlang::abort(data=setleftjoin(...),class="setleftjoin")})
@@ -70,7 +69,7 @@ test_that("address_geocode_census adds parsing to address_stream if it exists",{
   address_stream_parsed <- function(address_stream){cbind(address_stream,libpostal=data.table(house_number="30",road="Lafaytte Ave",city="Brooklyn",state="NY",postcode="11217"))}
   address_cache(address_stream,"address_parse",address_stream_parsed)
 
-  cnd <- expect_message(address_geocode_census(address_stream[,timestamp:=lubridate::now()]),class="setleftjoin")
+  cnd <- expect_message(expect_message(address_geocode_census(address_stream[,timestamp:=lubridate::now()]),class="setleftjoin"),class="setleftjoin")
   expect_names(colnames(cnd$data),must.include=paste0("libpostal.",c("house_number","road","city","state","postcode")))
 })
 

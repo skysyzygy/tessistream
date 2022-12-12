@@ -86,7 +86,7 @@ address_exec_census <- function(address_stream) {
   if(nrow(address_stream) == 0)
     return(cbind(address_stream,cxy_quality=character(0)))
 
-  benchmark = cxy_benchmarks() %>% setDT %>% .[isDefault == TRUE,id]
+  benchmark = cxy_benchmarks() %>% setDT %>% .[isDefault == TRUE,benchmarkName]
 
   address_stream[,cxy_geocode(.SD,street = "census.street",city = "census.city",state = "census.state",zip = "census.postal_code",vintage = census.vintageName[[1]],
               return = "geographies",benchmark = benchmark,output = "full",class = "dataframe"),

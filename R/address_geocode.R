@@ -15,6 +15,8 @@
 #' @importFrom tessilake setleftjoin
 address_geocode_census <- function(address_stream) {
   . <- isDefault <- id <- vintageName <- timestamp <- street1 <- street2 <- city <- state <- postal_code <- NULL
+  libpostal.houuse_number <- libpostal.road <- libpostal.city <- libpostal.postalcode <- NULL
+  census.state <- census.postal_code <- census.city <- census.vintageName <- census.type <- cxy_quality <- NULL
 
   assert_data_table(address_stream)
   assert_names(colnames(address_stream),must.include = c("timestamp",address_cols))
@@ -56,7 +58,7 @@ address_geocode_census <- function(address_stream) {
       grepl("^[A-z]",census.city) & grepl("^[A-z]",census.state) ]
 
   geocode <- address_stream[census.type=="libpostal"] %>%
-                              address_exec_census() %>% .[ cxy_quality == "Exact" ]
+    address_exec_census() %>% .[ cxy_quality == "Exact" ]
 
   geocode <- address_stream[census.type=="street1"][!geocode,on=c(as.character(address_cols),"census.vintageName")] %>%
     address_exec_census() %>% .[ cxy_quality == "Exact" ] %>% rbind(geocode)
@@ -78,7 +80,7 @@ address_geocode_census <- function(address_stream) {
 #' @importFrom data.table rbindlist
 #'
 address_exec_census <- function(address_stream) {
-  . <- isDefault <- id <- census.vintageName <- NULL
+  . <- isDefault <- id <- census.vintageName <- benchmarkName <- NULL
 
   assert_data_table(address_stream)
   assert_names(colnames(address_stream),must.include = c("census.street","census.city","census.state","census.postal_code","census.vintageName"))

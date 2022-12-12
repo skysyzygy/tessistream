@@ -9,12 +9,14 @@
 # iwave_append
 # Sys.setenv("TAR_PROJECT"="address_stream") # nolint
 
-address_cols = c("street1"="street1",
-                 "street2"="street2",
-                 "city"="city",
-                 "state_desc"="state",
-                 "postal_code"="postal_code",
-                 "country_desc"="country")
+address_cols <- c(
+  "street1" = "street1",
+  "street2" = "street2",
+  "city" = "city",
+  "state_desc" = "state",
+  "postal_code" = "postal_code",
+  "country_desc" = "country"
+)
 
 #' @importFrom dplyr transmute select filter coalesce
 #' @importFrom data.table setDT dcast
@@ -23,16 +25,18 @@ address_load_audit <- function(freshness) {
   table_name <- column_updated <- group_customer_no <- new_value <- old_value <- alternate_key <- userid <- NULL
 
   # Address changes
-  aa = read_tessi("audit", freshness = freshness) %>%
-    filter(table_name=="T_ADDRESS" & column_updated %in% c(address_cols,"primary_ind")) %>%
+  aa <- read_tessi("audit", freshness = freshness) %>%
+    filter(table_name == "T_ADDRESS" & column_updated %in% c(address_cols, "primary_ind")) %>%
     transmute(group_customer_no,
-              timestamp=date,
-              new_value=coalesce(new_value,""),
-              old_value=coalesce(old_value,""),
-              address_no=as.integer(as.character(alternate_key)),
-              last_updated_by=userid,
-              column_updated,old_value,new_value) %>%
-    collect() %>% setDT
+      timestamp = date,
+      new_value = coalesce(new_value, ""),
+      old_value = coalesce(old_value, ""),
+      address_no = as.integer(as.character(alternate_key)),
+      last_updated_by = userid,
+      column_updated, old_value, new_value
+    ) %>%
+    collect() %>%
+    setDT()
 }
 
 #' @importFrom dplyr transmute select filter
@@ -41,23 +45,31 @@ address_load_audit <- function(freshness) {
 address_load <- function(freshness) {
   . <- group_customer_no <- create_dt <- address_no <- created_by <- last_update_dt <- last_updated_by <- NULL
 
-  a = read_tessi("addresses", freshness = freshness) %>% collect %>% setDT
+  a <- read_tessi("addresses", freshness = freshness) %>%
+    collect() %>%
+    setDT()
 
-  cols = c(address_cols,primary_ind="primary_ind")
+  cols <- c(address_cols, primary_ind = "primary_ind")
 
   rbind(
     # Address creations
-    a[,.(group_customer_no,event_type="Address",event_subtype="Creation",
-         timestamp=create_dt,
-         address_no,
-         last_updated_by=created_by)],
+    a[, .(group_customer_no,
+      event_type = "Address", event_subtype = "Creation",
+      timestamp = create_dt,
+      address_no,
+      last_updated_by = created_by
+    )],
     # Address last modifications
-    cbind(a[,.(group_customer_no,event_type="Address",event_subtype="Current",
-         timestamp=last_update_dt,
-         address_no,
-         last_updated_by)],
-         a[,names(cols),with=F] %>%
-           setnames(names(cols),cols)),
+    cbind(
+      a[, .(group_customer_no,
+        event_type = "Address", event_subtype = "Current",
+        timestamp = last_update_dt,
+        address_no,
+        last_updated_by
+      )],
+      a[, names(cols), with = F] %>%
+        setnames(names(cols), cols)
+    ),
     fill = T
   )
 }
@@ -74,47 +86,49 @@ address_load <- function(freshness) {
 #' @importFrom tessilake read_tessi read_sql_table
 #' @importFrom dplyr collect transmute filter select
 #' @importFrom data.table setDT setkey
-address_create_stream <- function(freshness = as.difftime(7,units="days")) {
+address_create_stream <- function(freshness = as.difftime(7, units = "days")) {
   . <- address_no <- timestamp <- NULL
 
-  aa = address_load_audit(freshness)
+  aa <- address_load_audit(freshness)
 
-  address_audit_stream = aa %>%
-    dcast(group_customer_no + timestamp + address_no + last_updated_by ~ column_updated, value.var="new_value") %>%
-    .[,`:=`(event_type="Address",event_subtype="Change")]
+  address_audit_stream <- aa %>%
+    dcast(group_customer_no + timestamp + address_no + last_updated_by ~ column_updated, value.var = "new_value") %>%
+    .[, `:=`(event_type = "Address", event_subtype = "Change")]
 
-  address_audit_creation = aa %>% .[,.SD[1],by=c("address_no","column_updated")] %>%
-    dcast(address_no ~ column_updated, value.var="old_value") %>%
-    .[,`:=`(event_type="Address",event_subtype="Creation")]
+  address_audit_creation <- aa %>%
+    .[, .SD[1], by = c("address_no", "column_updated")] %>%
+    dcast(address_no ~ column_updated, value.var = "old_value") %>%
+    .[, `:=`(event_type = "Address", event_subtype = "Creation")]
 
-  address_stream = rbind(address_load(freshness), address_audit_stream, fill = TRUE)
+  address_stream <- rbind(address_load(freshness), address_audit_stream, fill = TRUE)
 
-  cols <- c(address_cols,"primary_ind")
+  cols <- c(address_cols, "primary_ind")
 
   # Address creation fill-up based on audit old_value -- all other old_values are captured within the audit table itself
   address_stream[address_audit_creation,
-                 (cols):=mget(paste0("i.",cols),ifnotfound = NA),
-                 on=c("address_no","event_subtype")]
+    (cols) := mget(paste0("i.", cols), ifnotfound = NA),
+    on = c("address_no", "event_subtype")
+  ]
 
-  setkey(address_stream,address_no,timestamp)
+  setkey(address_stream, address_no, timestamp)
 
   address_fill_debounce_stream(address_stream)
 }
 
 address_fill_debounce_stream <- function(address_stream) {
   event_subtype <- address_no <- timestamp <- group_customer_no <- NULL
-  cols <- c(address_cols,"primary_ind")
+  cols <- c(address_cols, "primary_ind")
 
   # Factorize event_subtype
-  address_stream[,event_subtype:=factor(event_subtype,levels=c("Creation","Change","Current"))]
+  address_stream[, event_subtype := factor(event_subtype, levels = c("Creation", "Change", "Current"))]
 
-  setkey(address_stream,address_no,event_subtype,timestamp)
+  setkey(address_stream, address_no, event_subtype, timestamp)
   # Fill-down changes
-  setnafill(address_stream,"locf",cols = cols, by = "address_no")
+  setnafill(address_stream, "locf", cols = cols, by = "address_no")
   # And then fill back up for non-changes
-  setnafill(address_stream,"nocb",cols = cols, by = "address_no")
+  setnafill(address_stream, "nocb", cols = cols, by = "address_no")
 
-  stream_debounce(address_stream,group_customer_no,address_no)
+  stream_debounce(address_stream, group_customer_no, address_no)
 }
 
 # Street cleaning ---------------------------------------------------------
@@ -132,18 +146,19 @@ address_clean <- function(address_stream) {
   street1 <- city <- state <- postal_code <- NULL
 
   # Remove newlines, tabs, etc.
-  address_stream[,(address_cols):=map(.SD,~str_replace_all(.,"\\s+"," ")),.SDcols=address_cols]
+  address_stream[, (address_cols) := map(.SD, ~ str_replace_all(., "\\s+", " ")), .SDcols = address_cols]
 
   # Lowercase and trim whitespace from address fields
-  address_stream[,(address_cols):=lapply(.SD,function(.) {trimws(tolower(.))}),.SDcols=address_cols]
+  address_stream[, (address_cols) := lapply(.SD, function(.) {
+    trimws(tolower(.))
+  }), .SDcols = address_cols]
 
   # remove junk info
-  lapply(address_cols,function(col){
-        address_stream[grepl("^(web add|unknown|no add)|^$",get(col)),(col):=NA_character_]
+  lapply(address_cols, function(col) {
+    address_stream[grepl("^(web add|unknown|no add)|^$", get(col)), (col) := NA_character_]
   })
 
-  address_stream = address_stream[!(grepl("^30 lafayette",street1) & (city=="brooklyn" & state=="ny" | substr(postal_code,1,5)=="11217"))]
-
+  address_stream <- address_stream[!(grepl("^30 lafayette", street1) & (city == "brooklyn" & state == "ny" | substr(postal_code, 1, 5) == "11217"))]
 }
 
 #' address_exec_libpostal
@@ -159,24 +174,25 @@ address_clean <- function(address_stream) {
 address_exec_libpostal <- function(addresses) {
   . <- NULL
 
-  assert_character(addresses,any.missing=FALSE,min.len=1)
+  assert_character(addresses, any.missing = FALSE, min.len = 1)
   libpostal <- Sys.which("address_parser")
-  if(libpostal=="")
+  if (libpostal == "") {
     stop("libpostal address_parser executable not found, add to PATH")
+  }
 
-  ret = withr::with_dir(tempdir(),{
+  ret <- withr::with_dir(tempdir(), {
     # Encode UTF-8
-    addresses = enc2utf8(addresses)
+    addresses <- enc2utf8(addresses)
     # and stop writeLines from re-encoding
     Encoding(addresses) <- "bytes"
-    ret = system2(libpostal,stdout=T,input=addresses)
+    ret <- system2(libpostal, stdout = T, input = addresses)
   })
 
 
-  ret = iconv(ret,from="utf-8") %>% tail(-match("Result:",.)-1)
-  ret[which(ret=="Result:")]=","
+  ret <- iconv(ret, from = "utf-8") %>% tail(-match("Result:", .) - 1)
+  ret[which(ret == "Result:")] <- ","
 
-  fromJSON(c("[",ret,"]"))
+  fromJSON(c("[", ret, "]"))
 }
 
 
@@ -195,27 +211,29 @@ address_parse_libpostal <- function(address_stream) {
   assert_data_table(address_stream)
 
   # one row per unique address
-  address_stream <- address_stream[,..address_cols] %>% distinct %>% setDT
+  address_stream <- address_stream[, ..address_cols] %>%
+    distinct() %>%
+    setDT()
 
   # make address string for libpostal
-  address_stream[,address:=unite(.SD,"address",sep=", ",na.rm=T),.SDcols=address_cols]
-  addresses <- tolower(address_stream[!is.na(address),address])
+  address_stream[, address := unite(.SD, "address", sep = ", ", na.rm = T), .SDcols = address_cols]
+  addresses <- tolower(address_stream[!is.na(address), address])
 
-  #TODO: map english numbers to numerals
-  parsed <- data.table(address=addresses,address_exec_libpostal(addresses))
-  parsed <- parsed[address_stream$address,on="address"]
-  parsed[,I:=.I]
+  # TODO: map english numbers to numerals
+  parsed <- data.table(address = addresses, address_exec_libpostal(addresses))
+  parsed <- parsed[address_stream$address, on = "address"]
+  parsed[, I := .I]
 
   # add columns if they don't exist
-  parsed <- rbind(parsed,data.table(address=character(0),unit=character(0),postcode=character(0),road=character(0)),fill = TRUE)
-  address_stream <- rbind(address_stream,data.table(street2=character(0)), fill = TRUE)
+  parsed <- rbind(parsed, data.table(address = character(0), unit = character(0), postcode = character(0), road = character(0)), fill = TRUE)
+  address_stream <- rbind(address_stream, data.table(street2 = character(0)), fill = TRUE)
 
-  streets_regex = tolower("(ALLEY|ALLEE|ALY|ALLY|ANEX|ANX|ANNEX|ANNX|ARCADE|ARC|AVENUE|AV|AVE|AVEN|AVENU|AVN|AVNUE|BAYOU|BAYOO|BYU|BEACH|BCH|BEND|BND|BLUFF|BLF|BLUF|BLUFFS|BLFS|BOTTOM|BOT|BTM|BOTTM|BOULEVARD|BLVD|BOUL|BOULV|BRANCH|BR|BRNCH|BRIDGE|BRDGE|BRG|BROOK|BRK|BROOKS|BRKS|BURG|BG|BURGS|BGS|BYPASS|BYP|BYPA|BYPAS|BYPS|CAMP|CP|CMP|CANYON|CANYN|CYN|CNYN|CAPE|CPE|CAUSEWAY|CSWY|CAUSWA|CENTER|CEN|CTR|CENT|CENTR|CENTRE|CNTER|CNTR|CENTERS|CTRS|CIRCLE|CIR|CIRC|CIRCL|CRCL|CRCLE|CIRCLES|CIRS|CLIFF|CLF|CLIFFS|CLFS|CLUB|CLB|COMMON|CMN|COMMONS|CMNS|CORNER|COR|CORNERS|CORS|COURSE|CRSE|COURT|CT|COURTS|CTS|COVE|CV|COVES|CVS|CREEK|CRK|CRESCENT|CRES|CRSENT|CRSNT|CREST|CRST|CROSSING|XING|CRSSNG|CROSSROAD|XRD|CROSSROADS|XRDS|CURVE|CURV|DALE|DL|DAM|DM|DIVIDE|DIV|DV|DVD|DRIVE|DR|DRIV|DRV|DRIVES|DRS|ESTATE|EST|ESTATES|ESTS|EXPRESSWAY|EXP|EXPY|EXPR|EXPRESS|EXPW|EXTENSION|EXT|EXTN|EXTNSN|EXTENSIONS|EXTS|FALL|FALLS|FLS|FERRY|FRY|FRRY|FIELD|FLD|FIELDS|FLDS|FLAT|FLT|FLATS|FLTS|FORD|FRD|FORDS|FRDS|FOREST|FRST|FORESTS|FORGE|FORG|FRG|FORGES|FRGS|FORK|FRK|FORKS|FRKS|FORT|FT|FRT|FREEWAY|FWY|FREEWY|FRWAY|FRWY|GARDEN|GDN|GARDN|GRDEN|GRDN|GARDENS|GDNS|GRDNS|GATEWAY|GTWY|GATEWY|GATWAY|GTWAY|GLEN|GLN|GLENS|GLNS|GREEN|GRN|GREENS|GRNS|GROVE|GROV|GRV|GROVES|GRVS|HARBOR|HARB|HBR|HARBR|HRBOR|HARBORS|HBRS|HAVEN|HVN|HEIGHTS|HT|HTS|HIGHWAY|HWY|HIGHWY|HIWAY|HIWY|HWAY|HILL|HL|HILLS|HLS|HOLLOW|HLLW|HOLW|HOLLOWS|HOLWS|INLET|INLT|ISLAND|IS|ISLND|ISLANDS|ISS|ISLNDS|ISLE|ISLES|JUNCTION|JCT|JCTION|JCTN|JUNCTN|JUNCTON|JUNCTIONS|JCTNS|JCTS|KEY|KY|KEYS|KYS|KNOLL|KNL|KNOL|KNOLLS|KNLS|LAKE|LK|LAKES|LKS|LAND|LANDING|LNDG|LNDNG|LANE|LN|LIGHT|LGT|LIGHTS|LGTS|LOAF|LF|LOCK|LCK|LOCKS|LCKS|LODGE|LDG|LDGE|LODG|LOOP|LOOPS|MALL|MANOR|MNR|MANORS|MNRS|MEADOW|MDW|MEADOWS|MDWS|MEDOWS|MEWS|MILL|ML|MILLS|MLS|MISSION|MISSN|MSN|MSSN|MOTORWAY|MTWY|MOUNT|MNT|MT|MOUNTAIN|MNTAIN|MTN|MNTN|MOUNTIN|MTIN|MOUNTAINS|MNTNS|MTNS|NECK|NCK|ORCHARD|ORCH|ORCHRD|OVAL|OVL|OVERPASS|OPAS|PARK|PRK|PARKS|PARKWAY|PKWY|PARKWY|PKWAY|PKY|PARKWAYS|PKWYS|PASS|PASSAGE|PSGE|PATH|PATHS|PIKE|PIKES|PINE|PNE|PINES|PNES|PLACE|PL|PLAIN|PLN|PLAINS|PLNS|PLAZA|PLZ|PLZA|POINT|PT|POINTS|PTS|PORT|PRT|PORTS|PRTS|PRAIRIE|PR|PRR|RADIAL|RAD|RADL|RADIEL|RAMP|RANCH|RNCH|RANCHES|RNCHS|RAPID|RPD|RAPIDS|RPDS|REST|RST|RIDGE|RDG|RDGE|RIDGES|RDGS|RIVER|RIV|RVR|RIVR|ROAD|RD|ROADS|RDS|ROUTE|RTE|ROW|RUE|RUN|SHOAL|SHL|SHOALS|SHLS|SHORE|SHOAR|SHR|SHORES|SHOARS|SHRS|SKYWAY|SKWY|SPRING|SPG|SPNG|SPRNG|SPRINGS|SPGS|SPNGS|SPRNGS|SPUR|SPURS|SQUARE|SQ|SQR|SQRE|SQU|SQUARES|SQRS|SQS|STATION|STA|STATN|STN|STRAVENUE|STRA|STRAV|STRAVEN|STRAVN|STRVN|STRVNUE|STREAM|STRM|STREME|STREET|ST|STRT|STR|STREETS|STS|SUMMIT|SMT|SUMIT|SUMITT|TERRACE|TER|TERR|THROUGHWAY|TRWY|TRACE|TRCE|TRACES|TRACK|TRAK|TRACKS|TRK|TRKS|TRAFFICWAY|TRFY|TRAIL|TRL|TRAILS|TRLS|TRAILER|TRLR|TRLRS|TUNNEL|TUNEL|TUNL|TUNLS|TUNNELS|TUNNL|TURNPIKE|TRNPK|TPKE|TURNPK|UNDERPASS|UPAS|UNION|UN|UNIONS|UNS|VALLEY|VLY|VALLY|VLLY|VALLEYS|VLYS|VIADUCT|VDCT|VIA|VIADCT|VIEW|VW|VIEWS|VWS|VILLAGE|VILL|VLG|VILLAG|VILLG|VILLIAGE|VILLAGES|VLGS|VILLE|VL|VISTA|VIS|VIST|VST|VSTA|WALK|WALKS|WALL|WAY|WY|WAYS|WELL|WL|WELLS|WLS)")
-  directions_regex = tolower("(N|NE|NW|S|SE|SW|E|W|NORTE|NORESTE|NOROESTE|SUR|SURESTE|SUROESTE|ESTE|OESTE|NORTH|NORTHEAST|NORTHWEST|SOUTH|SOUTHEAST|SOUTHWEST|EAST|WEST)")
-  unit_regex = tolower("(Apartment(?!$)|APT(?!$)|Basement|BSMT|Building(?!$)|BLDG(?!$)|Department(?!$)|DEPT(?!$)|Floor|FL|Front|FRNT|Hanger(?!$)|HNGR(?!$)|Key(?!$)|KEY(?!$)|Lobby|LBBY|Lot(?!$)|LOT(?!$)|LOWR|Office|OFC|Penthouse|PH|Pier(?!$)|PIER(?!$)|Rear|REAR|Room(?!$)|RM(?!$)|Slip(?!$)|SLIP(?!$)|Space(?!$)|SPC(?!$)|Stop(?!$)|STOP(?!$)|Suite(?!$)|STE(?!$)|Trailer(?!$)|TRLR(?!$)|Unit(?!$)|UNIT(?!$)|UPPR|#(?!$))")
-  unit_number_regex = "(\\d[\\d\\w]*|\\w\\d+|ph.{1,3})"
-  unit_regex2 <- paste0("^",unit_regex,"?\\s*",unit_number_regex,"$")
-  street_unit_regex <- paste0("\\W+",streets_regex,"\\W+","(",directions_regex,"\\W+",")?","((",unit_regex,"|",unit_number_regex,")")
+  streets_regex <- tolower("(ALLEY|ALLEE|ALY|ALLY|ANEX|ANX|ANNEX|ANNX|ARCADE|ARC|AVENUE|AV|AVE|AVEN|AVENU|AVN|AVNUE|BAYOU|BAYOO|BYU|BEACH|BCH|BEND|BND|BLUFF|BLF|BLUF|BLUFFS|BLFS|BOTTOM|BOT|BTM|BOTTM|BOULEVARD|BLVD|BOUL|BOULV|BRANCH|BR|BRNCH|BRIDGE|BRDGE|BRG|BROOK|BRK|BROOKS|BRKS|BURG|BG|BURGS|BGS|BYPASS|BYP|BYPA|BYPAS|BYPS|CAMP|CP|CMP|CANYON|CANYN|CYN|CNYN|CAPE|CPE|CAUSEWAY|CSWY|CAUSWA|CENTER|CEN|CTR|CENT|CENTR|CENTRE|CNTER|CNTR|CENTERS|CTRS|CIRCLE|CIR|CIRC|CIRCL|CRCL|CRCLE|CIRCLES|CIRS|CLIFF|CLF|CLIFFS|CLFS|CLUB|CLB|COMMON|CMN|COMMONS|CMNS|CORNER|COR|CORNERS|CORS|COURSE|CRSE|COURT|CT|COURTS|CTS|COVE|CV|COVES|CVS|CREEK|CRK|CRESCENT|CRES|CRSENT|CRSNT|CREST|CRST|CROSSING|XING|CRSSNG|CROSSROAD|XRD|CROSSROADS|XRDS|CURVE|CURV|DALE|DL|DAM|DM|DIVIDE|DIV|DV|DVD|DRIVE|DR|DRIV|DRV|DRIVES|DRS|ESTATE|EST|ESTATES|ESTS|EXPRESSWAY|EXP|EXPY|EXPR|EXPRESS|EXPW|EXTENSION|EXT|EXTN|EXTNSN|EXTENSIONS|EXTS|FALL|FALLS|FLS|FERRY|FRY|FRRY|FIELD|FLD|FIELDS|FLDS|FLAT|FLT|FLATS|FLTS|FORD|FRD|FORDS|FRDS|FOREST|FRST|FORESTS|FORGE|FORG|FRG|FORGES|FRGS|FORK|FRK|FORKS|FRKS|FORT|FT|FRT|FREEWAY|FWY|FREEWY|FRWAY|FRWY|GARDEN|GDN|GARDN|GRDEN|GRDN|GARDENS|GDNS|GRDNS|GATEWAY|GTWY|GATEWY|GATWAY|GTWAY|GLEN|GLN|GLENS|GLNS|GREEN|GRN|GREENS|GRNS|GROVE|GROV|GRV|GROVES|GRVS|HARBOR|HARB|HBR|HARBR|HRBOR|HARBORS|HBRS|HAVEN|HVN|HEIGHTS|HT|HTS|HIGHWAY|HWY|HIGHWY|HIWAY|HIWY|HWAY|HILL|HL|HILLS|HLS|HOLLOW|HLLW|HOLW|HOLLOWS|HOLWS|INLET|INLT|ISLAND|IS|ISLND|ISLANDS|ISS|ISLNDS|ISLE|ISLES|JUNCTION|JCT|JCTION|JCTN|JUNCTN|JUNCTON|JUNCTIONS|JCTNS|JCTS|KEY|KY|KEYS|KYS|KNOLL|KNL|KNOL|KNOLLS|KNLS|LAKE|LK|LAKES|LKS|LAND|LANDING|LNDG|LNDNG|LANE|LN|LIGHT|LGT|LIGHTS|LGTS|LOAF|LF|LOCK|LCK|LOCKS|LCKS|LODGE|LDG|LDGE|LODG|LOOP|LOOPS|MALL|MANOR|MNR|MANORS|MNRS|MEADOW|MDW|MEADOWS|MDWS|MEDOWS|MEWS|MILL|ML|MILLS|MLS|MISSION|MISSN|MSN|MSSN|MOTORWAY|MTWY|MOUNT|MNT|MT|MOUNTAIN|MNTAIN|MTN|MNTN|MOUNTIN|MTIN|MOUNTAINS|MNTNS|MTNS|NECK|NCK|ORCHARD|ORCH|ORCHRD|OVAL|OVL|OVERPASS|OPAS|PARK|PRK|PARKS|PARKWAY|PKWY|PARKWY|PKWAY|PKY|PARKWAYS|PKWYS|PASS|PASSAGE|PSGE|PATH|PATHS|PIKE|PIKES|PINE|PNE|PINES|PNES|PLACE|PL|PLAIN|PLN|PLAINS|PLNS|PLAZA|PLZ|PLZA|POINT|PT|POINTS|PTS|PORT|PRT|PORTS|PRTS|PRAIRIE|PR|PRR|RADIAL|RAD|RADL|RADIEL|RAMP|RANCH|RNCH|RANCHES|RNCHS|RAPID|RPD|RAPIDS|RPDS|REST|RST|RIDGE|RDG|RDGE|RIDGES|RDGS|RIVER|RIV|RVR|RIVR|ROAD|RD|ROADS|RDS|ROUTE|RTE|ROW|RUE|RUN|SHOAL|SHL|SHOALS|SHLS|SHORE|SHOAR|SHR|SHORES|SHOARS|SHRS|SKYWAY|SKWY|SPRING|SPG|SPNG|SPRNG|SPRINGS|SPGS|SPNGS|SPRNGS|SPUR|SPURS|SQUARE|SQ|SQR|SQRE|SQU|SQUARES|SQRS|SQS|STATION|STA|STATN|STN|STRAVENUE|STRA|STRAV|STRAVEN|STRAVN|STRVN|STRVNUE|STREAM|STRM|STREME|STREET|ST|STRT|STR|STREETS|STS|SUMMIT|SMT|SUMIT|SUMITT|TERRACE|TER|TERR|THROUGHWAY|TRWY|TRACE|TRCE|TRACES|TRACK|TRAK|TRACKS|TRK|TRKS|TRAFFICWAY|TRFY|TRAIL|TRL|TRAILS|TRLS|TRAILER|TRLR|TRLRS|TUNNEL|TUNEL|TUNL|TUNLS|TUNNELS|TUNNL|TURNPIKE|TRNPK|TPKE|TURNPK|UNDERPASS|UPAS|UNION|UN|UNIONS|UNS|VALLEY|VLY|VALLY|VLLY|VALLEYS|VLYS|VIADUCT|VDCT|VIA|VIADCT|VIEW|VW|VIEWS|VWS|VILLAGE|VILL|VLG|VILLAG|VILLG|VILLIAGE|VILLAGES|VLGS|VILLE|VL|VISTA|VIS|VIST|VST|VSTA|WALK|WALKS|WALL|WAY|WY|WAYS|WELL|WL|WELLS|WLS)")
+  directions_regex <- tolower("(N|NE|NW|S|SE|SW|E|W|NORTE|NORESTE|NOROESTE|SUR|SURESTE|SUROESTE|ESTE|OESTE|NORTH|NORTHEAST|NORTHWEST|SOUTH|SOUTHEAST|SOUTHWEST|EAST|WEST)")
+  unit_regex <- tolower("(Apartment(?!$)|APT(?!$)|Basement|BSMT|Building(?!$)|BLDG(?!$)|Department(?!$)|DEPT(?!$)|Floor|FL|Front|FRNT|Hanger(?!$)|HNGR(?!$)|Key(?!$)|KEY(?!$)|Lobby|LBBY|Lot(?!$)|LOT(?!$)|LOWR|Office|OFC|Penthouse|PH|Pier(?!$)|PIER(?!$)|Rear|REAR|Room(?!$)|RM(?!$)|Slip(?!$)|SLIP(?!$)|Space(?!$)|SPC(?!$)|Stop(?!$)|STOP(?!$)|Suite(?!$)|STE(?!$)|Trailer(?!$)|TRLR(?!$)|Unit(?!$)|UNIT(?!$)|UPPR|#(?!$))")
+  unit_number_regex <- "(\\d[\\d\\w]*|\\w\\d+|ph.{1,3})"
+  unit_regex2 <- paste0("^", unit_regex, "?\\s*", unit_number_regex, "$")
+  street_unit_regex <- paste0("\\W+", streets_regex, "\\W+", "(", directions_regex, "\\W+", ")?", "((", unit_regex, "|", unit_number_regex, ")")
 
   # libpostal returns:
   # house_number => house_number
@@ -231,50 +249,66 @@ address_parse_libpostal <- function(address_stream) {
   # But the parsing is imperfect. The hardest to resolve is unit.
 
   # ... for some reason a lot of units end up in postcode!
-  parsed[is.na(unit) & postcode != address_stream$postal_code[I],
-                 unit:=postcode]
+  parsed[
+    is.na(unit) & postcode != address_stream$postal_code[I],
+    unit := postcode
+  ]
   # ... some units don't get detected in street2
-  parsed[is.na(unit) & str_detect(address_stream$street2[I],unit_regex2),
-                 unit:=address_stream$street2[I]]
+  parsed[
+    is.na(unit) & str_detect(address_stream$street2[I], unit_regex2),
+    unit := address_stream$street2[I]
+  ]
   # ... and if the road has the unit in it, put it in unit
-  parsed[is.na(unit) & str_detect(road,paste0(street_unit_regex,")")),
-                 unit:=str_match(road,paste0(street_unit_regex,".*$)"))[,5]]
+  parsed[
+    is.na(unit) & str_detect(road, paste0(street_unit_regex, ")")),
+    unit := str_match(road, paste0(street_unit_regex, ".*$)"))[, 5]
+  ]
   # ... finally cleanup unit
-  parsed[,unit:=trimws(unit)]
-  parsed[unit=="",unit:=NA]
+  parsed[, unit := trimws(unit)]
+  parsed[unit == "", unit := NA]
   # And remove it from other fields if it's duplicatred
-  lapply(intersect(c("postcode","road","house"),colnames(parsed)),
-  function(col){
-    parsed[!is.na(unit),(col):=str_remove(get(col),
-  # Escape the unit so that it can work as a regex
-      paste0("(^|\\W+)",str_replace_all(unit,"[^a-z0-9]","\\$0"),"(\\W+|$)"))]
-    parsed[!is.na(unit) & get(col)=="",(col):=NA_character_]
-  })
+  lapply(
+    intersect(c("postcode", "road", "house"), colnames(parsed)),
+    function(col) {
+      parsed[!is.na(unit), (col) := str_remove(
+        get(col),
+        # Escape the unit so that it can work as a regex
+        paste0("(^|\\W+)", str_replace_all(unit, "[^a-z0-9]", "\\$0"), "(\\W+|$)")
+      )]
+      parsed[!is.na(unit) & get(col) == "", (col) := NA_character_]
+    }
+  )
 
   # Now merge everything else together
-  if(any(c("unit","level","entrance","staircase") %in% colnames(parsed)))
-    parsed <- parsed %>% unite("unit",any_of(c("unit","level","entrance","staircase")),sep=" ",na.rm=T)
-  if(any(c("house","category","near") %in% colnames(parsed)))
-    parsed <- parsed %>% unite("house",any_of(c("house","category","near")),sep=" ",na.rm=T)
-  if(any(c("suburb","city_district","city","island") %in% colnames(parsed)))
-    parsed <- parsed %>% unite("city",any_of(c("suburb","city_district","city","island")),sep=", ",na.rm=T)
-  if(any(c("state_district","state") %in% colnames(parsed)))
-    parsed <- parsed %>% unite("state",any_of(c("state_district","state")),sep=", ",na.rm=T)
-  if(any(c("country_region","country","world_region") %in% colnames(parsed)))
-    parsed <- parsed %>% unite("country",any_of(c("country_region","country","world_region")),sep=", ",na.rm=T)
+  if (any(c("unit", "level", "entrance", "staircase") %in% colnames(parsed))) {
+    parsed <- parsed %>% unite("unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = T)
+  }
+  if (any(c("house", "category", "near") %in% colnames(parsed))) {
+    parsed <- parsed %>% unite("house", any_of(c("house", "category", "near")), sep = " ", na.rm = T)
+  }
+  if (any(c("suburb", "city_district", "city", "island") %in% colnames(parsed))) {
+    parsed <- parsed %>% unite("city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = T)
+  }
+  if (any(c("state_district", "state") %in% colnames(parsed))) {
+    parsed <- parsed %>% unite("state", any_of(c("state_district", "state")), sep = ", ", na.rm = T)
+  }
+  if (any(c("country_region", "country", "world_region") %in% colnames(parsed))) {
+    parsed <- parsed %>% unite("country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = T)
+  }
 
   # ok maybe we're finally done. Let's clean up
-  parsed_cols = c("house_number","road","unit","house","po_box","city","state","country","postcode")
+  parsed_cols <- c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode")
 
-  parsed = rbind(parsed,structure(rep(list(character(0)),length(parsed_cols)),names=parsed_cols),fill=T)
+  parsed <- rbind(parsed, structure(rep(list(character(0)), length(parsed_cols)), names = parsed_cols), fill = T)
 
-  lapply(colnames(parsed),
-         function(col){
-           parsed[get(col)=="",(col):=NA_character_]
-         })
+  lapply(
+    colnames(parsed),
+    function(col) {
+      parsed[get(col) == "", (col) := NA_character_]
+    }
+  )
 
-  address_stream = cbind(address_stream[,..address_cols],libpostal=parsed[,..parsed_cols])
-
+  address_stream <- cbind(address_stream[, ..address_cols], libpostal = parsed[, ..parsed_cols])
 }
 
 #' address_parse
@@ -286,9 +320,7 @@ address_parse_libpostal <- function(address_stream) {
 #' @return data.table of addresses parsed
 #' @importFrom dplyr collect
 address_parse <- function(address_stream) {
-
-  address_cache(address_stream,"address_parse",address_parse_libpostal)
-
+  address_cache(address_stream, "address_parse", address_parse_libpostal)
 }
 
 #' address_cache
@@ -303,31 +335,31 @@ address_parse <- function(address_stream) {
 #'
 #' @return data.table of addresses processed
 #' @importFrom dplyr collect
-address_cache <- function(address_stream, cache_name, .function, db_name = tessilake:::cache_path("address_stream.sqlite","deep","stream"),...) {
+address_cache <- function(address_stream, cache_name, .function, db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
   assert_data_table(address_stream)
 
-  if(!dir.exists(dirname(db_name)))
+  if (!dir.exists(dirname(db_name))) {
     dir.create(dirname(db_name))
+  }
 
   cache_db <- DBI::dbConnect(RSQLite::SQLite(), db_name)
 
-  address_cols <- intersect(address_cols,colnames(address_stream))
+  address_cols <- intersect(address_cols, colnames(address_stream))
 
-  if(!DBI::dbExistsTable(cache_db,cache_name)) {
+  if (!DBI::dbExistsTable(cache_db, cache_name)) {
     # Cache doesn't yet exist
-    address_stream <- cache <- .function(address_stream,...)
-    DBI::dbWriteTable(cache_db,cache_name,cache)
+    address_stream <- cache <- .function(address_stream, ...)
+    DBI::dbWriteTable(cache_db, cache_name, cache)
   } else {
-    cache <- DBI::dbReadTable(cache_db,cache_name) %>% setDT
-    cache_miss <- address_stream[!cache,..address_cols,on=as.character(address_cols)] %>% .function(...)
+    cache <- DBI::dbReadTable(cache_db, cache_name) %>% setDT()
+    cache_miss <- address_stream[!cache, ..address_cols, on = as.character(address_cols)] %>% .function(...)
 
-    DBI::dbAppendTable(cache_db,cache_name,cache_miss)
+    DBI::dbAppendTable(cache_db, cache_name, cache_miss)
 
-    cache <- rbind(cache,cache_miss,fill = TRUE)
-    address_stream <- cache[address_stream[,..address_cols],on=as.character(address_cols)]
+    cache <- rbind(cache, cache_miss, fill = TRUE)
+    address_stream <- cache[address_stream[, ..address_cols], on = as.character(address_cols)]
   }
 
   DBI::dbDisconnect(cache_db)
   return(address_stream)
 }
-

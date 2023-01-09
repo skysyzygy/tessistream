@@ -10,8 +10,8 @@ address_geocode_census(address_stream)
 \item{address_stream}{data.table of addresses, must include \code{address_cols} and \code{timestamp}}
 }
 \value{
-data.table of addresses, one row per unique parseable address, with census geocode information appended
+data.table of addresses, one row per unique geocoded address, with census geocode information appended
 }
 \description{
-Geocodes addresses using the US census geocoding API. Tries each address up to three times, using \code{libpostal} parsing, street1, and street2.
+Geocodes addresses using the US census geocoding API. Tries each address up to three times, using \code{libpostal} parsing, \code{street1}, and \code{street2}.
 }

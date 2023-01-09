@@ -7,11 +7,11 @@
 address_exec_census(address_stream)
 }
 \arguments{
-\item{address_stream}{data.table of addressses, containing at least \code{census.street}, \code{census.city}, \code{census.state}, \code{census.postal_code}, \code{census.vintageName}}
+\item{address_stream}{data.table of addressses, containing at least \code{street}, \code{city}, \code{state}, \code{postal_code}, \code{vintageName}}
 }
 \value{
 data.table with census geocoding data appended as additional columns
 }
 \description{
-Wrapper for \link[censusxy:cxy_geocode]{censusxy::cxy_geocode}
+address_exec_census
 }

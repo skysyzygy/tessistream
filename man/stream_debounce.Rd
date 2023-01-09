@@ -18,7 +18,9 @@ de-bounced stream
 Takes the last row per day for each group identified by columns identified in \code{...}
 }
 \examples{
-stream <- data.table::data.table(timestamp=Sys.time()+as.difftime(0:48,units="hours"),
-x=0:48,y=rep(0:4,12))
+stream <- data.table::data.table(
+  timestamp = Sys.time() + as.difftime(0:48, units = "hours"),
+  x = 0:48, y = rep(0:4, 12)
+)
 stream_debounce(stream)
 }

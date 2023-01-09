@@ -50,17 +50,17 @@ character and factor columns to integers and back again
 
 }}
 \examples{
-x <- data.table::data.table(a=NA_character_,b=rep(seq(1,2),each=10))
-x[1,a:="a"]
-x[10,a:="x"]
+x <- data.table::data.table(a = NA_character_, b = rep(seq(1, 2), each = 10))
+x[1, a := "a"]
+x[10, a := "x"]
 
-y<-data.table::copy(x)
-setnafill(y,type="const",fill="test",cols="a")[]
+y <- data.table::copy(x)
+setnafill(y, type = "const", fill = "test", cols = "a")[]
 
-y<-data.table::copy(x)
-setnafill(y,type="locf",by="b")[]
+y <- data.table::copy(x)
+setnafill(y, type = "locf", by = "b")[]
 
-y<-data.table::copy(x)
-setnafill(y,type="nocb",by="b")[]
+y <- data.table::copy(x)
+setnafill(y, type = "nocb", by = "b")[]
 
 }

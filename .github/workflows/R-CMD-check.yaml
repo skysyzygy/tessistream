@@ -48,7 +48,7 @@ jobs:
           needs: check
 
       - name: add API key to keyring
-        run: keyring::key_set_with_value("P2_API", "${{ secrets.P2_API_KEY }}")
+        run: keyring::key_set_with_value("P2_API", password = "${{ secrets.P2_API_KEY }}")
         shell: Rscript {0}
 
       # - name: Install miniconda

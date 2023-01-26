@@ -31,8 +31,6 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) 
   p <- progressor(sum(jobs$len) + 1)
   p(paste("Querying", url))
 
-  environment(p2_json_to_datatable) <- sys.frame()
-
   furrr::future_map2(jobs$off, jobs$len, ~ {
     res <- GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers) %>%
       content() %>%
@@ -124,6 +122,7 @@ p2_db_close <- function() {
 #' @return invisible
 #' @importFrom checkmate assert_names assert_data_frame
 #' @importFrom purrr walk
+#' @importFrom dplyr distinct
 p2_db_update <- function(data, table) {
   p2_db_open()
   if (is.null(data)) {
@@ -161,6 +160,7 @@ p2_db_update <- function(data, table) {
 #' @importFrom rlang is_atomic list2
 #' @importFrom purrr modify modify_if flatten map_lgl
 #' @importFrom stats setNames
+#' @importFrom data.table rbindlist
 #'
 #' @return unnested data.table, modified in place (unless the column needs to be unnested longer)
 p2_unnest <- function(data, colname) {
@@ -207,6 +207,7 @@ p2_unnest <- function(data, colname) {
 #'
 #' @importFrom dplyr tbl summarize collect filter
 #' @importFrom lubridate today dmonths
+#' @importFrom dplyr select
 p2_update <- function() {
 
   # not immutable or filterable, just reload the whole thing
@@ -284,7 +285,7 @@ p2_load <- function(table, offset = 0, ...) {
 #'
 #' @return data.table of a mapping between email addresses and customer numbers
 #' @export
-#'
+#' @importFrom dplyr distinct select transmute
 p2_email_map <- function() {
 
   p2_db_open()
@@ -421,6 +422,11 @@ p2_stream_build <- function() {
   p2_stream
 }
 
+#' p2_stream_enrich
+#'
+#' @param p2_stream stream data.table from p2_stream_build
+#' @importFrom tessilake setleftjoin
+#' @return stream data.table with added descriptive columns
 p2_stream_enrich <- function(p2_stream) {
 
   campaigns <- tbl(tessistream$p2_db, "campaigns") %>% select(campaign_name=name,screenshot,

@@ -13,6 +13,7 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.REPO_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
+      P2_API: ${{ secrets.P2_API_KEY }}
     steps:
       - uses: actions/checkout@v2
 
@@ -46,10 +47,6 @@ jobs:
         with:
           extra-packages: any::rcmdcheck
           needs: check
-
-      - name: add API key to keyring
-        run: keyring::key_set_with_value("P2_API", password = "${{ secrets.P2_API_KEY }}")
-        shell: Rscript {0}
 
       # - name: Install miniconda
       #   run: reticulate::install_miniconda()

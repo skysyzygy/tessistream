@@ -7,7 +7,7 @@
 p2_combine_jsons(jsons)
 }
 \arguments{
-\item{jsons}{list of list of \code{JSON} objects as data.tables, as returned by p2_json_to_datatable}
+\item{jsons}{list of \emph{named} lists of data.tables, as returned by p2_json_to_datatable}
 }
 \value{
 single \code{JSON} object as a list

@@ -10,7 +10,7 @@ p2_db_open(db_path = tessilake::cache_path("p2.sqlite", "deep", "stream"))
 p2_db_close()
 }
 \arguments{
-\item{flows_log_dir}{directory where the SQLite database is stored}
+\item{db_path}{path of the SQLite database}
 }
 \value{
 invisible

@@ -35,7 +35,7 @@ test_that("p2_query_api queries url in groups of 100", {
   # offsets increase by 100
   imap(mock_args(GET)[-1], ~ expect_match(.x[[1]], paste0("offset=", (.y - 1) * 100)))
   # all but the last one has limit 100
-  expect_match(map_chr(head(mock_args(GET)[-1], -1), 1), "limit=100")
+  expect_match(purrr::map_chr(head(mock_args(GET)[-1], -1), 1), "limit=100")
 })
 
 test_that("p2_query_api queries url starting from offset in groups of 100", {
@@ -49,7 +49,7 @@ test_that("p2_query_api queries url starting from offset in groups of 100", {
   # offsets start at 1 and increase by 100
   imap(mock_args(GET)[-1], ~ expect_match(.x[[1]], paste0("offset=", (.y - 1) * 100 + 1)))
   # all but the last one has limit 100
-  expect_match(map_chr(head(mock_args(GET)[-1], -1), 1), "limit=100")
+  expect_match(purrr::map_chr(head(mock_args(GET)[-1], -1), 1), "limit=100")
   # last one is one less
   expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=33")
 })
@@ -249,7 +249,7 @@ test_that("p2_update loads campaigns, messages, links, bounceLogs, contactLists,
   expect_true(all(c(
     "campaigns", "messages", "links", "bounceLogs", "contactLists", "fieldValues",
     "logs", "linkData", "contacts", "links"
-  ) %in% map_chr(mock_args(p2_load), 1)))
+  ) %in% purrr::map_chr(mock_args(p2_load), 1)))
 })
 
 test_that("p2_update only loads contacts after max(updated_timestamp)", {
@@ -291,7 +291,7 @@ test_that("p2_update updates recent linkData", {
   calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("linkData"))
   expect_equal(length(calls), 101)
   expect_equal(
-    keep(calls, ~ "path" %in% names(.)) %>% map_chr("path"),
+    keep(calls, ~ "path" %in% names(.)) %>% purrr::map_chr("path"),
     paste0("api/3/links/", seq(100), "/linkData")
   )
 })

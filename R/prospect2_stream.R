@@ -91,7 +91,7 @@ p2_json_to_datatable <- function(json) {
 #'
 #' Open the local P2 email database
 #'
-#' @param flows_log_dir directory where the SQLite database is stored
+#' @param db_path path of the SQLite database
 #'
 #' @return invisible
 #'

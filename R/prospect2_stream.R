@@ -4,7 +4,7 @@ api_url <- "https://brooklynacademyofmusic.api-us1.com"
 progressor <- if(system.file(package="progressr") != "") {
   progressr::progressor
 } else {
-  function(...){}
+  function(...){function(...){}}
 }
 
 #' p2_query_api

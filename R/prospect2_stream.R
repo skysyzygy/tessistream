@@ -1,12 +1,5 @@
 api_url <- "https://brooklynacademyofmusic.api-us1.com"
 
-# load progressor if it's available
-progressor <- if(system.file(package="progressr") != "") {
-  progressr::progressor
-} else {
-  function(...){function(...){}}
-}
-
 #' p2_query_api
 #'
 #' Parallel load from P2/Active Campaign API at `url` with key `api_key`. Loads pages of 100 records until it reaches the total.

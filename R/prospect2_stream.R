@@ -58,6 +58,7 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) 
 #' @return single `JSON` object as a list
 #' @importFrom purrr map_int
 #' @importFrom checkmate assert_true
+#' @importFrom stats setNames
 p2_combine_jsons <- function(jsons) {
   assert_true(all(map_int(jsons, ~ length(names(.))) > 0))
 
@@ -166,6 +167,7 @@ p2_db_update <- function(data, table) {
 #' @importFrom checkmate assert_data_table assert_choice
 #' @importFrom rlang is_atomic list2
 #' @importFrom purrr modify modify_if flatten map_lgl
+#' @importFrom stats setNames
 #'
 #' @return unnested data.table, modified in place (unless the column needs to be unnested longer)
 p2_unnest <- function(data, colname) {

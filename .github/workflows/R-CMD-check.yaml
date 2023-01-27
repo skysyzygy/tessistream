@@ -14,7 +14,7 @@ jobs:
       GITHUB_PAT: ${{ secrets.REPO_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
       P2_API: ${{ secrets.P2_API_KEY }}
-      R_KEYRING_KEYRING: "env"
+      R_KEYRING_BACKEND: "env"
     steps:
       - uses: actions/checkout@v2
 

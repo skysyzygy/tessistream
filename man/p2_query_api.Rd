@@ -4,12 +4,14 @@
 \alias{p2_query_api}
 \title{p2_query_api}
 \usage{
-p2_query_api(url, api_key = keyring::key_get("P2_API"))
+p2_query_api(url, api_key = keyring::key_get("P2_API"), offset = 0)
 }
 \arguments{
 \item{url}{Active Campaign API url to query}
 
 \item{api_key}{Active Campaign API key, defaults to \code{keyring::key_get("P2_API")}}
+
+\item{offset}{integer offset from the start of the query to return}
 }
 \value{
 JSON object as a list

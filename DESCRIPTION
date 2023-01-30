@@ -17,6 +17,7 @@ LazyData: true
 Suggests: 
     covr,
     mockery,
+    progressr,
     rprojroot,
     testthat (>= 3.0.0),
     withr
@@ -30,8 +31,6 @@ Imports:
     dplyr,
     furrr,
     future,
-    future.batchtools,
-    future.callr,
     httr,
     jsonlite,
     keyring,

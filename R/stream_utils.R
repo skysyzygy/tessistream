@@ -143,6 +143,7 @@ setnafill_const_simple <- function(x, type = "const", fill = NA, cols = seq_alon
 
 #' @describeIn setnafill rolling join to quickly do setnafill by groups
 #' @importFrom stats na.omit
+#' @importFrom data.table setkey
 setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
   x[, I := .I]
   setkey(x, I)

@@ -1,6 +1,15 @@
 withr::local_package("mockery")
 withr::defer(p2_db_close())
 
+test_that("p2_query_api successfully connects to p2", {
+  stub(p2_query_api,"content",function(.){rlang::abort("content",result=.)})
+
+  result <- tryCatch(p2_query_api(file.path(api_url,"api/3/contacts?limit=1")),error=function(e){e$result})
+
+  expect_length(content(result),3)
+  expect_length(content(result)$contacts,1)
+})
+
 test_that("p2_query_api queries url to get total", {
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
   stub(p2_query_api, "GET", GET)
@@ -214,6 +223,7 @@ test_that("p2_load dispatches arguments to modify_url", {
   expect_equal(mock_args(modify_url)[[2]][["path"]], "something")
   expect_equal(mock_args(modify_url)[[2]][["query"]], list("else"))
 })
+
 test_that("p2_load dispatches arguments to p2_query_api", {
   p2_query_api <- mock(cycle = TRUE)
   stub(p2_load, "p2_query_api", p2_query_api)

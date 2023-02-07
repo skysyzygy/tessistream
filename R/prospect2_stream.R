@@ -13,9 +13,10 @@ api_url <- "https://brooklynacademyofmusic.api-us1.com"
 #' @importFrom future availableWorkers
 p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) {
   api_headers <- add_headers("Api-Token" = api_key)
+  curl_options <- httr::config(http_version=2)
 
   first <- modify_url(url, query = list("limit" = 1)) %>%
-    GET(api_headers) %>%
+    GET(api_headers,curl_options) %>%
     content()
   if (is.null(first$meta)) {
     total <- map_int(first, length) %>% max()
@@ -32,7 +33,7 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) 
   p(paste("Querying", url))
 
   furrr::future_map2(jobs$off, jobs$len, ~ {
-    res <- GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers) %>%
+    res <- GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers, curl_options) %>%
       content() %>%
       map(p2_json_to_datatable)
     p(amount = .y)

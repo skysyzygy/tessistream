@@ -458,9 +458,6 @@ p2_stream <- function() {
 
   withr::defer(future::plan(future::sequential()))
   future::plan(future::multisession)
-  withr::local_envvar("R_CONFIG_FILE" = "config.yml")
-
-  p2_update()
 
   p2_stream <- p2_stream_build()
   tessilake:::cache_write(p2_stream,"p2_stream","deep","stream",overwrite = T)
@@ -468,6 +465,7 @@ p2_stream <- function() {
   tessilake:::cache_write(p2_stream,"p2_stream_enriched","deep","stream",overwrite = T)
 
   p2_stream
+
 }
 
 if (FALSE) {

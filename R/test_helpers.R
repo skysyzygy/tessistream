@@ -47,6 +47,8 @@ address_prepare_fixtures <- function() {
 }
 
 p2_prepare_fixtures <- function() {
+  stub <- mutate <- across <- any_of <- NULL
+
   withr::local_dir(rprojroot::find_testthat_root_file())
   withr::local_package("mockery")
   withr::local_package("dplyr")

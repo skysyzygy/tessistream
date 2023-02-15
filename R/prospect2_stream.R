@@ -12,6 +12,8 @@ api_url <- "https://brooklynacademyofmusic.api-us1.com"
 #' @importFrom httr modify_url GET content add_headers
 #' @importFrom future availableWorkers
 p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) {
+  len <- off <- NULL
+
   api_headers <- add_headers("Api-Token" = api_key)
 
   first <- modify_url(url, query = list("limit" = 1)) %>%
@@ -164,6 +166,8 @@ p2_db_update <- function(data, table) {
 #'
 #' @return unnested data.table, modified in place (unless the column needs to be unnested longer)
 p2_unnest <- function(data, colname) {
+  . <- NULL
+
   assert_data_table(data)
   assert_choice(colname, colnames(data))
 
@@ -209,6 +213,7 @@ p2_unnest <- function(data, colname) {
 #' @importFrom lubridate today dmonths
 #' @importFrom dplyr select
 p2_update <- function() {
+  updated_timestamp <- id <- linkclicks <- NULL
 
   # not immutable or filterable, just reload the whole thing
   p2_load("campaigns")
@@ -268,6 +273,8 @@ p2_update <- function() {
 #'
 #' @importFrom rlang list2 `%||%` call2
 p2_load <- function(table, offset = 0, ...) {
+  . <- NULL
+
   # fresh load of everything
   args <- list2(...)
   args$path <- args$path %||% paste0("api/3/", table)
@@ -286,7 +293,10 @@ p2_load <- function(table, offset = 0, ...) {
 #' @return data.table of a mapping between email addresses and customer numbers
 #' @export
 #' @importFrom dplyr distinct select transmute
+#' @importFrom data.table setDT
 p2_email_map <- function() {
+
+  primary_ind <- address <- customer_no <- . <- email <- id <- value <- contact <- i.customer_no <- group_customer_no <- i.group_customer_no <- NULL
 
   p2_db_open()
 
@@ -346,7 +356,16 @@ p2_email_map <- function() {
   distinct(email_map)
 }
 
+#' p2_stream_build
+#'
+#' @return p2_stream as data.table
+#'
+#' @importFrom data.table setDT
+#'
 p2_stream_build <- function() {
+
+  unixepoch <- tstamp <- subscriberid <- campaignid <- messageid <- link <- isread <- times <- ip <- ua <-
+    uasrc <- referer <- email <- status <- updated_timestamp <- contact <- campaign <- event_subtype <- timestamp <- NULL
 
   # group_customer_no
   # timestamp : date of email event
@@ -426,8 +445,12 @@ p2_stream_build <- function() {
 #'
 #' @param p2_stream stream data.table from p2_stream_build
 #' @importFrom tessilake setleftjoin
+#' @importFrom data.table setDT
 #' @return stream data.table with added descriptive columns
 p2_stream_enrich <- function(p2_stream) {
+  name <- screenshot <- id <- send_amt <- total_amt <- opens <- uniqueopens <- linkclicks <- uniquelinkclicks <-
+    subscriberclicks <- forwards <- uniqueforwards <- hardbounces <- softbounces <- unsubscribes <- . <- subject <-
+    preheader_text <- link <- NULL
 
   campaigns <- tbl(tessistream$p2_db, "campaigns") %>% select(campaign_name=name,screenshot,
                                                               id,send_amt,total_amt,opens,uniqueopens,linkclicks,uniquelinkclicks,

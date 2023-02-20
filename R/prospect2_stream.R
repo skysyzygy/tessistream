@@ -212,6 +212,7 @@ p2_unnest <- function(data, colname) {
 #' @importFrom dplyr tbl summarize collect filter
 #' @importFrom lubridate today dmonths
 #' @importFrom dplyr select
+#' @export
 p2_update <- function() {
   updated_timestamp <- id <- linkclicks <- NULL
 

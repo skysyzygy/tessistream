@@ -3,6 +3,7 @@
 export("%>%")
 export(p2_email_map)
 export(p2_stream)
+export(p2_update)
 export(setnafill)
 export(stream_debounce)
 importFrom(checkmate,assert)

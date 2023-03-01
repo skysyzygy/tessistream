@@ -158,7 +158,8 @@ address_clean <- function(address_stream) {
     address_stream[grepl("^(web add|unknown|no add)|^$", get(col)), (col) := NA_character_]
   })
 
-  address_stream <- address_stream[!(grepl("^30 lafayette", street1) & (city == "brooklyn" & state == "ny" | substr(postal_code, 1, 5) == "11217"))]
+  address_stream <- address_stream[!(grepl("^30 lafayette", street1) &
+                                       (city == "brooklyn" & state == "ny" | substr(postal_code, 1, 5) == "11217"))]
 }
 
 #' address_exec_libpostal
@@ -266,7 +267,7 @@ address_parse_libpostal <- function(address_stream) {
   # ... finally cleanup unit
   parsed[, unit := trimws(unit)]
   parsed[unit == "", unit := NA]
-  # And remove it from other fields if it's duplicatred
+  # And remove it from other fields if it's duplicated
   lapply(
     intersect(c("postcode", "road", "house"), colnames(parsed)),
     function(col) {

@@ -196,3 +196,21 @@ stream_debounce <- function(stream, ...) {
 
   stream
 }
+
+#' unite
+#'
+#' Convenience function to paste together multiple columns into one.
+#'
+#' @param data data.table to act on
+#' @param col The name of the new column, as a string or symbol.
+#' @param ... `<tidy-select>` Columns to unite
+#' @param sep Separator to use between values.
+#' @param remove If `TRUE`, the default, remove input columns from output data frame.
+#' @param na.rm If `TRUE`, missing values will be removed prior to uniting each value.
+#'
+#'
+unite.data.table <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
+
+  data[ ]
+
+}

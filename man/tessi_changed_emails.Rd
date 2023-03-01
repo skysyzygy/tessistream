@@ -10,7 +10,7 @@ tessi_changed_emails(since = Sys.Date() - 7)
 \item{since}{date after which we look for changed emails}
 }
 \value{
-data.table of changed emails with columns \code{from}, \code{to}, and \code{customer_no}
+data.table of changed emails with columns \code{old_value}, \code{new_value}, and \code{customer_no}
 }
 \description{
 Returns list of primary emails changed since \code{since} date.

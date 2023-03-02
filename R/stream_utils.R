@@ -159,43 +159,28 @@ setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
 
 #' stream_debounce
 #'
-#' Takes the last row per day for each group identified by columns identified in `...`
+#' Takes the last row for each group identified by columns identified in `...`
 #'
-#' @param stream data.table in a stream format (needs at least a `timestamp` column)
+#' @param stream data.table in a stream format
 #' @param ... <[`dynamic-dots`][rlang::dyn-dots]> columns to group by for debouncing
 #'
 #' @return de-bounced stream
 #' @export
 #'
 #' @importFrom rlang list2
-#' @importFrom data.table setorderv
 #'
 #' @examples
 #' stream <- data.table::data.table(
-#'   timestamp = Sys.time() + as.difftime(0:48, units = "hours"),
 #'   x = 0:48, y = rep(0:4, 12)
 #' )
 #' stream_debounce(stream)
 stream_debounce <- function(stream, ...) {
-  timestamp <- NULL
 
-  cols <- sapply(rlang::enquos(...), rlang::quo_name)
-  temp_col <- digest::sha1(Sys.time())
-  group <- temp_col
-  if (length(cols) > 0) {
-    group <- c(group, cols)
-  }
-
-  stream[, (temp_col) := lubridate::floor_date(timestamp, "day")]
-
-  setorderv(stream, "timestamp")
+  cols <- sapply(rlang::enquos(...), rlang::eval_tidy)
 
   # Debounce, take the last change per group per day
-  stream <- stream[, .SD[.N], by = group]
+  stream[, .SD[.N], by = cols][]
 
-  stream[, (temp_col) := NULL]
-
-  stream
 }
 
 
@@ -235,21 +220,21 @@ stream_from_audit <- function(table_name, ...) {
     transmute(group_customer_no,
               customer_no,
               timestamp = date,
-              new_value,
-              old_value,
+              new_value = coalesce(new_value, ""), # this works with deletes and purges as well as updates that are zeroed out.
+              old_value = ifelse(tolower(action) %in% c("inserted"),new_value,coalesce(old_value,"")), # insertions are treated as no change
               !!pk_name := as.integer(as.character(alternate_key)),
               last_updated_by = userid,
-              column_updated = coalesce(column_updated, "NA"),
-              old_value, new_value
+              column_updated = coalesce(column_updated, "NA")
     ) %>%
     collect() %>%
     setDT()
 
   setkeyv(audit,c(pk_name,"timestamp"))
 
+  base_table <- read_tessi(short_name, ...)
   cols <- unique(audit$column_updated)
 
-  stream_creation <- read_tessi(short_name) %>%
+  stream_creation <- base_table %>%
     transmute(group_customer_no,customer_no,
               event_subtype = "Creation",
               timestamp = create_dt,
@@ -258,30 +243,33 @@ stream_from_audit <- function(table_name, ...) {
     collect() %>%
     setDT()
 
-  stream_current <- read_tessi(short_name) %>%
+  stream_current <- base_table %>%
     transmute(group_customer_no,customer_no,
               event_subtype = "Current",
               timestamp = last_update_dt,
-              !!sym(pk_name),!!!sym(cols),
+              !!sym(pk_name),
+              !!!syms(intersect(cols,colnames(base_table))),
               last_updated_by) %>%
     collect() %>%
     setDT()
 
+  audit <- stream_debounce(audit,setdiff(colnames(audit),c("new_value")))
+
   audit_changes <- audit %>%
-    dcast(... ~ column_updated, value.var = "new_value",) %>%
-    .[, event_subtype := "Change"]
+    dcast(... ~ column_updated, value.var = "new_value") %>%
+    .[, `:=`(event_subtype = "Change",
+             old_value = NULL)]
 
   audit_creation <- audit %>%
     .[, .SD[1], by = c(pk_name, "column_updated")] %>%
-    dcast(pk_name ~ column_updated, value.var = "old_value") %>%
+    dcast(rlang::new_formula(sym(pk_name),sym("column_updated")), value.var = "old_value") %>%
     .[, event_subtype := "Creation"]
 
   stream <- rbind(stream_creation, stream_current, audit_changes, fill = TRUE)
 
   # Data fill-in based on audit old_value -- all other old_values are captured within the audit table itself
-  cols <- unique(audit$column_updated)
-  stream[audit_creation,
-                 (cols) := mget(paste0("i.", cols), ifnotfound = NA),
+  stream <- stream[audit_creation,
+                 (cols) := mget(paste0("i.",cols), ifnotfound = NA_character_),
                  on = c(pk_name, "event_subtype")
   ]
 
@@ -292,6 +280,6 @@ stream_from_audit <- function(table_name, ...) {
   # Fill-down changes
   setnafill(stream, "locf", cols = cols, by = pk_name)
   # And then fill back up for non-changes
-  setnafill(stream, "locf", cols = cols, by = pk_name)
+  setnafill(stream, "nocb", cols = cols, by = pk_name)
 
 }

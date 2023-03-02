@@ -1,3 +1,5 @@
+withr::local_package("mockery")
+
 x <- sample(1:26, 1e3, replace = TRUE)
 x[sample(1e3, 9e2)] <- NA
 x <- data.table::as.data.table(matrix(x, 1e2, 10))
@@ -131,4 +133,149 @@ test_that("setnafill nocb works with groups", {
     setnafill(x, cols = cols, type = "nocb", by = "group"),
     y[, (cols) := data.table::nafill(.SD, type = "nocb"), by = "group", .SDcols = cols]
   )
+})
+
+
+# stream_from_audit -------------------------------------------------------
+
+# ids overlap but don't match
+# columns overlap but don't match
+# items missing at random
+
+base_table <- data.table(group_customer_no = 0,
+                         customer_no = 0,
+                         id = seq(100),
+                         create_dt = lubridate::as_datetime(seq(100)),
+                         created_by = "username_base_table",
+                         last_update_dt = lubridate::as_datetime(seq(100) + 1000),
+                         last_updated_by = "username_base_table",
+                         a = sample(letters,100,replace=T),
+                         b = sample(letters,100,replace=T),
+                         c = sample(letters,100,replace=T),
+                         x = sample(letters,100,replace=T))
+
+
+# $action <string>
+# $alternate_key <string>
+# $cg_key <int32>
+# $column_updated <string>
+# $date <timestamp[us, tz=UTC]>
+# $location <string>
+# $new_value <string>
+# $old_value <string>
+# $table_name <string>
+# $userid <string>
+# $customer_no <int32>
+# $group_customer_no <int32>
+
+audit_table <- data.table(group_customer_no = 0,
+                    customer_no = 0,
+                    date = lubridate::as_datetime(rep(seq(51,150),3) + runif(300,1,86400)),
+                    new_value = sample(letters,300,replace=T),
+                    old_value = sample(letters,300,replace=T),
+                    alternate_key = rep(seq(51,150),3),
+                    userid = "username_audit",
+                    action = "Updated",
+                    table_name = "T_DUMMY",
+                    column_updated = sample(c("a","b","c","d"),300,replace=T))
+
+# expand.grid(seq(nrow(base_table)),c("a","b","c","x")) %>% dplyr::sample_frac(.25) %>%
+#   split(.$Var2) %>% purrr::imap(~base_table[.x$Var1,(.y):=NA])
+#
+# audit_table <- dplyr::sample_frac(audit_table,.75)
+# base_table <- dplyr::sample_frac(base_table,.9)
+#
+# expand.grid(seq(nrow(base_table)),c("old_value","new_value")) %>% dplyr::sample_frac(.25) %>%
+#   split(.$Var2) %>% purrr::imap(~audit_table[.x$Var1,(.y):=NA])
+
+dummy_list_tables <- data.table(short_name = "dummy",
+                                long_name = "T_DUMMY",
+                                primary_keys = "id")
+
+stub(stream_from_audit, "tessi_list_tables", dummy_list_tables)
+
+test_that("stream_from_audit matches up table names and primary key for audit table and read_tessi", {
+  read_tessi <- mock(audit_table, base_table)
+  stub(stream_from_audit, "read_tessi", read_tessi)
+  stub(stream_from_audit, "dcast", function(...) {rlang::abort("dcast",class="dcast")})
+  expect_error(stream_from_audit("blah"), "Can't parse table_name.+blah")
+  expect_error(stream_from_audit("dummy"),class="dcast")
+  expect_length(mock_args(read_tessi),2)
+  expect_equal(mock_args(read_tessi)[[2]][[1]],"dummy")
+})
+
+
+test_that("stream_from_audit builds a stream using all rows from audit and base table and all columns in audit table", {
+  read_tessi <- mock(audit_table, base_table)
+  stub(stream_from_audit, "read_tessi", read_tessi)
+  stream <- stream_from_audit("dummy")
+  expect_equal(nrow(stream), 2*nrow(base_table)+nrow(audit_table))
+  checkmate::expect_names(names(stream),must.include=c("a","b","c","d"),disjunct.from = c("x"))
+})
+
+test_that("stream_from_audit has creation data from base_table overwritten by audit old_value", {
+  read_tessi <- mock(audit_table, base_table)
+  stub(stream_from_audit, "read_tessi", read_tessi)
+
+  stream <- stream_from_audit("dummy")
+  creation <- stream[event_subtype=="Creation"]
+
+  creation_data <- creation[,.(id,a,b,c,d)] %>% data.table::melt(id.vars="id")
+  base_data <- base_table[,.(id,a,b,c)] %>% data.table::melt(id.vars="id")
+
+  setkey(audit_table,alternate_key,date)
+  audit_data <- audit_table[,.SD[1,.(old_value = coalesce(old_value,""))],
+                            by=c("alternate_key","column_updated")]
+
+  comparison <- merge(merge(creation_data,base_data,by=c("id","variable"),all=T,suffix=c("",".base")),
+                      audit_data,by.x=c("id","variable"),by.y=c("alternate_key","column_updated"),all.x=T)
+
+
+  # if there's audit data, it goes to creation row
+  expect_equal(comparison[!is.na(old_value) & (old_value==value)],
+               comparison[!is.na(old_value)])
+
+  # otherwise, latest data goes it to creation row
+  expect_equal(comparison[is.na(old_value) & (value.base==value)],
+               comparison[is.na(old_value) & !is.na(value.base)])
+})
+
+test_that("stream_from_audit has current data from base_table overwritten by audit new_value", {
+  read_tessi <- mock(audit_table, base_table)
+  stub(stream_from_audit, "read_tessi", read_tessi)
+
+  stream <- stream_from_audit("dummy")
+  current <- stream[event_subtype=="Current"]
+
+  current_data <- current[,.(id,a,b,c,d)] %>% data.table::melt(id.vars="id")
+  base_data <- base_table[,.(id,a,b,c)] %>% data.table::melt(id.vars="id")
+
+  setkey(audit_table,alternate_key,date)
+  audit_data <- audit_table[,.SD[.N,.(new_value = coalesce(new_value,""))],
+                            by=c("alternate_key","column_updated")]
+
+  comparison <- merge(merge(current_data,base_data,by=c("id","variable"),all=T,suffix=c("",".base")),
+                      audit_data,by.x=c("id","variable"),by.y=c("alternate_key","column_updated"),all.x=T)
+
+  # if there's base_table data, it goes to current row
+  expect_equal(comparison[!is.na(value.base) & (value.base==value)],
+               comparison[!is.na(value.base)])
+
+  # otherwise, latest audit data goes to current row
+  expect_equal(comparison[is.na(value.base) & (new_value==value)],
+               comparison[is.na(value.base) & !is.na(new_value)])
+})
+
+test_that("stream_from_audit has all audit changes and carries them forward", {
+  read_tessi <- mock(audit_table, base_table)
+  stub(stream_from_audit, "read_tessi", read_tessi)
+
+  stream <- stream_from_audit("dummy")
+  change <- stream[event_subtype=="Change"]
+
+  change_data <- change[,.(id,a,b,c,d,timestamp)] %>% data.table::melt(id.vars=c("id","timestamp"))
+  base_data <- base_table[,.(id,a,b,c)] %>% data.table::melt(id.vars="id")
+
+  comparison <- audit_table[change_data,on=c("alternate_key"="id","column_updated"="variable","date"="timestamp"),roll=Inf]
+  expect_equal(comparison[new_value!=value,.N],0)
 })

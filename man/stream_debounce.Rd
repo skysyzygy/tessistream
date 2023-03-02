@@ -7,7 +7,7 @@
 stream_debounce(stream, ...)
 }
 \arguments{
-\item{stream}{data.table in a stream format (needs at least a \code{timestamp} column)}
+\item{stream}{data.table in a stream format}
 
 \item{...}{<\code{\link[rlang:dyn-dots]{dynamic-dots}}> columns to group by for debouncing}
 }
@@ -15,11 +15,10 @@ stream_debounce(stream, ...)
 de-bounced stream
 }
 \description{
-Takes the last row per day for each group identified by columns identified in \code{...}
+Takes the last row for each group identified by columns identified in \code{...}
 }
 \examples{
 stream <- data.table::data.table(
-  timestamp = Sys.time() + as.difftime(0:48, units = "hours"),
   x = 0:48, y = rep(0:4, 12)
 )
 stream_debounce(stream)

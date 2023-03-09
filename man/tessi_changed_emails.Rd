@@ -9,7 +9,7 @@ tessi_changed_emails(since = Sys.Date() - 7, ...)
 \arguments{
 \item{since}{date after which we look for changed emails}
 
-\item{...}{other parameters passsed on to \code{stream_from_audit}}
+\item{...}{other parameters passed on to \code{stream_from_audit}}
 }
 \value{
 data.table of changed emails with columns \code{old_value}, \code{new_value}, and \code{customer_no}

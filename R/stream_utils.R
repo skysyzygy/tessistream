@@ -219,6 +219,7 @@ stream_from_audit <- function(table_name, ...) {
     filter(table_name == !!long_name) %>%
     transmute(group_customer_no,
               customer_no,
+              action,
               timestamp = date,
               new_value = coalesce(new_value, ""), # this works with deletes and purges as well as updates that are zeroed out.
               old_value = ifelse(tolower(action) %in% c("inserted"),new_value,coalesce(old_value,"")), # insertions are treated as no change
@@ -253,7 +254,7 @@ stream_from_audit <- function(table_name, ...) {
     collect() %>%
     setDT()
 
-  audit <- stream_debounce(audit,setdiff(colnames(audit),c("new_value")))
+  audit <- stream_debounce(audit,setdiff(colnames(audit),"new_value"))
 
   audit_changes <- audit %>%
     dcast(... ~ column_updated, value.var = "new_value") %>%
@@ -281,5 +282,7 @@ stream_from_audit <- function(table_name, ...) {
   setnafill(stream, "locf", cols = cols, by = pk_name)
   # And then fill back up for non-changes
   setnafill(stream, "nocb", cols = cols, by = pk_name)
+
+  stream_debounce(stream,!!pk_name,"timestamp")
 
 }

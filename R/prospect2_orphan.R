@@ -17,7 +17,7 @@ tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
   primary_emails <- primary_emails[,.(
     to=tolower(address),
     from=c(NA,tolower(address)[-.N]),
-    timestamp,
+    timestamp = lubridate::force_tz(timestamp,Sys.timezone()),
     event_subtype),
     by="customer_no"] %>%
     .[from != to & timestamp > since & event_subtype == "Current"]

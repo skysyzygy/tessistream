@@ -14,6 +14,15 @@ tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
   primary_emails <- stream_from_audit("emails", ...)[primary_ind=="Y" & inactive=="N" & !is.na(customer_no)]
   setkey(primary_emails,customer_no,timestamp)
 
+  # Merges don't add *anything* in the audit table for the kept email, so we need to update the timestamp for the "Current" row on the kept record.
+  merges <- tessilake::read_sql_table("T_MERGED", ...) %>% filter(status=="S") %>% collect() %>% setDT
+  merge_rows <- merges[,timestamp:=merge_dt] %>%
+  # For each merge look back at the last primary email on the kept record
+    .[primary_emails[event_subtype=="Current"],on=c("kept_id"="customer_no","timestamp"),roll=-Inf] %>%
+    .[!is.na(delete_id)]
+
+  primary_emails[merge_rows,timestamp:=merge_dt,on=c("customer_no"="kept_id","timestamp","eaddress_no")]
+
   primary_emails <- primary_emails[,.(
     to=tolower(address),
     from=c(NA,tolower(address)[-.N]),

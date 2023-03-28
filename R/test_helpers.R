@@ -75,3 +75,18 @@ p2_prepare_fixtures <- function() {
   p2_db_close()
 
 }
+
+p2_orphans_prepare_fixtures <- function() {
+  email_stream <- stream_from_audit("emails", freshness = Inf)
+  merges <- tessilake::read_sql_table("T_MERGED", freshness = Inf) %>% collect %>% setDT
+
+  # filter and anonymize
+  # only bam staff
+  email_stream <- email_stream[group_customer_no %in% email_stream[grepl("bam.org",address,ignore.case=T),group_customer_no]]
+  merges[,requested_by := "nobody"]
+  email_stream[, last_updated_by := "dbo"]
+
+  saveRDS(email_stream, testthat::test_path("email_stream.Rds"))
+  saveRDS(merges, testthat::test_path("merges.Rds"))
+
+}

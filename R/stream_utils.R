@@ -197,6 +197,9 @@ stream_debounce <- function(stream, ...) {
 #' @importFrom rlang sym syms
 #'
 stream_from_audit <- function(table_name, ...) {
+  . <- primary_keys <- group_customer_no <- customer_no <- action <-
+    new_value <- old_value <- alternate_key <- userid <- column_updated <-
+    create_dt <- created_by <- last_update_dt <- last_updated_by <- event_subtype <- NULL
 
   tessi_tables <- tessi_list_tables()
 

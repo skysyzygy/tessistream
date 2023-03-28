@@ -4,12 +4,14 @@
 \alias{p2_update_orphans}
 \title{p2_update_orphans}
 \usage{
-p2_update_orphans(freshness = 0, since = Sys.time() - 7200)
+p2_update_orphans(freshness = 0, since = Sys.time() - 7200, test_emails = NULL)
 }
 \arguments{
 \item{freshness}{datediff, passed on to \code{tessilake} functions, defaults to 0 (refresh all data)}
 
 \item{since}{datetime, passed on to \code{tessi_changed_emails}, defaults to the last two hours.}
+
+\item{test_emails}{character, if set then all updates are dry_runs except for emails matching \code{test_emails}}
 }
 \description{
 Run \code{p2_update_email} for all emails changed since \code{since} using Tessitura data at least as

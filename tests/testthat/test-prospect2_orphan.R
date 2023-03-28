@@ -222,3 +222,19 @@ test_that("p2_update_orphans passes merged customer numbers on to p2_update_emai
   expect_equal(purrr::map(mock_args(p2_update_email),"customer_no"),
                structure(split(seq(2600),f=seq(26)),names = NULL))
 })
+
+test_that("p2_update_orphans passes on dry_run for non-matching emails", {
+  p2_update_email <- mock(NULL, cycle = T)
+
+  stub(p2_update_orphans, "tessi_changed_emails", data.table(from = letters, to = letters,
+                                                             customer_no = 1))
+  stub(p2_update_orphans, "p2_update_email", p2_update_email)
+  stub(p2_update_orphans, "tessi_customer_no_map", data.table(customer_no = 1,
+                                                              merged_customer_no = 1))
+
+  p2_update_orphans(test_emails = "z")
+
+  expect_length(mock_args(p2_update_email),26)
+  expect_equal(purrr::map(mock_args(p2_update_email),"dry_run"),
+               as.list(c(rep(T,25),F)))
+})

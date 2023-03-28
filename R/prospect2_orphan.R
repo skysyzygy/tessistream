@@ -125,8 +125,9 @@ p2_update_email <- function(from = NULL, to = NULL, customer_no = NULL, dry_run 
 #'
 #' @param freshness datediff, passed on to `tessilake` functions, defaults to 0 (refresh all data)
 #' @param since datetime, passed on to `tessi_changed_emails`, defaults to the last two hours.
+#' @param test_emails character, if set then all updates are dry_runs except for emails matching `test_emails`
 #' @importFrom tessilake tessi_customer_no_map
-p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200) {
+p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_emails = NULL) {
   . <- NULL
 
   customer_no_map <- collect(tessi_customer_no_map(freshness)) %>% setDT()
@@ -140,7 +141,7 @@ p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200) {
         merged_customer_no == .$customer_no,
         customer_no
       ],
-      dry_run = !grepl("@bam.org$", .$from)
+      dry_run = !is.null(test_emails) && !grepl(test_emails,.$from)
     ))
 
   invisible()

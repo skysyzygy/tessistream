@@ -92,13 +92,14 @@ test_that("tessi_changed_emails gets all emails changed through replacement", {
 
   email_stream <- data.table(
     customer_no = 1,
-    eaddress_no = c(1, 1, 2),
-    timestamp = time + c(-1, 0, 0),
-    primary_ind = c("Y", "N", "Y"),
+    eaddress_no = c(1, 1, 2, 2),
+    timestamp = time + c(-1, 0, 0, 1),
+    primary_ind = c("Y", "N", "Y", "Y"),
     inactive = "N",
     # Debouncing means only one row per timestamp per email
-    event_subtype = c("Creation", "Current", "Current"),
-    address = c("a", "a", "b")
+    # Adding in an additional change row to test dealing with multiple changes
+    event_subtype = c("Creation", "Current", "Change", "Current"),
+    address = c("a", "a", "b", "b")
   )[c(3, 2, 1)]
 
   stub(tessi_changed_emails, "stream_from_audit", email_stream)
@@ -109,7 +110,7 @@ test_that("tessi_changed_emails gets all emails changed through replacement", {
     from = "a",
     to = "b",
     timestamp = time,
-    event_subtype = "Current"
+    event_subtype = "Change"
   ))
 })
 

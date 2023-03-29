@@ -36,7 +36,7 @@ tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
   ),
   by = "customer_no"
   ] %>%
-    .[from != to & timestamp > since & event_subtype == "Current"]
+    .[from != to & timestamp > since]
 
   setkey(primary_emails, from, timestamp)
   primary_emails[, .SD[.N], by = "from"]

@@ -28,14 +28,16 @@ tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
 
   setkey(primary_emails, customer_no, timestamp)
 
-  primary_emails <- primary_emails[, .(
-    to = tolower(address),
-    from = c(NA, tolower(address)[-.N]),
-    timestamp = lubridate::force_tz(timestamp, Sys.timezone()),
-    event_subtype
-  ),
-  by = "customer_no"
-  ] %>%
+  primary_emails <- primary_emails[, `:=`(address = tolower(address),
+                                          timestamp = lubridate::force_tz(timestamp, Sys.timezone()))] %>%
+    .[,.(
+      to = address,
+      from = c(NA, address[-.N]),
+      timestamp,
+      event_subtype
+    ),
+    by = "customer_no"
+    ] %>%
     .[from != to & timestamp > since]
 
   setkey(primary_emails, from, timestamp)

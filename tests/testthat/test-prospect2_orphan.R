@@ -8,24 +8,18 @@ email_stream <- data.table( customer_no = 1,
   primary_ind = "Y",
   inactive = "N",
   event_subtype = c("Current"),
-  address = "a")
+  address = "a",
+  last_updated_by = "me")
 
-merges <- data.table(
-  status = "S",
-  kept_id = 1,
-  delete_id = 0,
-  merge_dt = now())
 
 test_that("tessi_changed_emails passes ... on to stream_from_audit and read_sql_table", {
   stream_from_audit <- mock(email_stream)
-  read_sql_table <- mock(merges)
 
   stub(tessi_changed_emails, "stream_from_audit", stream_from_audit)
-  stub(tessi_changed_emails, "read_sql_table", read_sql_table)
 
   tessi_changed_emails(a = "b", c = "d")
   expect_equal(mock_args(stream_from_audit)[[1]][["a"]], "b")
-  expect_equal(mock_args(read_sql_table)[[1]][["c"]], "d")
+  #expect_equal(mock_args(read_sql_table)[[1]][["c"]], "d")
 })
 
 test_that("tessi_changed_emails gets all emails changed at a particular point in time", {
@@ -39,51 +33,49 @@ test_that("tessi_changed_emails gets all emails changed at a particular point in
     inactive = "N",
     # Debouncing means only one row per timestamp per email
     event_subtype = c("Creation", "Current", "Changed"),
-    address = c("a", "b", "b")
-  )[c(3, 2, 1)]
+    address = c("a", "b", "b"),
+    last_updated_by = "me"
+  )[.N:1]
 
   stub(tessi_changed_emails, "stream_from_audit", email_stream)
-  stub(tessi_changed_emails, "read_sql_table", merges)
 
   expect_mapequal(tessi_changed_emails(), data.table(
     customer_no = 1,
     from = "a",
     to = "b",
     timestamp = time,
-    event_subtype = "Current"
+    event_subtype = "Current",
+    last_updated_by = "me"
   ))
 })
 
 test_that("tessi_changed_emails gets all emails changed through a merge", {
   time <- with_tz(now(), Sys.timezone())
 
+  stub(tessi_changed_emails, "tessi_customer_no_map", data.table(customer_no = -1,
+                                                                 merged_customer_no = 1))
+
   email_stream <- data.table(
     customer_no = 1,
-    eaddress_no = c(1, 2, 2),
-    timestamp = c(time, time, time + 1),
-    primary_ind = c("Y", "Y", "N"),
+    eaddress_no = c(1, 2, 2, 3, 3),
+    timestamp = c(time, time, time + 1, time - 1, time + 2),
+    primary_ind = c("Y", "Y", "N", "Y", "N"),
     inactive = "N",
     # Debouncing means only one row per timestamp per email
-    event_subtype = c("Current", "Creation", "current"),
-    address = c("a", "b", "b")
-  )
-
-  merges <- data.table(
-    status = "S",
-    kept_id = 1,
-    delete_id = -1,
-    merge_dt = time + 1
+    event_subtype = c("Current", "Creation", "Current", "Creation", "Current"),
+    address = c("a", "b", "b", "c", "c"),
+    last_updated_by = "me"
   )
 
   stub(tessi_changed_emails, "stream_from_audit", email_stream)
-  stub(tessi_changed_emails, "read_sql_table", merges)
 
   expect_mapequal(tessi_changed_emails(), data.table(
     customer_no = 1,
-    from = "b",
+    from = c("b", "c"),
     to = "a",
-    timestamp = time + 1,
-    event_subtype = "Current"
+    timestamp = c(time + 1, time + 2),
+    event_subtype = "Current",
+    last_updated_by = "me"
   ))
 })
 
@@ -93,24 +85,25 @@ test_that("tessi_changed_emails gets all emails changed through replacement", {
   email_stream <- data.table(
     customer_no = 1,
     eaddress_no = c(1, 1, 2, 2),
-    timestamp = time + c(-1, 0, 0, 1),
+    timestamp = time + c(-1, 0, 1, 0),
     primary_ind = c("Y", "N", "Y", "Y"),
     inactive = "N",
     # Debouncing means only one row per timestamp per email
     # Adding in an additional change row to test dealing with multiple changes
     event_subtype = c("Creation", "Current", "Change", "Current"),
-    address = c("a", "a", "b", "b")
-  )[c(3, 2, 1)]
+    address = c("a", "a", "b", "b"),
+    last_updated_by = "me"
+  )[.N:1]
 
   stub(tessi_changed_emails, "stream_from_audit", email_stream)
-  stub(tessi_changed_emails, "read_sql_table", merges)
 
   expect_mapequal(tessi_changed_emails(), data.table(
     customer_no = 1,
     from = "a",
     to = "b",
     timestamp = time,
-    event_subtype = "Change"
+    event_subtype = "Current",
+    last_updated_by = "me"
   ))
 })
 

@@ -1,5 +1,7 @@
 withr::local_package("mockery")
 withr::defer(p2_db_close())
+withr::local_envvar(R_CONFIG_FILE = "tessistream-config.yml")
+
 
 test_that("p2_query_api queries url to get total", {
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)

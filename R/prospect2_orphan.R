@@ -10,8 +10,8 @@
 #' @importFrom lubridate now dyears
 #' @return data.table of changed emails with columns `old_value`, `new_value`, and `customer_no`
 tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
-  . <- primary_ind <- inactive <- customer_no <- status <- timestamp <- merge_dt <- event_subtype <-
-    delete_id <- address <- from <- to <- NULL
+  . <- customer_no <- address <- eaddress_no <- timestammp <- primary_ind <- i.address <-
+    address <- timestamp <- timestamp_end <- from <- to <- to2 <- group_customer_no <- last_updated_by <- NULL
 
   emails <- stream_from_audit("emails", ...) %>%
     .[!is.na(customer_no) & !is.na(address)] %>%
@@ -160,6 +160,8 @@ p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_ema
 #' @export
 #'
 p2_orphans <- function() {
+  status <- field <- email <- value <- id.contact <- address <- primary_ind <- customer_no <- NULL
+
   p2_db_open()
 
   # All contacts
@@ -193,11 +195,13 @@ p2_orphans <- function() {
 #' sends an email containing a plot of recent orphans and a spreadsheet of all orphans
 #'
 #' @param ... extra parameters passed on to tessi_changed_emails, default is `since = 0`
-#' @importFrom ggplot2 ggplot geom_histogram aes
+#' @importFrom ggplot2 ggplot geom_histogram aes scale_fill_brewer theme_minimal
 #' @importFrom dplyr case_when
 #' @importFrom lubridate ddays
-#' @importFrom mailR send.mail
+#' @importFrom grDevices dev.off png
 p2_orphans_report <- function(...) {
+  . <- type <- timestamp <- id <- from <- to <- customer_no.x <- expr_dt <- memb_level <-
+    last_updated_by <- NULL
 
   p2_orphans <- p2_orphans()
   tessi_emails <- tessi_changed_emails(since = 0,...)

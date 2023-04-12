@@ -6,6 +6,7 @@
 #' @param smtp smtp configuration
 #' @param ... additional parameters sent on to `mailR::send.mail`
 #' @importFrom checkmate assert_character test_character test_list
+#' @importFrom mailR send.mail
 send_email <- function(subject, body,
                        emails = config::get("tessiflow.email"),
                        smtp = config::get("tessiflow.smtp"),...

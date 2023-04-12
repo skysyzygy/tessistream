@@ -336,9 +336,9 @@ test_that("p2_orphans_report sends an email with the spreadsheet and an inline i
 
 test_that("p2_orphans_report determines the updatability of each row",{
 
-  expect_equal(map_chr(mock_args(p2_update_email),1),letters)
-  expect_equal(map_chr(mock_args(p2_update_email),2),LETTERS)
-  expect_equal(map_lgl(mock_args(p2_update_email),"dry_run"),rep(T,26))
+  expect_equal(purrr::map_chr(mock_args(p2_update_email),1),letters)
+  expect_equal(purrr::map_chr(mock_args(p2_update_email),2),LETTERS)
+  expect_equal(purrr::map_lgl(mock_args(p2_update_email),"dry_run"),rep(T,26))
   expect_equal(openxlsx::read.xlsx(xlsx)$can.be.Updated, rep(c(T,F),13))
 
 })

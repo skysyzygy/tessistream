@@ -4,12 +4,12 @@
 \alias{write_xlsx}
 \title{write_xlsx}
 \usage{
-write_xlsx(data, xlsx_file = tempfile(fileext = ".xlsx"))
+write_xlsx(data, xlsx_file)
 }
 \arguments{
 \item{data}{data to write to the spreadsheet}
 
-\item{xlsx_file}{filename to write to, defaults to a temporary filename}
+\item{xlsx_file}{filename to write to}
 }
 \value{
 filename of written xlsx

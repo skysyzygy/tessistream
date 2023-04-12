@@ -244,3 +244,101 @@ test_that("p2_update_orphans passes on dry_run for non-matching emails", {
   expect_equal(purrr::map(mock_args(p2_update_email),"dry_run"),
                as.list(c(rep(T,25),F)))
 })
+
+# p2_orphans --------------------------------------------------------------
+tessistream$p2_db <- DBI::dbConnect(RSQLite::SQLite(),":memory:")
+withr::defer(p2_db_close())
+
+# all contacts
+contacts <- data.table(id=seq(100),email=data.table::CJ(a=letters,b=letters)[1:100,paste(a,b)])
+# the first 90 have customer #s
+fieldValues <- data.table(id=seq(90)+2000,contact=seq(90),field=1,value=seq(90)+1000)
+# two thirds are subscribed to a list
+contactLists <- data.table(id=seq(200)+1000,
+                           contact=rep(seq(100),2),
+                           status=rep(c(1,2),length.out=200))
+
+copy_to(tessistream$p2_db,contacts,"contacts")
+copy_to(tessistream$p2_db,fieldValues,"fieldValues")
+copy_to(tessistream$p2_db,contactLists,"contactLists")
+
+p2_contacts <-  dplyr::inner_join(contacts,fieldValues,by=c("id"="contact")) %>%
+  dplyr::inner_join(contactLists[status==1],by=c("id"="contact")) %>%
+  select(id,address=email,customer_no=value) %>%
+  distinct %>% dplyr::arrange(id)
+
+test_that("p2_orphans gets all the current subscribers from p2 database",{
+
+
+  stub(p2_orphans,"read_tessi",data.table(address=NA,
+                                          primary_ind=NA,
+                                          customer_no=NA))
+  stub(p2_orphans,"p2_db_open",NULL)
+
+  expect_mapequal(p2_orphans() %>% setkey(id),p2_contacts)
+
+})
+
+
+test_that("p2_orphans returns all orphans",{
+  stub(p2_orphans,"read_tessi",data.table(address=paste(letters,letters),
+                                          primary_ind=c("Y","N"),
+                                          customer_no=seq(26)))
+  stub(p2_orphans,"p2_db_open",NULL)
+
+  expect_mapequal(p2_orphans() %>% setkey(id),
+                  p2_contacts[!address %in% c("a a", "c c")])
+
+})
+
+# p2_orphans_report -------------------------------------------------------
+
+png <- tempfile(fileext=".png")
+xlsx <- tempfile(fileext=".xlsx")
+html <- tempfile()
+tempfile <- mock(png,xlsx,html)
+
+p2_update_email <- mock(T,F,cycle=T)
+send_email <- mock()
+
+stub(p2_orphans_report, "p2_orphans", data.table(address=letters,
+                                                 customer_no=1,
+                                                 id=1))
+stub(p2_orphans_report, "tessi_changed_emails", data.table(from=letters,
+                                                           to=LETTERS,
+                                                           last_updated_by=rep(c("popmulti","sqladmin","me"),length.out=26),
+                                                           timestamp = lubridate::ymd_hms("2023-01-01 00:00:00") + ddays(seq(26)),
+                                                           customer_no=1,
+                                                           group_customer_no=1))
+stub(p2_orphans_report, "read_tessi", data.table(customer_no=1,
+                                                 group_customer_no=1,
+                                                 memb_level="L01",
+                                                 expr_dt=now()))
+stub(p2_orphans_report, "tempfile", tempfile)
+stub(p2_orphans_report, "p2_update_email", p2_update_email)
+stub(p2_orphans_report, "send_email", send_email)
+
+p2_orphans_report()
+
+test_that("p2_orphans_report creates a chart and a spreadsheet of orphans analysis",{
+
+  expect_snapshot_value(png::readPNG(png),style="serialize")
+  expect_equal(nrow(openxlsx::read.xlsx(xlsx)),26)
+
+})
+
+test_that("p2_orphans_report sends an email with the spreadsheet and an inline image",{
+
+  expect_match(readLines(html),gsub("\\","\\\\",png,fixed=T))
+  expect_equal(mock_args(send_email)[[1]][["attach.files"]],xlsx)
+
+})
+
+test_that("p2_orphans_report determines the updatability of each row",{
+
+  expect_equal(map_chr(mock_args(p2_update_email),1),letters)
+  expect_equal(map_chr(mock_args(p2_update_email),2),LETTERS)
+  expect_equal(map_lgl(mock_args(p2_update_email),"dry_run"),rep(T,26))
+  expect_equal(openxlsx::read.xlsx(xlsx)$can.be.Updated, rep(c(T,F),13))
+
+})

@@ -175,79 +175,84 @@ p2_orphans <- function() {
               by=c("id"="contact"),
               suffix=c(".contact",".fieldValue")) %>%
     transmute(
-      address = tolower(email),
+      address = trimws(tolower(email)),
       customer_no = as.integer(value),
       id = as.integer(id.contact)
-    ) %>% collect %>% setDT
+    ) %>% collect %>% distinct %>% setDT
 
-  tessi_emails <- read_tessi("emails", c("address","customer_no", "primary_ind"),freshness=0) %>%
-    dplyr::mutate(address = tolower(address)) %>%
+  tessi_emails <- read_tessi("emails", c("address", "customer_no", "primary_ind"),freshness=0) %>%
+    dplyr::mutate(address = trimws(tolower(address))) %>%
     filter(primary_ind=="Y") %>% collect %>% setDT()
 
   p2_orphans <- p2_emails[!tessi_emails, on = "address"][!is.na(customer_no)]
 
 }
 
-p2_orphans_report <- function() {
+#' p2_orphans_report
+#'
+#' sends an email containing a plot of recent orphans and a spreadsheet of all orphans
+#'
+#' @param ... extra parameters passed on to tessi_changed_emails, default is `since = 0`
+#' @importFrom ggplot2 ggplot geom_histogram aes
+#' @importFrom dplyr case_when
+#' @importFrom lubridate ddays
+#' @importFrom mailR send.mail
+p2_orphans_report <- function(...) {
 
   p2_orphans <- p2_orphans()
-  tessi_emails <- tessi_changed_emails(since = 0)
+  tessi_emails <- tessi_changed_emails(since = 0,...)
 
   # last change from `from`
   p2_orphan_events <- tessi_emails[p2_orphans,on=c("from"="address")]
 
-  p2_orphan_events %>% .[timestamp>'2022-10-01'] %>% .[,
-                         type:=forcats::fct_lump(last_updated_by,2) %>%
-                           forcats::fct_inorder() %>%
-                           forcats::fct_relabel(trimws) %>%
-                           forcats::fct_recode(web="addage",
-                                               merge="sqladmin",
-                                               client="Other")
-                         ] %>%
-    ggplot() + geom_histogram(aes(timestamp,
-                                  fill=type),
-                              binwidth=lubridate::ddays(7)) +
-    scale_fill_brewer(type="qual")
+  p2_orphan_events[,type:=case_when(trimws(last_updated_by) == "popmulti" ~ "web",
+                                    trimws(last_updated_by) == "sqladmin" ~ "merge",
+                                    TRUE ~ "client") %>% forcats::fct_infreq()]
 
-  p2_orphan_events[timestamp<'2022-10-01']
+  png(image_file <- tempfile(fileext = ".png"))
+  ggplot(p2_orphan_events[timestamp>'2022-08-01']) +
+      geom_histogram(aes(timestamp,
+                         fill=type),
+                     binwidth=ddays(7)) +
+    scale_fill_brewer(type="qual") +
+    theme_minimal() -> p
+  print(p)
 
-  # latest match
-  last_match <- tessi_emails[primary_ind == "Y"][, last_timestamp := timestamp][p2_orphans, on = c("address", "timestamp" = "updated_timestamp"), roll = Inf][!is.na(eaddress_no)]
-  un_match <- p2_orphans[!last_match, , on = "address"]
-  last_match2 <- tessi_emails[, last_timestamp := timestamp][un_match, on = c("address", "timestamp" = "updated_timestamp"), roll = Inf][!is.na(eaddress_no)]
-  last_match <- rbind(last_match, last_match2)
-  un_match <- p2_orphans[!last_match, , on = "address"]
+  dev.off()
 
-  current_email <- tessi_emails[primary_ind == "Y" & event_subtype == "Current"][last_match, on = c("customer_no" = "customer_no")][!is.na(eaddress_no)]
-  # updates
-  updates <- current_email[timestamp > "2022-11-25"]
+  memberships <- read_tessi("memberships", c("expr_dt","memb_level",
+                                             "customer_no")) %>%
+    collect() %>% setDT() %>% .[,.SD[.N], by="customer_no"]
 
-  ggplot(updates) +
-    geom_histogram(aes(timestamp, fill = customer_no != i.customer_no))
-  ggplot(current_email) +
-    geom_histogram(aes(timestamp, fill = customer_no != i.customer_no))
-  ggplot(updates) +
-    geom_histogram(aes(timestamp, fill = last_updated_by))
+  p2_orphan_events <- merge(p2_orphan_events,memberships,all.x=T,by="group_customer_no")
 
-  # customer_no changed (merged or household change)
-  merges <- last_match[customer_no != i.customer_no]
-  # updated email
-  updated_emails <- last_match[customer_no == i.customer_no & primary_ind == "Y"]
+  can_be_updated <- split(p2_orphan_events,1:nrow(p2_orphan_events)) %>%
+    map(~p2_update_email(.$from, .$to, .$i.customer_no, dry_run = TRUE))
 
-  m <- tessilake::read_sql_table("T_MERGED") %>%
-    collect() %>%
-    setDT()
-  m <- m[status == "S"][merges, on = c("kept_id" = "customer_no", "merge_dt" = "timestamp"), roll = "nearest"]
 
-  # true merges
-  m[!is.na(request_dt) & request_dt >= "2022-08-01"]
-  # household operation
-  m[is.na(request_dt) | request_dt < "2022-08-01"]
+  xlsx_file <- write_xlsx(p2_orphan_events[,.(
+    timestamp = as.Date(timestamp),
+    "customer_#" = customer_no.x,
+    p2_id = id,
+    from_email = from,
+    to_email = to,
+    expiration_date = as.Date(expr_dt),
+    member_level = memb_level,
+    can_be_updated,
+    change_type = type,
+    last_updated_by
+  )],
+  xlsx_file <- tempfile(fileext = ".xlsx"))
+  writeLines(paste0("<img src='",image_file,"'>"), html_file <- tempfile())
 
-  u <- tessi_emails[primary_ind == "Y"][, next_timestamp := timestamp][!updated_emails, on = c("address")][updated_emails, .(
-    customer_no, eaddress_no, next_timestamp, address, i.address, i.last_timestamp, last_updated_by
-  ), on = c("customer_no", "timestamp"), roll = "nearest"]
-  # true updates
-  u[!is.na(eaddress_no) & next_timestamp >= "2022-08-01"]
-  u[is.na(eaddress_no) | next_timestamp < "2022-08-01"]
+  send_email(
+    subject = paste("P2 Orphan Report :",lubridate::today()),
+    body = html_file,
+    emails = "ssyzygy@bam.org",
+    attach.files = xlsx_file,
+    html = TRUE,
+    file.names = paste0("p2_ophan_report_",lubridate::today(),".xlsx"),
+    inline = TRUE
+  )
+
 }

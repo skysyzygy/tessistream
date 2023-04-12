@@ -7,51 +7,42 @@
 #'
 #' @importFrom dplyr lag
 #' @importFrom tessilake read_sql_table
+#' @importFrom lubridate now dyears
 #' @return data.table of changed emails with columns `old_value`, `new_value`, and `customer_no`
 tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
   . <- primary_ind <- inactive <- customer_no <- status <- timestamp <- merge_dt <- event_subtype <-
     delete_id <- address <- from <- to <- NULL
 
-  primary_emails <- stream_from_audit("emails", ...) %>%
-    .[!is.na(customer_no) & !is.na(address)]
+  emails <- stream_from_audit("emails", ...) %>%
+    .[!is.na(customer_no) & !is.na(address)] %>%
+    collect %>% setDT
 
-  setkey(primary_emails, eaddress_no, timestamp)
+  setkey(emails, eaddress_no, timestamp)
 
-  primary_emails[,`:=`(address = trimws(tolower(address)),
-                    timestamp = lubridate::force_tz(timestamp, Sys.timezone()))]
+  emails[,`:=`(address = trimws(tolower(address)),
+               timestamp = lubridate::force_tz(timestamp, Sys.timezone()))]
 
-  # simple changes. Rare...for speed, just look at the last row per address
-  primary_emails[, `:=`(to = address,from = c(NA, address[-.N])),
-                 by = "eaddress_no"]
-  # and clear it if it hasn't changed
-  primary_emails[from == to, from := NA]
+  default_time <- now() + dyears(100)
+  emails[,timestamp_end:=data.table::shift(timestamp,-1,fill=default_time),by="eaddress_no"]
 
-  # updates and changes without a log...
-  # for each primary email without a from
-  updates <- merge(primary_emails[primary_ind=="Y" & event_subtype=="Current" & is.na(from)],
-                  # look for all non-primaries
-                  primary_emails[primary_ind=="N"],
-                  by="customer_no",
-                  allow.cartesian = TRUE,
-                  suffix=c("",".np")) %>%
-    # but only take the most recent row for each non-primary address
-    .[,.SD[.N],
-      .SDcols=c("timestamp",
-                "address.np","timestamp.np","last_updated_by.np"),
-      by=c("eaddress_no","eaddress_no.np")]
+  p <- emails[primary_ind=="Y"]
+  # find the next started primary address
+  p[p,to:=i.address,on=c("customer_no","timestamp_end"="timestamp"),roll=Inf]
+  # or the next ended as a fallback (defaults to current)
+  p[p[,.(customer_no,address,
+         timestamp_end=timestamp_end-.001)],
+    to2:=i.address,on=c("customer_no","timestamp_end"),roll=Inf]
 
-  primary_emails <- merge(primary_emails,updates,all.x=T,
-        by=c("eaddress_no","timestamp")) %>%
-    .[!is.na(address.np) & !is.na(timestamp.np),
-      `:=`(from=address.np, timestamp=timestamp.np,
-           last_updated_by=last_updated_by.np)]
+  emails <- p[,.(customer_no,
+                 group_customer_no,
+                 from = address,
+                 to = coalesce(to,to2),
+                 timestamp = timestamp_end,
+                 last_updated_by)] %>%
+    .[from != to & timestamp > since]
 
-  primary_emails <- primary_emails[from != to & timestamp > since,
-                                 .(to,from,customer_no,timestamp,event_subtype,
-                                   last_updated_by)]
-
-  setkey(primary_emails, from, timestamp)
-  primary_emails[, .SD[.N], by = "from"]
+  setkey(emails, from, timestamp)
+  emails[, .SD[.N], by = "from"]
 }
 
 #' p2_update_email

@@ -2,7 +2,9 @@ withr::local_package("mockery")
 withr::local_package("lubridate")
 
 # tessi_changed_emails ----------------------------------------------------
-email_stream <- data.table( customer_no = 1,
+email_stream <- data.table(
+  customer_no = 1,
+  group_customer_no = 1,
   eaddress_no = 1,
   timestamp = now(),
   primary_ind = "Y",
@@ -11,6 +13,13 @@ email_stream <- data.table( customer_no = 1,
   address = "a",
   last_updated_by = "me")
 
+# test_that("tessi_changed_emails", {
+#   stream_from_audit <- mock(readRDS("primary_emails.Rds"))
+#   stub(tessi_changed_emails,"stream_from_audit",stream_from_audit)
+#   debugonce(tessi_changed_emails)
+#   tessi_changed_emails()
+#
+# })
 
 test_that("tessi_changed_emails passes ... on to stream_from_audit and read_sql_table", {
   stream_from_audit <- mock(email_stream)
@@ -27,6 +36,7 @@ test_that("tessi_changed_emails gets all emails changed at a particular point in
 
   email_stream <- data.table(
     customer_no = 1,
+    group_customer_no = 1,
     eaddress_no = 1,
     timestamp = time + dhours(seq(-1, 1)),
     primary_ind = "Y",
@@ -41,10 +51,10 @@ test_that("tessi_changed_emails gets all emails changed at a particular point in
 
   expect_mapequal(tessi_changed_emails(), data.table(
     customer_no = 1,
+    group_customer_no = 1,
     from = "a",
     to = "b",
     timestamp = time,
-    event_subtype = "Current",
     last_updated_by = "me"
   ))
 })
@@ -57,6 +67,7 @@ test_that("tessi_changed_emails gets all emails changed through a merge", {
 
   email_stream <- data.table(
     customer_no = 1,
+    group_customer_no = 1,
     eaddress_no = c(1, 2, 2, 3, 3),
     timestamp = c(time, time, time + 1, time - 1, time + 2),
     primary_ind = c("Y", "Y", "N", "Y", "N"),
@@ -71,10 +82,10 @@ test_that("tessi_changed_emails gets all emails changed through a merge", {
 
   expect_mapequal(tessi_changed_emails(), data.table(
     customer_no = 1,
+    group_customer_no = 1,
     from = c("b", "c"),
-    to = "a",
+    to = c("c", "a"),
     timestamp = c(time + 1, time + 2),
-    event_subtype = "Current",
     last_updated_by = "me"
   ))
 })
@@ -84,6 +95,7 @@ test_that("tessi_changed_emails gets all emails changed through replacement", {
 
   email_stream <- data.table(
     customer_no = 1,
+    group_customer_no = 1,
     eaddress_no = c(1, 1, 2, 2),
     timestamp = time + c(-1, 0, 1, 0),
     primary_ind = c("Y", "N", "Y", "Y"),
@@ -99,10 +111,10 @@ test_that("tessi_changed_emails gets all emails changed through replacement", {
 
   expect_mapequal(tessi_changed_emails(), data.table(
     customer_no = 1,
+    group_customer_no = 1,
     from = "a",
     to = "b",
     timestamp = time,
-    event_subtype = "Current",
     last_updated_by = "me"
   ))
 })

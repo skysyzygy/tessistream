@@ -120,12 +120,13 @@ p2_db_close <- function() {
 #'
 #' @param data data.frame of data to write to the database
 #' @param table table name
+#' @param overwrite logical whether to delete and overwrite the existing table
 #'
 #' @return invisible
 #' @importFrom checkmate assert_names assert_data_frame
 #' @importFrom purrr walk
 #' @importFrom dplyr distinct
-p2_db_update <- function(data, table) {
+p2_db_update <- function(data, table, overwrite = FALSE) {
   p2_db_open()
   if (is.null(data)) {
     return(invisible())
@@ -141,10 +142,10 @@ p2_db_update <- function(data, table) {
 
   data <- distinct(data)
 
-  if (table %in% DBI::dbListTables(tessistream$p2_db)) {
+  if (table %in% DBI::dbListTables(tessistream$p2_db) & !overwrite) {
     sqlite_upsert(tessistream$p2_db, table, data)
   } else {
-    dplyr::copy_to(tessistream$p2_db, data, table, unique_indexes = list("id"), temporary = FALSE)
+    dplyr::copy_to(tessistream$p2_db, data, table, unique_indexes = list("id"), temporary = FALSE, overwrite = overwrite)
   }
 
   invisible()
@@ -217,13 +218,13 @@ p2_update <- function() {
   updated_timestamp <- id <- linkclicks <- NULL
 
   # not immutable or filterable, just reload the whole thing
-  p2_load("campaigns")
-  p2_load("messages")
-  p2_load("links")
-  p2_load("lists")
-  p2_load("bounceLogs")
-  p2_load("contactLists")
-  p2_load("fieldValues", path = "api/3/fieldValues", query = list("filters[fieldid]" = 1))
+  p2_load("campaigns", overwrite = FALSE)
+  p2_load("messages", overwrite = FALSE)
+  p2_load("links", overwrite = FALSE)
+  p2_load("lists", overwrite = FALSE)
+  p2_load("bounceLogs", overwrite = FALSE)
+  p2_load("contactLists", overwrite = FALSE)
+  p2_load("fieldValues", path = "api/3/fieldValues", query = list("filters[fieldid]" = 1), overwrite = FALSE)
 
   # has a date filter
   contacts_max_date <- if (DBI::dbExistsTable(tessistream$p2_db, "contacts")) {
@@ -270,10 +271,11 @@ p2_update <- function() {
 #'
 #' @param table character, table to update
 #' @param offset integer number of rows to offset from beginning of query
+#' @param overwrite logical, whether to overwrite the table in the database
 #' @param ... additional parameters to pass on to modify_url
 #'
 #' @importFrom rlang list2 `%||%` call2
-p2_load <- function(table, offset = 0, ...) {
+p2_load <- function(table, offset = 0, overwrite = FALSE, ...) {
   . <- NULL
 
   # fresh load of everything
@@ -283,7 +285,7 @@ p2_load <- function(table, offset = 0, ...) {
 
   p2_query_api(eval(call2("modify_url", !!!args)), offset = offset) %>%
     {
-      p2_db_update(.[[table]], table)
+      p2_db_update(.[[table]], table, overwrite = overwrite)
     }
 }
 

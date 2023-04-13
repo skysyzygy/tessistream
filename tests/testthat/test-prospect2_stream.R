@@ -1,7 +1,7 @@
 withr::local_package("mockery")
 withr::defer(p2_db_close())
 withr::local_envvar(R_CONFIG_FILE = "tessistream-config.yml")
-
+future::plan(future::sequential)
 
 test_that("p2_query_api queries url to get total", {
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
@@ -134,6 +134,14 @@ test_that("p2_db_update does an upsert", {
   expect_equal(dplyr::tbl(tessistream$p2_db, "test_upsert") %>% as.data.table(), df)
 })
 
+test_that("p2_db_update overwrites when overwrite = TRUE", {
+  df <- data.table(id = seq(50, 199), a = runif(150))
+
+  p2_db_update(df, "test_upsert", overwrite = TRUE)
+
+  expect_equal(dplyr::tbl(tessistream$p2_db, "test_upsert") %>% as.data.table(), df)
+})
+
 test_that("p2_db_close closes the database connection", {
   p2_db_close()
   expect_equal(tessistream$p2_db, NULL)
@@ -216,6 +224,7 @@ test_that("p2_load dispatches arguments to modify_url", {
   expect_equal(mock_args(modify_url)[[2]][["path"]], "something")
   expect_equal(mock_args(modify_url)[[2]][["query"]], list("else"))
 })
+
 test_that("p2_load dispatches arguments to p2_query_api", {
   p2_query_api <- mock(cycle = TRUE)
   stub(p2_load, "p2_query_api", p2_query_api)
@@ -226,7 +235,7 @@ test_that("p2_load dispatches arguments to p2_query_api", {
 })
 
 test_that("p2_load dispatches writes to p2_db_update", {
-  data <- data.table(a = seq(100))
+  data <- data.table(id = seq(100))
   obj <- list(test = data)
 
   p2_query_api <- mock(obj)
@@ -235,8 +244,26 @@ test_that("p2_load dispatches writes to p2_db_update", {
   stub(p2_load, "p2_db_update", p2_db_update)
 
   p2_load("test")
-  expect_equal(mock_args(p2_db_update)[[1]][[1]], data.table(a = seq(100)))
+
+  expect_equal(mock_args(p2_db_update)[[1]][[1]], data.table(id = seq(100)))
   expect_equal(mock_args(p2_db_update)[[1]][[2]], "test")
+})
+
+test_that("p2_load passes overwrite on to p2_db_update", {
+  data <- data.table(id = seq(100))
+  obj <- list(test = data)
+
+  p2_query_api <- mock(obj, cycle = TRUE)
+  p2_db_update <- mock(cycle = TRUE)
+  stub(p2_load, "p2_query_api", p2_query_api)
+  stub(p2_load, "p2_db_update", p2_db_update)
+
+  p2_load("test", overwrite = T)
+  p2_load("test")
+
+  expect_equal(mock_args(p2_db_update)[[1]][["overwrite"]], T)
+  expect_equal(mock_args(p2_db_update)[[2]][["overwrite"]], F)
+
 })
 
 # p2_update ---------------------------------------------------------------

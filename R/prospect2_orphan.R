@@ -183,8 +183,8 @@ p2_orphans <- function() {
     ) %>% collect %>% distinct %>% setDT
 
   tessi_emails <- read_tessi("emails", c("address", "customer_no", "primary_ind"),freshness=0) %>%
-    dplyr::mutate(address = trimws(tolower(address))) %>%
-    filter(primary_ind=="Y") %>% collect %>% setDT()
+    filter(primary_ind=="Y") %>% collect %>% setDT() %>%
+    .[,address := trimws(tolower(address))]
 
   p2_orphans <- p2_emails[!tessi_emails, on = "address"][!is.na(customer_no)]
 

@@ -4,11 +4,11 @@
 \alias{p2_orphans_report}
 \title{p2_orphans_report}
 \usage{
-p2_orphans_report(...)
+p2_orphans_report(freshness = 0)
 }
 \arguments{
-\item{...}{extra parameters passed on to tessi_changed_emails, default is \code{since = 0}}
+\item{freshness}{difftime,    the returned data will be at least this fresh}
 }
 \description{
-sends an email containing a plot of recent orphans and a spreadsheet of all orphans
+Sends an email containing a plot of recent orphans and a spreadsheet of all orphans.
 }

@@ -4,12 +4,14 @@
 \alias{p2_db_update}
 \title{p2_db_update}
 \usage{
-p2_db_update(data, table)
+p2_db_update(data, table, overwrite = FALSE)
 }
 \arguments{
 \item{data}{data.frame of data to write to the database}
 
 \item{table}{table name}
+
+\item{overwrite}{logical whether to delete and overwrite the existing table}
 }
 \value{
 invisible

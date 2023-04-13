@@ -4,7 +4,10 @@
 \alias{p2_orphans}
 \title{p2_orphans}
 \usage{
-p2_orphans()
+p2_orphans(freshness = 0)
+}
+\arguments{
+\item{freshness}{difftime,    the returned data will be at least this fresh}
 }
 \value{
 data.table of orphaned accounts

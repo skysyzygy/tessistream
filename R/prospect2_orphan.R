@@ -156,11 +156,13 @@ p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_ema
 #' against all accounts in Tessi. An orphan is an account that exists in P2, that originated
 #' from Tessitura, but no longer matches an account with a primary email address in Tessitura.
 #'
+#' @param freshness difftime,	the returned data will be at least this fresh
+#'
 #' @return data.table of orphaned accounts
 #' @export
 #'
-p2_orphans <- function() {
-  status <- field <- email <- value <- id.contact <- address <- primary_ind <- customer_no <- NULL
+p2_orphans <- function(freshness = 0) {
+  . <- status <- field <- email <- value <- id.contact <- address <- primary_ind <- customer_no <- NULL
 
   p2_db_open()
 
@@ -182,7 +184,7 @@ p2_orphans <- function() {
       id = as.integer(id.contact)
     ) %>% collect %>% distinct %>% setDT
 
-  tessi_emails <- read_tessi("emails", c("address", "customer_no", "primary_ind"),freshness=0) %>%
+  tessi_emails <- read_tessi("emails", c("address", "customer_no", "primary_ind"),freshness = freshness) %>%
     filter(primary_ind=="Y") %>% collect %>% setDT() %>%
     .[,address := trimws(tolower(address))]
 
@@ -192,19 +194,20 @@ p2_orphans <- function() {
 
 #' p2_orphans_report
 #'
-#' sends an email containing a plot of recent orphans and a spreadsheet of all orphans
+#' Sends an email containing a plot of recent orphans and a spreadsheet of all orphans.
 #'
-#' @param ... extra parameters passed on to tessi_changed_emails, default is `since = 0`
+#' @param freshness difftime,	the returned data will be at least this fresh
+#'
 #' @importFrom ggplot2 ggplot geom_histogram aes scale_fill_brewer theme_minimal
 #' @importFrom dplyr case_when
 #' @importFrom lubridate ddays
 #' @importFrom grDevices dev.off png
-p2_orphans_report <- function(...) {
+p2_orphans_report <- function(freshness = 0) {
   . <- type <- timestamp <- id <- from <- to <- customer_no.x <- expr_dt <- memb_level <-
     last_updated_by <- NULL
 
   p2_orphans <- p2_orphans()
-  tessi_emails <- tessi_changed_emails(since = 0,...)
+  tessi_emails <- tessi_changed_emails(since = 0, freshness = freshness)
 
   # last change from `from`
   p2_orphan_events <- tessi_emails[p2_orphans,on=c("from"="address")]
@@ -220,6 +223,9 @@ p2_orphans_report <- function(...) {
                      binwidth=ddays(7)) +
     scale_fill_brewer(type="qual") +
     theme_minimal() -> p
+
+
+
   print(p)
 
   dev.off()

@@ -26,9 +26,6 @@ jobs:
         with:
           use-public-rspm: true
 
-      # - name: Setup upterm session
-      #   uses: lhotari/action-upterm@v1
-
       - name: install ffbase
         run: |
           cd ..
@@ -56,6 +53,9 @@ jobs:
       # - name: Install miniconda
       #   run: reticulate::install_miniconda()
       #   shell: Rscript {0}
+
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
 
       - uses: r-lib/actions/check-r-package@v2
 

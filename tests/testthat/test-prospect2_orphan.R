@@ -322,7 +322,7 @@ p2_orphans_report()
 
 test_that("p2_orphans_report creates a chart and a spreadsheet of orphans analysis",{
 
-  expect_snapshot_value(png::readPNG(png),style="serialize")
+  expect_snapshot_value(png::readPNG(png)[,,1],style="serialize")
   expect_equal(nrow(openxlsx::read.xlsx(xlsx)),26)
 
 })

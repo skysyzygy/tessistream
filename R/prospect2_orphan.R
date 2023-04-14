@@ -178,11 +178,11 @@ p2_orphans <- function(freshness = 0) {
     dplyr::inner_join(tbl(tessistream$p2_db, "fieldValues") %>%
                        filter(field == "1"),
               by=c("id"="contact"),
-              suffix=c(".contact",".fieldValue")) %>%
+              suffix=c("",".fieldValue")) %>%
     transmute(
       address = trimws(tolower(email)),
-      customer_no = as.integer(value),
-      id = as.integer(id.contact)
+      customer_no = value,
+      id
     ) %>% collect %>% distinct %>% setDT
 
   tessi_emails <- read_tessi("emails", c("address", "customer_no", "primary_ind"),freshness = freshness) %>%

@@ -4,12 +4,14 @@
 \alias{p2_load}
 \title{p2_load}
 \usage{
-p2_load(table, offset = 0, ...)
+p2_load(table, offset = 0, overwrite = FALSE, ...)
 }
 \arguments{
 \item{table}{character, table to update}
 
 \item{offset}{integer number of rows to offset from beginning of query}
+
+\item{overwrite}{logical, whether to overwrite the table in the database}
 
 \item{...}{additional parameters to pass on to modify_url}
 }

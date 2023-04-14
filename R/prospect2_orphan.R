@@ -7,41 +7,42 @@
 #'
 #' @importFrom dplyr lag
 #' @importFrom tessilake read_sql_table
+#' @importFrom lubridate now dyears
 #' @return data.table of changed emails with columns `old_value`, `new_value`, and `customer_no`
 tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
-  . <- primary_ind <- inactive <- customer_no <- status <- timestamp <- merge_dt <- event_subtype <-
-    delete_id <- address <- from <- to <- NULL
+  . <- customer_no <- address <- eaddress_no <- timestammp <- primary_ind <- i.address <-
+    address <- timestamp <- timestamp_end <- from <- to <- to2 <- group_customer_no <- last_updated_by <- NULL
 
-  primary_emails <- stream_from_audit("emails", ...)[primary_ind == "Y" & inactive == "N" & !is.na(customer_no)]
+  emails <- stream_from_audit("emails", ...) %>%
+    .[!is.na(customer_no) & !is.na(address)] %>%
+    collect %>% setDT
 
-  # Merges don't add *anything* in the audit table for the kept email, so we need to update the timestamp for the "Current" row on the kept record.
-  merges <- read_sql_table("T_MERGED", ...) %>%
-    filter(status == "S") %>%
-    collect() %>%
-    setDT()
-  merge_rows <- merges[, timestamp := merge_dt] %>%
-    # For each merge look back at the last primary email on the kept record
-    .[primary_emails[event_subtype == "Current"], on = c("kept_id" = "customer_no", "timestamp"), roll = -Inf] %>%
-    .[!is.na(delete_id)]
+  setkey(emails, eaddress_no, timestamp)
 
-  primary_emails[merge_rows, timestamp := merge_dt, on = c("customer_no" = "kept_id", "timestamp", "eaddress_no")]
+  emails[,`:=`(address = trimws(tolower(address)),
+               timestamp = lubridate::force_tz(timestamp, Sys.timezone()))]
 
-  setkey(primary_emails, customer_no, timestamp)
+  default_time <- now() + dyears(100)
+  emails[,timestamp_end:=data.table::shift(timestamp,-1,fill=default_time),by="eaddress_no"]
 
-  primary_emails <- primary_emails[, `:=`(address = tolower(address),
-                                          timestamp = lubridate::force_tz(timestamp, Sys.timezone()))] %>%
-    .[,.(
-      to = address,
-      from = c(NA, address[-.N]),
-      timestamp,
-      event_subtype
-    ),
-    by = "customer_no"
-    ] %>%
+  p <- emails[primary_ind=="Y"]
+  # find the next started primary address
+  p[p,to:=i.address,on=c("customer_no","timestamp_end"="timestamp"),roll=Inf]
+  # or the next ended as a fallback (defaults to current)
+  p[p[,.(customer_no,address,
+         timestamp_end=timestamp_end-.001)],
+    to2:=i.address,on=c("customer_no","timestamp_end"),roll=Inf]
+
+  emails <- p[,.(customer_no,
+                 group_customer_no,
+                 from = address,
+                 to = coalesce(to,to2),
+                 timestamp = timestamp_end,
+                 last_updated_by)] %>%
     .[from != to & timestamp > since]
 
-  setkey(primary_emails, from, timestamp)
-  primary_emails[, .SD[.N], by = "from"]
+  setkey(emails, from, timestamp)
+  emails[, .SD[.N], by = "from"]
 }
 
 #' p2_update_email
@@ -129,6 +130,7 @@ p2_update_email <- function(from = NULL, to = NULL, customer_no = NULL, dry_run 
 #' @param since datetime, passed on to `tessi_changed_emails`, defaults to the last two hours.
 #' @param test_emails character, if set then all updates are dry_runs except for emails matching `test_emails`
 #' @importFrom tessilake tessi_customer_no_map
+#' @export
 p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_emails = NULL) {
   . <- NULL
 
@@ -149,84 +151,120 @@ p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_ema
   invisible()
 }
 
-p2_orphans <- function() {
+#' p2_orphans
+#'
+#' Create a dataset of orphaned accounts in Prospect2 by comparing all accounts in Prospect2
+#' against all accounts in Tessi. An orphan is an account that exists in P2, that originated
+#' from Tessitura, but no longer matches an account with a primary email address in Tessitura.
+#'
+#' @param freshness difftime,	the returned data will be at least this fresh
+#'
+#' @return data.table of orphaned accounts
+#' @export
+#'
+p2_orphans <- function(freshness = 0) {
+  . <- status <- field <- email <- value <- id.contact <- address <- primary_ind <- customer_no <- NULL
+
   p2_db_open()
 
-  contacts <- tbl(tessistream$p2_db, "contacts") %>%
-    transmute(created_by,
-      created_timestamp = unixepoch(cdate),
-      updated_by,
-      updated_timestamp = unixepoch(udate),
-      address = tolower(email),
-      id = as.integer(id)
-    ) %>%
-    collect() %>%
-    setDT()
-
-  field_values <- tbl(tessistream$p2_db, "fieldValues") %>%
-    transmute(created_by,
-      created_timestamp = unixepoch(cdate),
-      updated_by,
-      updated_timestamp = unixepoch(udate),
-      customer_no = as.integer(value),
-      id = as.integer(contact)
-    ) %>%
-    collect() %>%
-    setDT()
-
-  contact_lists <- tbl(tessistream$p2_db, "contactLists") %>%
-    filter(status == "1") %>%
+  # All contacts
+  p2_emails <- tbl(tessistream$p2_db, "contacts") %>%
+    # That are currently subscribed to something
+    dplyr::inner_join(tbl(tessistream$p2_db, "contactLists") %>%
+                        filter(status == "1"),
+               by=c("id"="contact"),
+               suffix=c("",".list")) %>%
+    # And have a customer # (field 1)
+    dplyr::inner_join(tbl(tessistream$p2_db, "fieldValues") %>%
+                       filter(field == "1"),
+              by=c("id"="contact"),
+              suffix=c("",".fieldValue")) %>%
     transmute(
-      list = as.integer(list),
-      id = as.integer(contact)
-    ) %>%
-    collect() %>%
-    setDT()
+      address = trimws(tolower(email)),
+      customer_no = value,
+      id
+    ) %>% collect %>% distinct %>% setDT
 
-  p2_emails <- merge(contacts, field_values, by = "id", all.x = T, suffix = c("", ".customer_no")) %>% dplyr::semi_join(contact_lists, by = "id")
-  tessi_emails <- stream_from_audit("emails")
-  tessi_emails[!is.na(`NA`) & is.na(address), address := `NA`]
-  tessi_emails[, address := tolower(address)]
+  tessi_emails <- read_tessi("emails", c("address", "customer_no", "primary_ind"),freshness = freshness) %>%
+    filter(primary_ind=="Y") %>% collect %>% setDT() %>%
+    .[,address := trimws(tolower(address))]
 
-  p2_orphans <- p2_emails[!tessi_emails[event_subtype == "Current" & primary_ind == "Y"], on = "address"][!is.na(customer_no)]
+  p2_orphans <- p2_emails[!tessi_emails, on = "address"][!is.na(customer_no)]
 
-  # latest match
-  last_match <- tessi_emails[primary_ind == "Y"][, last_timestamp := timestamp][p2_orphans, on = c("address", "timestamp" = "updated_timestamp"), roll = Inf][!is.na(eaddress_no)]
-  un_match <- p2_orphans[!last_match, , on = "address"]
-  last_match2 <- tessi_emails[, last_timestamp := timestamp][un_match, on = c("address", "timestamp" = "updated_timestamp"), roll = Inf][!is.na(eaddress_no)]
-  last_match <- rbind(last_match, last_match2)
-  un_match <- p2_orphans[!last_match, , on = "address"]
+}
 
-  current_email <- tessi_emails[primary_ind == "Y" & event_subtype == "Current"][last_match, on = c("customer_no" = "customer_no")][!is.na(eaddress_no)]
-  # updates
-  updates <- current_email[timestamp > "2022-11-25"]
+#' p2_orphans_report
+#'
+#' Sends an email containing a plot of recent orphans and a spreadsheet of all orphans.
+#'
+#' @param freshness difftime,	the returned data will be at least this fresh
+#'
+#' @importFrom ggplot2 ggplot geom_histogram aes scale_fill_brewer theme_minimal
+#' @importFrom dplyr case_when
+#' @importFrom lubridate ddays
+#' @importFrom grDevices dev.off png
+#' @export
+p2_orphans_report <- function(freshness = 0) {
+  . <- type <- timestamp <- id <- from <- to <- customer_no.x <- expr_dt <- memb_level <-
+    last_updated_by <- NULL
 
-  ggplot(updates) +
-    geom_histogram(aes(timestamp, fill = customer_no != i.customer_no))
-  ggplot(current_email) +
-    geom_histogram(aes(timestamp, fill = customer_no != i.customer_no))
-  ggplot(updates) +
-    geom_histogram(aes(timestamp, fill = last_updated_by))
+  p2_orphans <- p2_orphans()
+  tessi_emails <- tessi_changed_emails(since = 0, freshness = freshness)
 
-  # customer_no changed (merged or household change)
-  merges <- last_match[customer_no != i.customer_no]
-  # updated email
-  updated_emails <- last_match[customer_no == i.customer_no & primary_ind == "Y"]
+  # last change from `from`
+  p2_orphan_events <- tessi_emails[p2_orphans,on=c("from"="address")]
 
-  m <- tessilake::read_sql_table("T_MERGED") %>%
-    collect() %>%
-    setDT()
-  m <- m[status == "S"][merges, on = c("kept_id" = "customer_no", "merge_dt" = "timestamp"), roll = "nearest"]
+  p2_orphan_events[,type:=case_when(trimws(last_updated_by) == "popmulti" ~ "web",
+                                    trimws(last_updated_by) == "sqladmin" ~ "merge",
+                                    TRUE ~ "client") %>% forcats::fct_infreq()]
 
-  # true merges
-  m[!is.na(request_dt) & request_dt >= "2022-08-01"]
-  # household operation
-  m[is.na(request_dt) | request_dt < "2022-08-01"]
+  png(image_file <- tempfile(fileext = ".png"))
+  ggplot(p2_orphan_events[timestamp>'2022-08-01']) +
+      geom_histogram(aes(timestamp,
+                         fill=type),
+                     binwidth=ddays(7)) +
+    scale_fill_brewer(type="qual") +
+    theme_minimal() -> p
 
-  u <- tessi_emails[primary_ind == "Y"][, next_timestamp := timestamp][!updated_emails, on = c("address")][updated_emails, .(
-    customer_no, eaddress_no, next_timestamp, address, i.address, i.last_timestamp, last_updated_by
-  ), on = c("customer_no", "timestamp"), roll = "nearest"]
-  # true updates
-  u[!is.na(eaddress_no) & next_timestamp >= "2022-08-01"]
-  u[is.na(eaddress_no) | next_timestamp < "2022-08-01"]
+
+
+  print(p)
+
+  dev.off()
+
+  memberships <- read_tessi("memberships", c("expr_dt","memb_level",
+                                             "customer_no")) %>%
+    collect() %>% setDT() %>% .[,.SD[.N], by="customer_no"]
+
+  p2_orphan_events <- merge(p2_orphan_events,memberships,all.x=T,by="group_customer_no")
+
+  can_be_updated <- split(p2_orphan_events,1:nrow(p2_orphan_events)) %>%
+    map(~p2_update_email(.$from, .$to, .$i.customer_no, dry_run = TRUE))
+
+
+  xlsx_file <- write_xlsx(p2_orphan_events[,.(
+    timestamp = as.Date(timestamp),
+    "customer_#" = customer_no.x,
+    p2_id = id,
+    from_email = from,
+    to_email = to,
+    expiration_date = as.Date(expr_dt),
+    member_level = memb_level,
+    can_be_updated,
+    change_type = type,
+    last_updated_by
+  )],
+  xlsx_file <- tempfile(fileext = ".xlsx"))
+  writeLines(paste0("<img src='",image_file,"'>"), html_file <- tempfile())
+
+  send_email(
+    subject = paste("P2 Orphan Report :",lubridate::today()),
+    body = html_file,
+    emails = "ssyzygy@bam.org",
+    attach.files = xlsx_file,
+    html = TRUE,
+    file.names = paste0("p2_ophan_report_",lubridate::today(),".xlsx"),
+    inline = TRUE
+  )
+
 }

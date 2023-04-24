@@ -24,12 +24,10 @@ Suggests:
     withr
 Config/testthat/edition: 3
 Imports:
-    censusxy,
     checkmate,
     cli,
     data.table,
     DBI,
-    digest,
     dplyr,
     forcats,
     furrr,
@@ -45,10 +43,6 @@ Imports:
     purrr,
     rlang,
     RSQLite,
-    sf,
-    stringr,
-    targets,
-    tessilake,
-    tidyr
+    tessilake
 Remotes: 
     skysyzygy/tessilake

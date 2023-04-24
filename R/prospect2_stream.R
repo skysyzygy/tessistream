@@ -493,33 +493,3 @@ p2_stream <- function() {
   p2_stream
 
 }
-
-if (FALSE) {
-
-  emails <- read_tessi("emails") %>%
-    dplyr::collect() %>%
-    setDT()
-  inactive_emails <- emails[primary_ind == "N"][!emails[primary_ind == "Y"], on = "address"]
-
-  p2_emails <- purrr::map_chr(contacts, "email") %>% unique()
-  p2_orphan <- p2_emails[!trimws(tolower(p2_emails)) %in% emails[primary_ind == "Y", trimws(tolower(address))]]
-
-  # Add "Orphan account" tag and zero out membership data
-  p2_import <- data.frame(
-    Email = p2_orphan,
-    Tags = "Orphan Account",
-    MEMBER_LEVEL = NA,
-    RECOGNITION_AMOUNT = NA,
-    INITIATION_DATE = NA,
-    EXPIRATION_DATE = NA,
-    CONSTITUENCY_STRING_WITH_AFFILIATES = NA,
-    BENEFIT_PROVIDER = NA,
-    CURRENT_STATUS = NA,
-    CUSTOMER_LAST_GIFT_DT = NA,
-    CUSTOMER_LAST_TICKET_DT = NA
-  )
-
-  write.csv(p2_import, "p2_import.csv", row.names = F, na = "")
-
-  save.image()
-}

@@ -163,7 +163,7 @@ p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_ema
 #' @export
 #'
 p2_orphans <- function(freshness = 0) {
-  . <- status <- field <- email <- value <- id.contact <- address <- primary_ind <- customer_no <- NULL
+  . <- status <- field <- email <- value <- id <- address <- primary_ind <- customer_no <- NULL
 
   p2_db_open()
 

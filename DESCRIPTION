@@ -1,6 +1,6 @@
 Package: tessistream
 Title: Datasets for Analytics and Machine Learning from Tessitura
-Version: 0.0.0.9000
+Version: 0.1.1
 Authors@R: 
     person("Sky", "Syzygy", , "ssyzygy@bam.org", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
@@ -17,33 +17,32 @@ LazyData: true
 Suggests: 
     covr,
     mockery,
+    png,
+    progressr,
     rprojroot,
     testthat (>= 3.0.0),
     withr
 Config/testthat/edition: 3
 Imports:
-    censusxy,
     checkmate,
+    cli,
     data.table,
     DBI,
-    digest,
     dplyr,
+    forcats,
     furrr,
     future,
-    future.batchtools,
-    future.callr,
+    ggplot2,
     httr,
     jsonlite,
     keyring,
     lubridate,
     magrittr,
+    mailR,
+    openxlsx,
     purrr,
     rlang,
     RSQLite,
-    sf,
-    stringr,
-    targets,
-    tessilake,
-    tidyr
+    tessilake
 Remotes: 
     skysyzygy/tessilake

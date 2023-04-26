@@ -4,7 +4,7 @@ withr::local_package("dplyr")
 audit <- readRDS(test_path("address_audit.Rds"))
 addresses <- readRDS(test_path("addresses.Rds"))
 # Use this to turn off libpostal execution
-# stub(address_exec_libpostal,"Sys.which","")
+ stub(address_exec_libpostal,"Sys.which","")
 
 # address_create_stream ---------------------------------------------------
 
@@ -14,7 +14,7 @@ test_that("address_create_stream builds a stream using all data from audit table
   stub(address_create_stream, "stream_from_audit", stream_from_audit)
   expect_equal(
     nrow(address_create_stream()),
-    nrow(distinct(audit[, .(alternate_key, date)])) + 1
+    nrow(distinct(audit[, .(alternate_key, lubridate::as_date(date))])) + 1
   )
 })
 
@@ -22,7 +22,10 @@ test_that("address_create_stream builds a stream using all data from address tab
   read_tessi <- mock(audit[1],addresses)
   stub(stream_from_audit, "read_tessi", read_tessi)
   stub(address_create_stream, "stream_from_audit", stream_from_audit)
-  expect_equal(nrow(address_create_stream()), 2 * length(unique(addresses$address_no)) + 1)
+  expect_equal(nrow(address_create_stream()),
+               addresses[,.(address_no,create_dt,last_update_dt)] %>%
+                 data.table::melt(id.vars="address_no") %>%
+                 distinct(address_no,as_date(value)) %>% nrow + 1)
 })
 
 test_that("address_create_stream has some data in each row, including creations", {
@@ -56,7 +59,7 @@ test_that("address_create_stream fills in all data", {
 
 })
 
-test_that("address_create_stream returns only one address change per timestamp", {
+test_that("address_create_stream returns only one address change per day", {
   read_tessi <- mock(audit,addresses)
   stub(stream_from_audit, "read_tessi", read_tessi)
   stub(address_create_stream, "stream_from_audit", stream_from_audit)

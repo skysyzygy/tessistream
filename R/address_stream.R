@@ -29,9 +29,12 @@ address_cols <- c(
 #' @importFrom tessilake read_tessi read_sql_table
 #' @importFrom dplyr collect transmute filter select
 #' @importFrom data.table setDT setkey
+#' @importFrom lubridate as_date
 address_create_stream <- function(freshness = as.difftime(7, units = "days")) {
 
-  stream_from_audit("addresses", freshness = freshness)
+  stream_from_audit("addresses", freshness = freshness) %>%
+    .[,timestamp := as_date(timestamp)] %>%
+    stream_debounce(c("address_no","timestamp"))
 
 }
 

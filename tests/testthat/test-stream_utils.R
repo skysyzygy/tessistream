@@ -189,7 +189,7 @@ audit_table <- data.table(group_customer_no = 0,
 #   split(.$Var2) %>% purrr::imap(~audit_table[.x$Var1,(.y):=NA])
 
 dummy_list_tables <- data.table(short_name = "dummy",
-                                long_name = "T_DUMMY",
+                                base_table = "T_DUMMY",
                                 primary_keys = "id")
 
 stub(stream_from_audit, "tessi_list_tables", dummy_list_tables)

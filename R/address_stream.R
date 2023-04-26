@@ -18,63 +18,6 @@ address_cols <- c(
   "country_desc" = "country"
 )
 
-#' @importFrom dplyr transmute select filter coalesce
-#' @importFrom data.table setDT dcast
-#' @importFrom tessilake read_tessi
-address_load_audit <- function(freshness) {
-  table_name <- column_updated <- group_customer_no <- new_value <- old_value <- alternate_key <- userid <- NULL
-
-  # Address changes
-  read_tessi("audit", freshness = freshness) %>%
-    filter(table_name == "T_ADDRESS" & column_updated %in% c(address_cols, "primary_ind")) %>%
-    transmute(group_customer_no,
-      timestamp = date,
-      new_value = coalesce(new_value, ""),
-      old_value = coalesce(old_value, ""),
-      address_no = as.integer(as.character(alternate_key)),
-      last_updated_by = userid,
-      column_updated, old_value, new_value
-    ) %>%
-    collect() %>%
-    setDT()
-}
-
-#' @importFrom dplyr transmute select filter
-#' @importFrom data.table setDT setnames
-#' @importFrom tessilake read_tessi
-address_load <- function(freshness) {
-  . <- group_customer_no <- create_dt <- address_no <- created_by <- last_update_dt <- last_updated_by <- NULL
-
-  a <- read_tessi("addresses", freshness = freshness) %>%
-    collect() %>%
-    setDT()
-
-  cols <- c(address_cols, primary_ind = "primary_ind")
-
-  rbind(
-    # Address creations
-    a[, .(group_customer_no,
-      event_type = "Address", event_subtype = "Creation",
-      timestamp = create_dt,
-      address_no,
-      last_updated_by = created_by
-    )],
-    # Address last modifications
-    cbind(
-      a[, .(group_customer_no,
-        event_type = "Address", event_subtype = "Current",
-        timestamp = last_update_dt,
-        address_no,
-        last_updated_by
-      )],
-      a[, names(cols), with = FALSE] %>%
-        setnames(names(cols), cols)
-    ),
-    fill = TRUE
-  )
-}
-
-
 #' address_create_stream
 #'
 #' Creates address data with timestamps from TA_AUDIT_TABLE and T_ADDRESS data
@@ -87,48 +30,9 @@ address_load <- function(freshness) {
 #' @importFrom dplyr collect transmute filter select
 #' @importFrom data.table setDT setkey
 address_create_stream <- function(freshness = as.difftime(7, units = "days")) {
-  . <- address_no <- timestamp <- NULL
 
-  aa <- address_load_audit(freshness)
+  stream_from_audit("addresses", freshness = freshness)
 
-  address_audit_stream <- aa %>%
-    dcast(group_customer_no + timestamp + address_no + last_updated_by ~ column_updated, value.var = "new_value") %>%
-    .[, `:=`(event_type = "Address", event_subtype = "Change")]
-
-  address_audit_creation <- aa %>%
-    .[, .SD[1], by = c("address_no", "column_updated")] %>%
-    dcast(address_no ~ column_updated, value.var = "old_value") %>%
-    .[, `:=`(event_type = "Address", event_subtype = "Creation")]
-
-  address_stream <- rbind(address_load(freshness), address_audit_stream, fill = TRUE)
-
-  cols <- c(address_cols, "primary_ind")
-
-  # Address creation fill-up based on audit old_value -- all other old_values are captured within the audit table itself
-  address_stream[address_audit_creation,
-    (cols) := mget(paste0("i.", cols), ifnotfound = NA),
-    on = c("address_no", "event_subtype")
-  ]
-
-  setkey(address_stream, address_no, timestamp)
-
-  address_fill_debounce_stream(address_stream)
-}
-
-address_fill_debounce_stream <- function(address_stream) {
-  event_subtype <- address_no <- timestamp <- group_customer_no <- NULL
-  cols <- c(address_cols, "primary_ind")
-
-  # Factorize event_subtype
-  address_stream[, event_subtype := factor(event_subtype, levels = c("Creation", "Change", "Current"))]
-
-  setkey(address_stream, address_no, event_subtype, timestamp)
-  # Fill-down changes
-  setnafill(address_stream, "locf", cols = cols, by = "address_no")
-  # And then fill back up for non-changes
-  setnafill(address_stream, "nocb", cols = cols, by = "address_no")
-
-  stream_debounce(address_stream, group_customer_no, address_no)
 }
 
 # Street cleaning ---------------------------------------------------------

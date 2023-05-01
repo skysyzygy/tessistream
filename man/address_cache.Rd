@@ -17,7 +17,7 @@ address_cache(
 
 \item{cache_name}{name of cache file}
 
-\item{.function}{function to be called for processing}
+\item{.function}{function to be called for processing, is sent \code{address_stream[address_cols]} and additional parameters.}
 
 \item{db_name}{path to sqlite database, defaults to \code{tessilake:::cache_path("address_stream.sqlite","deep","stream")}}
 

@@ -4,7 +4,7 @@ withr::local_package("dplyr")
 audit <- readRDS(test_path("address_audit.Rds"))
 addresses <- readRDS(test_path("addresses.Rds"))
 # Use this to turn off libpostal execution
- stub(address_exec_libpostal,"Sys.which","")
+# stub(address_exec_libpostal,"Sys.which","")
 
 # address_create_stream ---------------------------------------------------
 
@@ -234,12 +234,21 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
   expect_equal(parsed$libpostal.country, rep(paste("country_region", "country", "world_region", sep = ", "), 8))
 })
 
+test_that("address_parse_libpostal returns empty columns so that the schema is always the same", {
+  parsed <- address_parse_libpostal(data.table(street1=NA,street2=NA,city=NA,state=NA,postal_code=NA,country=NA))
+  parsed_cols <- c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode")
+  expect_named(parsed, c(
+    as.character(address_cols), paste0("libpostal.",parsed_cols)
+  ))
+
+})
+
 # address_cache -----------------------------------------------------------
 tessilake:::local_cache_dirs()
 
 address_stream <- data.table(street1 = paste(1:100, "example lane"), something = "extra")
 address_processor <- function(address_stream) {
-  address_stream[, .(street1, processed = strsplit(street1, " ", ) %>% purrr::map_chr(1))]
+  address_stream[, .(street1, processed = strsplit(street1, " ") %>% purrr::map_chr(1))]
 }
 
 sqlite_file <- tessilake:::cache_path("address_stream.sqlite", "deep", "stream")
@@ -265,7 +274,7 @@ test_that("address_cache updates the the cache file after cache misses", {
   expect_named(DBI::dbReadTable(db, "address_cache"), c("street1", "processed"))
 })
 
-test_that("address_parse incremental runs match address_parse full runs", {
+test_that("address_cache incremental runs match address_cache full runs", {
   incremental <- DBI::dbReadTable(db, "address_cache") %>%
     collect() %>%
     setDT()
@@ -273,6 +282,21 @@ test_that("address_parse incremental runs match address_parse full runs", {
 
   expect_mapequal(incremental, full)
 })
+
+test_that("address_cache saves only unique addresses", {
+  address_stream <- data.table(street1 = paste(c(5000,5000), "example lane"), something = "extra")
+  address_cache(address_stream, "address_cache", address_processor)
+  expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 101)
+})
+
+test_that("address_cache returns data appended to input", {
+  address_stream <- data.table(street1 = paste(c(1,5,1,5), "example lane"), something = "extra")
+  res <- address_cache(address_stream, "address_cache", address_processor)
+  expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 101)
+  expect_equal(res,cbind(address_stream[,.(street1)],processed = c("1","5","1","5")))
+})
+
+
 
 # address_parse -----------------------------------------------------------
 address_stream_parsed <- data.table(

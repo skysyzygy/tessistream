@@ -113,11 +113,13 @@ address_exec_libpostal <- function(addresses) {
 #' @importFrom tidyr unite
 #' @importFrom stringr str_detect str_match str_remove fixed
 #' @importFrom dplyr any_of distinct
+#' @importFrom checkmate assert_data_table assert_names
 #' @describeIn address_parse handle parsing by libpostal
 address_parse_libpostal <- function(address_stream) {
   address <- unit <- postcode <- road <- NULL
 
   assert_data_table(address_stream)
+  assert_names(colnames(address_stream), must.include = address_cols)
 
   # one row per unique address
   address_stream <- address_stream[, ..address_cols] %>%
@@ -238,7 +240,7 @@ address_parse <- function(address_stream) {
 #'
 #' @param address_stream data.table of addresses
 #' @param cache_name name of cache file
-#' @param .function function to be called for processing
+#' @param .function function to be called for processing, is sent `address_stream[address_cols]` and additional parameters.
 #' @param db_name path to sqlite database, defaults to `tessilake:::cache_path("address_stream.sqlite","deep","stream")`
 #' @param ... additional options passed to `.function`
 #'
@@ -255,20 +257,24 @@ address_cache <- function(address_stream, cache_name, .function, db_name = tessi
 
   address_cols <- intersect(address_cols, colnames(address_stream))
 
+  address_stream_distinct <- address_stream[,..address_cols] %>% distinct
+
   if (!DBI::dbExistsTable(cache_db, cache_name)) {
     # Cache doesn't yet exist
-    address_stream <- cache <- .function(address_stream, ...)
+    cache <- .function(address_stream_distinct, ...)
     DBI::dbWriteTable(cache_db, cache_name, cache)
   } else {
     cache <- DBI::dbReadTable(cache_db, cache_name) %>% setDT()
-    cache_miss <- address_stream[!cache, ..address_cols, on = as.character(address_cols)] %>% .function(...)
+    cache_miss <- address_stream_distinct[!cache, ..address_cols, on = as.character(address_cols)] %>% .function(...)
 
     DBI::dbAppendTable(cache_db, cache_name, cache_miss)
 
     cache <- rbind(cache, cache_miss, fill = TRUE)
-    address_stream <- cache[address_stream[, ..address_cols], on = as.character(address_cols)]
   }
 
   DBI::dbDisconnect(cache_db)
+
+  address_stream <- cache[address_stream[, ..address_cols], on = as.character(address_cols)]
+
   return(address_stream)
 }

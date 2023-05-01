@@ -13,6 +13,8 @@
 #' @importFrom purrr cross2 map flatten map_chr
 #' @importFrom checkmate assert_data_table assert_names
 address_geocode_all <- function(address_stream) {
+  libpostal.street <- NULL
+
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 

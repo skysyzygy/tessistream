@@ -3,139 +3,149 @@ withr::local_package("mockery")
 
 tessilake:::local_cache_dirs()
 
-# address_exec_census -----------------------------------------------------
+# address_geocode_all --------------------------------------------------
+stub(address_geocode_all,"address_parse",function(address_stream){address_stream})
 
-address_stream <- data.table(
-  street = "30 Lafayette Ave",
-  city = "Brooklyn",
-  state = "NY",
-  postal_code = "11217"
-)
-
-test_that("address_exec_census handles multiple vintages in calls to cxy_geocode", {
-  expect_silent(address_exec_census(cbind(address_stream, vintageName = c("Current_Current", "Census2020_Current"))))
-
-  cxy_geocode <- mock(address_stream, cycle = TRUE)
-  stub(address_exec_census, "cxy_geocode", cxy_geocode)
-  address_exec_census(cbind(address_stream, vintageName = rep(c("Current_Current", "Census2020_Current"), 5)))
-
-  expect_equal(length(mock_args(cxy_geocode)), 2)
-  expect_equal(nrow(mock_args(cxy_geocode)[[1]][[1]]), 5)
-  expect_equal(nrow(mock_args(cxy_geocode)[[2]][[1]]), 5)
-})
-
-test_that("address_exec_census handles returns a single data.table with all columns from address_stream", {
-  result <- address_exec_census(cbind(address_stream, test = "something", vintageName = c("Current_Current", "Census2020_Current")))
-
-  expect_true(all(c(colnames(address_stream), "vintageName", "test") %in% colnames(result)))
-  expect_class(result, "data.table")
-})
-
-
-# address_geocode_census --------------------------------------------------
-
-address_stream <- data.table(
-  street1 = "30 Lafayette Ave",
-  street2 = "Brooklyn Academy of Music",
-  city = "Brooklyn",
-  state = "NY",
-  country = "USA",
-  postal_code = "11217"
-)
-
-test_that("address_geocode_census adds census vintages to address_stream", {
-  stub(address_geocode_census, "setleftjoin", function(...) {
-    rlang::abort(data = setleftjoin(...), class = "setleftjoin")
-  })
-  cnd <- expect_error(address_geocode_census(cbind(address_stream,
-    timestamp = seq(lubridate::ymd("2000-01-01"), lubridate::ymd("2022-01-01"), by = "year")
-  )), class = "setleftjoin")
-  expect_names(colnames(cnd$data), must.include = "vintageName")
-  expect_equal(cnd$data$vintageName, paste0(c(
-    rep("Census2010", 11),
-    rep("ACS2017", 7),
-    "ACS2018",
-    "ACS2019",
-    "Census2020",
-    "ACS2021",
-    "ACS2022"
-  ), "_Current"))
-
-  expect_false(any(is.na(cnd$data$vintageName)))
-})
-
-test_that("address_geocode_census adds parsing to address_stream if it exists", {
-  stub(address_geocode_census, "address_exec_census", function(.) {
-    dplyr::mutate(., cxy_quality = "Oops")
-  })
-
-  debugonce(address_geocode_census)
-  stub(address_geocode_census, "setleftjoin", function(...) {
-    rlang::inform(data = setleftjoin(...), class = "setleftjoin")
-  })
-  cnd <- expect_message(address_geocode_census(cbind(address_stream, timestamp = lubridate::now())), class = "setleftjoin")
-
-  address_stream_parsed <- function(address_stream) {
-    cbind(address_stream, libpostal = data.table(house_number = "30", road = "Lafayette Ave", city = "Libpostal", state = "NY", postcode = "11217"))
-  }
-  address_cache(address_stream, "address_parse", address_stream_parsed)
-
-  cnd <- expect_message(expect_message(address_geocode_census(address_stream[, timestamp := lubridate::now()]), class = "setleftjoin"), class = "setleftjoin")
-  expect_names(colnames(cnd$data), must.include = paste0("libpostal.", c("house_number", "road", "city", "state", "postcode")))
-})
-
-test_that("address_geocode_census doesn't send duplicate addresses", {
-  cxy_geocode <- mock(cbind(rlang::env_get(rlang::caller_env(3), ".SD"), cxy_quality = "Really bad"), cycle = TRUE)
-  stub(address_exec_census, "cxy_geocode", cxy_geocode)
-  stub(address_geocode_census, "address_exec_census", address_exec_census)
-
+test_that("address_geocode_all works with and without libpostal data", {
   address_stream <- data.table(
-    street1 = rep("30 Lafayette Ave", 3),
-    street2 = "Brooklyn Academy of Music",
+    libpostal.house_number = "30",
+    libpostal.road = "libpostal.road",
+    street1 = "30 street1",
+    street2 = "30 street2",
     city = "Brooklyn",
     state = "NY",
     country = "USA",
     postal_code = "11217"
-  ) %>% setDT()
+  )
 
-  address_geocode_census(address_stream[, timestamp := lubridate::now()])
+  geocode_combine <- mock()
+  stub(address_geocode_all,"geocode_combine",geocode_combine)
 
-  expect_length(mock_args(cxy_geocode), 3) # street1 & street2, libpostal
-  expect_equal(nrow(mock_args(cxy_geocode)[[1]][[1]]), 1)
-  expect_equal(nrow(mock_args(cxy_geocode)[[2]][[1]]), 1) # Each gets sent only once
-  expect_equal(nrow(mock_args(cxy_geocode)[[3]][[1]]), 1)
+  address_geocode_all(address_stream)
+  expect_equal(mock_args(geocode_combine)[[1]][[1]]$libpostal.street,"30 libpostal.road")
+
+  stub(address_geocode_all,"address_parse",address_stream[,..address_cols])
+
+  address_geocode_all(address_stream)
+  expect_equal(mock_args(geocode_combine)[[2]][[1]]$street1,"30 street1")
+  expect_false("libpostal.street" %in% colnames(mock_args(geocode_combine)[[2]][[1]]))
+
 })
 
-test_that("address_geocode_census only sends US addresses to census parser", {
-  cxy_geocode <- mock(cbind(rlang::env_get(rlang::caller_env(3), ".SD"), cxy_quality = "Really bad"), cycle = TRUE)
-  stub(address_exec_census, "cxy_geocode", cxy_geocode)
-  stub(address_geocode_census, "address_exec_census", address_exec_census)
+test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder", {
 
-  address_stream <- expand.grid(
-    street1 = "30 Lafayette Ave",
-    street2 = "Brooklyn Academy of Music",
+  address_stream <- data.table(
+    libpostal.house_number = "30",
+    libpostal.road = "libpostal.road",
+    street1 = "30 street1",
+    street2 = "30 street2",
     city = "Brooklyn",
-    state = c("NY", NA_character_, "123"),
-    country = c("USA", "UK"),
-    postal_code = c("11217", "1121712345", "ABCDE", "1", "00000")
-  ) %>%
-    lapply(as.character) %>%
-    setDT()
+    state = "NY",
+    country = "USA",
+    postal_code = "11217"
+  )
 
-  result <- address_geocode_census(address_stream[, timestamp := lubridate::now()])
+  geocode_combine <- function(global_params,...) { tidygeocoder::geocode_combine(global_params = c(global_params, no_query = TRUE), ...)}
+  stub(address_geocode_all,"geocode_combine",geocode_combine)
 
-  expect_length(mock_args(cxy_geocode), 3)
-  expect_equal(nrow(mock_args(cxy_geocode)[[1]][[1]]), 1) # libpostal only matches the first one
-  expect_equal(nrow(mock_args(cxy_geocode)[[2]][[1]]), 2) # street1 x 11217 & 1121712345
-  expect_equal(nrow(mock_args(cxy_geocode)[[3]][[1]]), 2) # street2 x 11217 & 1121712345
+  msg <- capture.output(capture.output(address_geocode_all(address_stream),type="message"))
+  expect_match(paste(msg,collapse="\\n"),paste0("census.+libpostal.+",
+                                                "census.+street1.+",
+                                                "census.+street2.+",
+                                                "openstreetmap.+libpostal.+",
+                                                "openstreetmap.+street1.+",
+                                                "openstreetmap.+street2.+"))
 
-  expect_equal(nrow(result), 9) # USA & UK for street1/street2 + 1 for libpostal
 })
 
-test_that("address_geocode_census does not retry successfully geocoded addresses", {
-  cxy_geocode <- mock(cbind(rlang::env_get(rlang::caller_env(3), ".SD"), cxy_quality = "Exact"), cycle = TRUE)
-  stub(address_exec_census, "cxy_geocode", cxy_geocode)
-  stub(address_geocode_census, "address_exec_census", address_exec_census)
+test_that("address_geocode_all gets US and international addresses", {
+
+  address_stream <- data.table(
+    libpostal.house_number = "30",
+    libpostal.road = c("Lafayette Ave","Churchill Pl"),
+    street1 = c("30 Lafayette Ave","30 Churchill Pl"),
+    street2 = c("30 Lafayette Ave","30 Churchill Pl"),
+    city = c("Brooklyn","London"),
+    state = c("NY",NA),
+    country = c("USA","UK"),
+    postal_code = c("11217","E14 5EU")
+  )
+
+  capture.output(res <- address_geocode_all(address_stream), type = "message")
+
+  # All get geocode
+  expect_false(any(is.na(res[,.(lat,lng)])))
+  # And those geocodes are for the right addresses
+  expect_match(res[1,matched_address],"30 LAFAYETTE AVE")
+  expect_match(res[2,display_name],"30.+Churchill Pl")
+  # And we get census tract data when available
+  expect_false(is.na(res[1,census_tract]))
+
+})
+
+test_that("address_geocode_all works with missing data", {
+
+  address_stream <- rbind(
+   data.table(libpostal.house_number = "30 Lafayette Ave"),
+   data.table(libpostal.road = "Lafayette Ave"),
+   data.table(street1 = "30 Lafayette Ave"),
+   data.table(street2 = "321 Ashland Pl"),
+   data.table(city = "Brooklyn"),
+   data.table(state = "NY"),
+   data.table(country = "USA"),
+   data.table(postal_code = "11217"),
+   fill = TRUE
+  )
+
+  capture.output(res <- address_geocode_all(address_stream), type = "message")
+
+  # All get geocode
+  expect_false(any(is.na(res[,.(lat,lng)])))
+  # And those geocodes are for the right addresses
+  expect_match(res[1,display_name],"30.+Lafayette Ave")
+  expect_match(res[2,display_name],"Lafayette Ave")
+  expect_match(res[3,display_name],"30.+Lafayette Ave")
+  expect_match(res[4,display_name],"321.+Ashland Pl")
+  expect_match(res[5,display_name],"Brooklyn")
+  expect_match(res[6,display_name],"New York")
+  expect_match(res[7,display_name],"United States")
+  expect_match(res[8,display_name],"11217")
+
+})
+
+test_that("address_geocode_all suppresses completely missing data", {
+
+  address_stream <- data.table(
+    libpostal.house_number = NA,
+    libpostal.road = NA,
+    street1 = NA,
+    street2 = NA,
+    city = NA,
+    state = NA,
+    country = NA,
+    postal_code = NA
+  )
+
+  expect_silent(res <- address_geocode_all(address_stream))
+
+  address_stream <- rbind(address_stream,data.table(
+    street1 = c("30 Lafayette Ave"),
+    city = c("Brooklyn"),
+    state = c("NY"),
+    country = c("USA"),
+    postal_code = c("11217")
+  ), fill = T)
+
+  expect_warning(capture.output(res <- address_geocode_all(address_stream), type = "message"),"Bad Request")
+
+  expect_equal(nrow(res),1)
+
+})
+
+
+# address_geocode ---------------------------------------------------------
+
+test_that("address_geocode does not retry successfully geocoded addresses", {
 
   address_stream <- expand.grid(
     street1 = c("30 Lafayette Ave", "651 Fulton St"),
@@ -148,13 +158,12 @@ test_that("address_geocode_census does not retry successfully geocoded addresses
     lapply(as.character) %>%
     setDT()
 
-  result <- address_geocode_census(address_stream[, timestamp := lubridate::now()])
+  stub(address_geocode_all,"geocode_combine",function(.tbl,...) { message(nrow(.tbl)); cbind(.tbl,lat=123,lng=456)})
 
+  stub(address_geocode,"address_geocode_all",address_geocode_all)
 
-  expect_length(mock_args(cxy_geocode), 2)
-  expect_equal(nrow(mock_args(cxy_geocode)[[1]][[1]]), 1) # libpostal only matches the first address
-  expect_equal(nrow(mock_args(cxy_geocode)[[2]][[1]]), 3) # the three addresses that haven't been tried yet (libpostal is different)
-  # expect_equal(nrow(mock_args(cxy_geocode)[[3]][[1]]),0) # nothing left to do!
+  expect_message(result <- address_geocode(address_stream),"4")
+  expect_silent(result2 <- address_geocode(address_stream))
+  expect_equal(result,result2)
 
-  expect_equal(nrow(result), nrow(address_stream))
 })

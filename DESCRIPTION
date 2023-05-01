@@ -43,7 +43,9 @@ Imports:
     purrr,
     rlang,
     RSQLite,
+    stringr,
     tessilake,
-    tidygeocoder
+    tidygeocoder,
+    tidyr
 Remotes: 
     skysyzygy/tessilake

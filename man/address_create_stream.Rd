@@ -10,7 +10,8 @@ address_create_stream(freshness = as.difftime(7, units = "days"))
 \item{freshness}{data will be at least this fresh}
 }
 \value{
-data.table of addresses data at different points of time, no more than one address per customer per day
+data.table of addresses data at different points of time, no more than one
+change per address per day
 }
 \description{
 Creates address data with timestamps from TA_AUDIT_TABLE and T_ADDRESS data

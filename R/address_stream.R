@@ -24,7 +24,8 @@ address_cols <- c(
 #'
 #' @param freshness data will be at least this fresh
 #'
-#' @return data.table of addresses data at different points of time, no more than one address per customer per day
+#' @return data.table of addresses data at different points of time, no more than one
+#' change per address per day
 #'
 #' @importFrom tessilake read_tessi read_sql_table
 #' @importFrom dplyr collect transmute filter select

@@ -117,7 +117,7 @@ address_exec_libpostal <- function(addresses) {
 #' @importFrom checkmate assert_data_table assert_names
 #' @describeIn address_parse handle parsing by libpostal
 address_parse_libpostal <- function(address_stream) {
-  address <- unit <- postcode <- road <- `..address_cols` <- `..parsed_cols` <- NULL
+  address <- unit <- postcode <- road <- NULL
 
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
@@ -248,8 +248,6 @@ address_parse <- function(address_stream) {
 #' @return data.table of addresses processed
 #' @importFrom dplyr collect
 address_cache <- function(address_stream, cache_name, .function, db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
-  `..address_cols` <- NULL
-
   assert_data_table(address_stream)
 
   if (!dir.exists(dirname(db_name))) {

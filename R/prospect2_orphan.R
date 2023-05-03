@@ -11,7 +11,8 @@
 #' @return data.table of changed emails with columns `old_value`, `new_value`, and `customer_no`
 tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
   . <- customer_no <- address <- eaddress_no <- timestammp <- primary_ind <- i.address <-
-    address <- timestamp <- timestamp_end <- from <- to <- to2 <- group_customer_no <- last_updated_by <- NULL
+    address <- timestamp <- timestamp_end <- from <- to <- to2 <-
+    to_last_updated_by <- to2_last_updated_by <- i.last_updated_by <- group_customer_no <- last_updated_by <- NULL
 
   emails <- stream_from_audit("emails", ...) %>%
     .[!is.na(customer_no) & !is.na(address)] %>%
@@ -67,14 +68,14 @@ p2_update_email <- function(from = NULL, to = NULL, customer_no = NULL, dry_run 
   customer_no_string <- paste0(customer_no, collapse = ", ")
   inform(paste("Updating", from, "to", to, "for customer #", customer_no_string))
 
-  contact_from <- p2_query_api(modify_url(
+  p2_contact_from <- p2_query_api(modify_url(
     api_url, path = "api/3/contacts",
     query = list(
       email = from,
-      include = "fieldValues"
+      include = "fieldValues,contactAutomations"
     )))
 
-  contact_to <- p2_query_api(modify_url(
+  p2_contact_to <- p2_query_api(modify_url(
     api_url, path = "api/3/contacts",
     query = list(
       email = to,
@@ -82,12 +83,13 @@ p2_update_email <- function(from = NULL, to = NULL, customer_no = NULL, dry_run 
     )))
 
   tests <-
-    c("From email" = !is.null(contact_from$contacts) && tolower(unlist(contact_from$contacts$email)) == from,
-      "To email" = !is.null(contact_to$contacts),
-      "Customer #" = !is.null(contact_from$fieldValues) && !is.null(contact_from$fieldValues$field) &&
-        unlist(contact_from$fieldValues[field == 1, as.integer(value)]) %in% customer_no
+    c("From email" = !is.null(p2_contact_from$contacts) && tolower(unlist(p2_contact_from$contacts$email)) == from,
+      "To email" = !is.null(p2_contact_to$contacts),
+      "Customer #" = !is.null(p2_contact_from$fieldValues) && !is.null(p2_contact_from$fieldValues$field) &&
+        unlist(p2_contact_from$fieldValues[field == 1, as.integer(value)]) %in% customer_no
     )
 
+  # Report the result of the tests
   message <- paste(
     names(tests),
     ifelse(tests, "matches", "doesn't match"),
@@ -97,11 +99,19 @@ p2_update_email <- function(from = NULL, to = NULL, customer_no = NULL, dry_run 
   message <- setNames(message, ifelse(tests, "i", "x"))
 
   inform(message)
+
+  # If tests have failed
   if ("x" %in% names(message)) {
+
+    ##in_automation <- !is.null(p2_contact_from$contactAutomations) && p2_contact_from$contactAutomations[completed != 1,.N] > 0
+    #if(!in_automation)
+
     return(invisible(FALSE))
   }
 
-  url <- modify_url(api_url, path = file.path("api/3/contacts", unlist(contact_from$contacts$id)))
+  # Prepare to do the change via the P2 API
+
+  url <- modify_url(api_url, path = file.path("api/3/contacts", unlist(p2_contact_from$contacts$id)))
   obj <- list(contact = list(email = to))
 
   inform(c(

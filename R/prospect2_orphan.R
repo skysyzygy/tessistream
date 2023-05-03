@@ -163,27 +163,25 @@ p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_ema
 #' @export
 #'
 p2_orphans <- function(freshness = 0) {
-  . <- status <- field <- email <- value <- id <- address <- primary_ind <- customer_no <- NULL
+  . <- status <- field <- email <- value <- id <- contact <- address <- primary_ind <- customer_no <- NULL
 
   p2_db_open()
 
   # All contacts
-  p2_emails <- tbl(tessistream$p2_db, "contacts") %>%
+  p2_emails <- tbl(tessistream$p2_db, "contacts") %>% select(id,email) %>% collect %>%
     # That are currently subscribed to something
-    dplyr::inner_join(tbl(tessistream$p2_db, "contactLists") %>%
-                        filter(status == "1"),
-               by=c("id"="contact"),
-               suffix=c("",".list")) %>%
+    dplyr::inner_join(tbl(tessistream$p2_db, "contactLists") %>% filter(status == "1") %>% select(contact) %>% collect,
+                      by=c("id"="contact"),
+                      suffix=c("",".list")) %>%
     # And have a customer # (field 1)
-    dplyr::inner_join(tbl(tessistream$p2_db, "fieldValues") %>%
-                       filter(field == "1"),
-              by=c("id"="contact"),
-              suffix=c("",".fieldValue")) %>%
+    dplyr::inner_join(tbl(tessistream$p2_db, "fieldValues") %>% filter(field == "1") %>% select(contact,value) %>% collect,
+                      by=c("id"="contact"),
+                      suffix=c("",".fieldValue")) %>%
     transmute(
       address = trimws(tolower(email)),
       customer_no = value,
       id
-    ) %>% collect %>% distinct %>% setDT
+    ) %>% distinct %>% setDT
 
   tessi_emails <- read_tessi("emails", c("address", "customer_no", "primary_ind"),freshness = freshness) %>%
     filter(primary_ind=="Y") %>% collect %>% setDT() %>%
@@ -192,6 +190,7 @@ p2_orphans <- function(freshness = 0) {
   p2_orphans <- p2_emails[!tessi_emails, on = "address"][!is.na(customer_no)]
 
 }
+
 
 #' p2_orphans_report
 #'

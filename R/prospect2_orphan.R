@@ -27,18 +27,20 @@ tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
 
   p <- emails[primary_ind=="Y"]
   # find the next started primary address
-  p[p,to:=i.address,on=c("customer_no","timestamp_end"="timestamp"),roll=Inf]
+  p[p,`:=`(to=i.address,
+           to_last_updated_by=i.last_updated_by),on=c("customer_no","timestamp_end"="timestamp"),roll=Inf]
   # or the next ended as a fallback (defaults to current)
-  p[p[,.(customer_no,address,
+  p[p[,.(customer_no,address,last_updated_by,
          timestamp_end=timestamp_end-.001)],
-    to2:=i.address,on=c("customer_no","timestamp_end"),roll=Inf]
+    `:=`(to2=i.address,
+         to2_last_updated_by=i.last_updated_by),on=c("customer_no","timestamp_end"),roll=Inf]
 
   emails <- p[,.(customer_no,
                  group_customer_no,
                  from = address,
                  to = coalesce(to,to2),
                  timestamp = timestamp_end,
-                 last_updated_by)] %>%
+                 last_updated_by = coalesce(to_last_updated_by, to2_last_updated_by))] %>%
     .[from != to & timestamp > since]
 
   setkey(emails, from, timestamp)
@@ -213,8 +215,8 @@ p2_orphans_report <- function(freshness = 0) {
   # last change from `from`
   p2_orphan_events <- tessi_emails[p2_orphans,on=c("from"="address")]
 
-  p2_orphan_events[,type:=case_when(trimws(last_updated_by) == "popmulti" ~ "web",
-                                    trimws(last_updated_by) == "sqladmin" ~ "merge",
+  p2_orphan_events[,type:=case_when(trimws(last_updated_by) %in% c("popmulti","addage") ~ "web",
+                                    trimws(last_updated_by) %in% c("sqladmin","sa") ~ "merge",
                                     TRUE ~ "client") %>% forcats::fct_infreq()]
 
   png(image_file <- tempfile(fileext = ".png"))

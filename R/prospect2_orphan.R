@@ -11,7 +11,8 @@
 #' @return data.table of changed emails with columns `old_value`, `new_value`, and `customer_no`
 tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
   . <- customer_no <- address <- eaddress_no <- timestammp <- primary_ind <- i.address <-
-    address <- timestamp <- timestamp_end <- from <- to <- to2 <- group_customer_no <- last_updated_by <- NULL
+    address <- timestamp <- timestamp_end <- from <- to <- to2 <-
+    to_last_updated_by <- to2_last_updated_by <- i.last_updated_by <- group_customer_no <- last_updated_by <- NULL
 
   emails <- stream_from_audit("emails", ...) %>%
     .[!is.na(customer_no) & !is.na(address)] %>%
@@ -28,18 +29,20 @@ tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
 
   p <- emails[primary_ind=="Y"]
   # find the next started primary address
-  p[p,to:=i.address,on=c("customer_no","timestamp_end"="timestamp"),roll=Inf]
+  p[p,`:=`(to=i.address,
+           to_last_updated_by=i.last_updated_by),on=c("customer_no","timestamp_end"="timestamp"),roll=Inf]
   # or the next ended as a fallback (defaults to current)
-  p[p[,.(customer_no,address,
+  p[p[,.(customer_no,address,last_updated_by,
          timestamp_end=timestamp_end-.001)],
-    to2:=i.address,on=c("customer_no","timestamp_end"),roll=Inf]
+    `:=`(to2=i.address,
+         to2_last_updated_by=i.last_updated_by),on=c("customer_no","timestamp_end"),roll=Inf]
 
   emails <- p[,.(customer_no,
                  group_customer_no,
                  from = address,
                  to = coalesce(to,to2),
                  timestamp = timestamp_end,
-                 last_updated_by)] %>%
+                 last_updated_by = coalesce(to_last_updated_by, to2_last_updated_by))] %>%
     .[from != to & timestamp > since]
 
   setkey(emails, from, timestamp)
@@ -73,7 +76,7 @@ p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_ru
     api_url, path = "api/3/contacts",
     query = list(
       email = from,
-      include = "fieldValues"
+      include = "fieldValues,contactAutomations"
     )))
 
   p2_contact_to <- p2_query_api(modify_url(
@@ -84,12 +87,14 @@ p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_ru
     )))
 
   tests <-
+
     c("From email is in P2" = !is.null(p2_contact_from$contacts) && tolower(unlist(p2_contact_from$contacts$email)) == from,
       "To email is not in P2" = is.null(p2_contact_to$contacts),
       "Customer # matches" = !is.null(p2_contact_from$fieldValues) && !is.null(p2_contact_from$fieldValues$field) &&
         unlist(p2_contact_from$fieldValues[field == 1, as.integer(value)]) %in% customer_no
     )
 
+  # Report the result of the tests
   message <- paste(
     names(tests),":",
     cli::col_blue(c(from, to, customer_no_string, ""))
@@ -242,27 +247,25 @@ p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_ema
 #' @export
 #'
 p2_orphans <- function(freshness = 0) {
-  . <- status <- field <- email <- value <- id.contact <- address <- primary_ind <- customer_no <- NULL
+  . <- status <- field <- email <- value <- id <- contact <- address <- primary_ind <- customer_no <- NULL
 
   p2_db_open()
 
   # All contacts
-  p2_emails <- tbl(tessistream$p2_db, "contacts") %>%
+  p2_emails <- tbl(tessistream$p2_db, "contacts") %>% select(id,email) %>% collect %>%
     # That are currently subscribed to something
-    dplyr::inner_join(tbl(tessistream$p2_db, "contactLists") %>%
-                        filter(status == "1"),
-               by=c("id"="contact"),
-               suffix=c("",".list")) %>%
+    dplyr::inner_join(tbl(tessistream$p2_db, "contactLists") %>% filter(status == "1") %>% select(contact) %>% collect,
+                      by=c("id"="contact"),
+                      suffix=c("",".list")) %>%
     # And have a customer # (field 1)
-    dplyr::inner_join(tbl(tessistream$p2_db, "fieldValues") %>%
-                       filter(field == "1"),
-              by=c("id"="contact"),
-              suffix=c("",".fieldValue")) %>%
+    dplyr::inner_join(tbl(tessistream$p2_db, "fieldValues") %>% filter(field == "1") %>% select(contact,value) %>% collect,
+                      by=c("id"="contact"),
+                      suffix=c("",".fieldValue")) %>%
     transmute(
       address = trimws(tolower(email)),
       customer_no = value,
       id
-    ) %>% collect %>% distinct %>% setDT
+    ) %>% distinct %>% setDT
 
   tessi_emails <- read_tessi("emails", c("address", "customer_no", "primary_ind"),freshness = freshness) %>%
     filter(primary_ind=="Y") %>% collect %>% setDT() %>%
@@ -271,6 +274,7 @@ p2_orphans <- function(freshness = 0) {
   p2_orphans <- p2_emails[!tessi_emails, on = "address"][!is.na(customer_no)]
 
 }
+
 
 #' p2_orphans_report
 #'
@@ -293,8 +297,8 @@ p2_orphans_report <- function(freshness = 0) {
   # last change from `from`
   p2_orphan_events <- tessi_emails[p2_orphans,on=c("from"="address")]
 
-  p2_orphan_events[,type:=case_when(trimws(last_updated_by) == "popmulti" ~ "web",
-                                    trimws(last_updated_by) == "sqladmin" ~ "merge",
+  p2_orphan_events[,type:=case_when(trimws(last_updated_by) %in% c("popmulti","addage") ~ "web",
+                                    trimws(last_updated_by) %in% c("sqladmin","sa") ~ "merge",
                                     TRUE ~ "client") %>% forcats::fct_infreq()]
 
   png(image_file <- tempfile(fileext = ".png"))

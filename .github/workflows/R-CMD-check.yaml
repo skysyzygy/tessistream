@@ -26,13 +26,6 @@ jobs:
         with:
           use-public-rspm: true
 
-      - name: install ffbase
-        run: |
-          cd ..
-          Rscript -e 'install.packages("remotes")
-          remotes::install_github("ffbase=edwindj/ffbase/pkg")'
-        shell: bash
-
       - name: cache libpostal
         uses: actions/cache@v3
         with:

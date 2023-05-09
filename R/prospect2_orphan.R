@@ -122,7 +122,8 @@ p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_ru
 #'
 #' @importFrom checkmate assert_integerish
 #' @importFrom rlang sym expr warn
-p2_execute_api <- function(url, object, success_codes = c(200,201,202), method = "POST", api_key = keyring::key_get("P2_API"), dry_run = FALSE) {
+p2_execute_api <- function(url, object = list(), success_codes = c(200,201,202), method = "POST",
+                           api_key = keyring::key_get("P2_API"), dry_run = FALSE) {
   assert_character(url,len=1)
   assert_character(method,len=1)
   assert_character(api_key,len=1)
@@ -135,7 +136,7 @@ p2_execute_api <- function(url, object, success_codes = c(200,201,202), method =
 
   if (dry_run) {
     inform(c("*" = "(dry run)"))
-    return(invisible())
+    return(TRUE)
   }
 
   fun <- eval(expr(`::`(httr,!!sym(method))))
@@ -151,6 +152,8 @@ p2_execute_api <- function(url, object, success_codes = c(200,201,202), method =
 
 #' p2_update_email
 #'
+#' Updates email for a contact on P2 (https://developers.activecampaign.com/reference/update-a-contact-new)
+#'
 #' @param contact integer P2 contact number
 #' @param email character, new email for contact
 #' @param dry_run boolean, nothing will be changed in P2 if set to `TRUE`
@@ -163,13 +166,15 @@ p2_update_email <- function(contact, email, dry_run = FALSE) {
   # Prepare to do the change via the P2 API
   p2_execute_api(
     url = modify_url(api_url, path = file.path("api/3/contacts", contact)),
-    object = list(contact = list(email = to)),
+    object = list(contact = list(email = email)),
     method = "PUT",
     dry_run = dry_run)
 
 }
 
 #' p2_add_tag
+#'
+#' Adds a tag to a contact on P2 (https://developers.activecampaign.com/reference/create-contact-tag)
 #'
 #' @param contact integer P2 contact number
 #' @param tag character, string for the tag
@@ -189,7 +194,7 @@ p2_add_tag <- function(contact, tag, dry_run = FALSE) {
   } else {
     p2_execute_api(
       url = modify_url(api_url, path = "api/3/contactTags"),
-      object = list(contactTag = list(contact = contact, tag = unlist(tags$tags$id))),
+      object = list(contactTag = list(contact = contact, tag = as.integer(tags$tags$id))),
       dry_run = dry_run)
   }
 

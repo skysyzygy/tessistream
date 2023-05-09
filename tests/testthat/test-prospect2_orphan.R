@@ -130,7 +130,7 @@ test_that("p2_resolve_orphan updates the email iff it passes three tests", {
 
   stub(p2_resolve_orphan, "p2_query_api", p2_query_api)
   contact_response <- list(contacts = data.table(email = "a", id = "99"),
-                  fieldValues = data.table(field = 1, value = "1"))
+                  fieldValues = data.table(field = "1", value = "1"))
 
   # from doesn't exist
   expect_message_n(2,p2_resolve_orphan("from","to",12345), "x From email is in P2 : from")
@@ -142,6 +142,20 @@ test_that("p2_resolve_orphan updates the email iff it passes three tests", {
   expect_message_n(2,p2_resolve_orphan("a","to",1))
   expect_length(mock_args(p2_update_email),1)
 })
+
+test_that("p2_resolve_orphan adds a tag iff it passes two tests", {
+  p2_add_tag <- mock()
+  stub(p2_resolve_orphan, "p2_add_tag", p2_add_tag)
+  p2_query_api <- mock(contact_response,contact_response)
+
+  stub(p2_resolve_orphan, "p2_query_api", p2_query_api)
+  contact_response <- list(contacts = data.table(email = "a", id = "99"),
+                           fieldValues = data.table(field = "1", value = "1"))
+
+  expect_message_n(2,p2_resolve_orphan("a","b",1))
+  expect_length(mock_args(p2_add_tag),1)
+})
+
 
 
 # p2_execute_api ----------------------------------------------------------
@@ -180,11 +194,72 @@ test_that("p2_execute_api returns T/F and warns based on return code", {
   DELETE <- mock(list(status_code = 400),cycle=T)
   stub(p2_execute_api, "httr::DELETE", DELETE)
 
+  expect_message_n(2,expect_true(p2_execute_api("http://api.url", list("json" = "object"), dry_run = TRUE)))
   expect_message(expect_true(p2_execute_api("http://api.url", list("json" = "object"), method = "POST")))
   expect_warning(expect_message(expect_false(p2_execute_api("http://api.url", list("json" = "object"), method = "DELETE"))))
   expect_message(expect_true(p2_execute_api("http://api.url", list("json" = "object"), method = "DELETE", success_codes = 400)))
 })
 
+# p2_update_email ---------------------------------------------------------
+
+test_that("p2_update_email calls p2_execute_api", {
+  p2_execute_api <- mock(TRUE)
+  stub(p2_update_email, "p2_execute_api", p2_execute_api)
+
+  expect_true(p2_update_email(12345, "test@test.com", dry_run = TRUE))
+
+  p2_object = jsonlite::fromJSON('{"contact": {"email": "test@test.com"}}')
+
+  expect_length(mock_args(p2_execute_api),1)
+  expect_match(mock_args(p2_execute_api)[[1]][["url"]],"api/3/contacts/12345")
+  expect_equal(mock_args(p2_execute_api)[[1]][["object"]],p2_object)
+  expect_equal(mock_args(p2_execute_api)[[1]][["method"]],"PUT")
+  expect_equal(mock_args(p2_execute_api)[[1]][["dry_run"]], TRUE)
+})
+
+test_that("p2_update_email passes on the results of p2_execute_api", {
+  p2_execute_api <- mock(FALSE)
+  stub(p2_update_email, "p2_execute_api", p2_execute_api)
+
+  expect_false(p2_update_email(12345, "test@test.com", dry_run = TRUE))
+})
+
+
+# p2_add_tag --------------------------------------------------------------
+
+tags <- readRDS(rprojroot::find_testthat_root_file("tags.Rds"))
+
+test_that("p2_add_tag gets the tag id", {
+  tags$tags <- filter(tags$tags, tag == "one")
+  p2_query_api <- mock(tags)
+  stub(p2_add_tag, "p2_query_api", p2_query_api)
+
+  p2_execute_api <- mock(TRUE)
+  stub(p2_add_tag, "p2_execute_api", p2_execute_api)
+
+  p2_add_tag(12345, "one", dry_run = TRUE)
+
+  expect_length(mock_args(p2_query_api),1)
+  expect_match(mock_args(p2_query_api)[[1]][[1]],"api/3/tags\\?filters%5Bsearch%5D%5Beq%5D=one$")
+})
+
+test_that("p2_add_tag calls p2_execute_api", {
+  tags$tags <- filter(tags$tags, tag == "two")
+  p2_query_api <- mock(tags)
+  stub(p2_add_tag, "p2_query_api", p2_query_api)
+
+  p2_execute_api <- mock(TRUE)
+  stub(p2_add_tag, "p2_execute_api", p2_execute_api)
+
+  p2_add_tag(12345, "two", dry_run = TRUE)
+
+  p2_object = jsonlite::fromJSON('{"contactTag": {"contact": 12345, "tag": 2}}')
+
+  expect_length(mock_args(p2_execute_api),1)
+  expect_match(mock_args(p2_execute_api)[[1]][["url"]],"api/3/contactTags$")
+  expect_equal(mock_args(p2_execute_api)[[1]][["object"]],p2_object)
+  expect_equal(mock_args(p2_execute_api)[[1]][["dry_run"]], TRUE)
+})
 
 # p2_update_orphans -------------------------------------------------------
 

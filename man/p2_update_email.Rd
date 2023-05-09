@@ -14,5 +14,5 @@ p2_update_email(contact, email, dry_run = FALSE)
 \item{dry_run}{boolean, nothing will be changed in P2 if set to \code{TRUE}}
 }
 \description{
-p2_update_email
+Updates email for a contact on P2 (https://developers.activecampaign.com/reference/update-a-contact-new)
 }

@@ -14,5 +14,5 @@ p2_add_tag(contact, tag, dry_run = FALSE)
 \item{dry_run}{boolean, nothing will be changed in P2 if set to \code{TRUE}}
 }
 \description{
-p2_add_tag
+Adds a tag to a contact on P2 (https://developers.activecampaign.com/reference/create-contact-tag)
 }

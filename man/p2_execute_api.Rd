@@ -6,7 +6,7 @@
 \usage{
 p2_execute_api(
   url,
-  object,
+  object = list(),
   success_codes = c(200, 201, 202),
   method = "POST",
   api_key = keyring::key_get("P2_API"),

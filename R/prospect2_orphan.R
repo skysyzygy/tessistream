@@ -141,7 +141,7 @@ p2_execute_api <- function(url, object = list(), success_codes = c(200,201,202),
     return(TRUE)
   }
 
-  fun <- eval(expr(`::`(httr,!!sym(method))))
+  fun <- eval(parse(text = paste0("httr::",method)))
   response <- fun(url = url, api_headers, body = object, encode = "json")
 
   if (!response$status_code %in% success_codes) {

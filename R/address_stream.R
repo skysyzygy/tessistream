@@ -246,7 +246,8 @@ address_parse <- function(address_stream) {
 #' @return data.table of addresses processed
 #' @importFrom dplyr collect tbl
 #' @importFrom utils head capture.output
-address_cache <- function(address_stream, cache_name, .function, db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
+address_cache <- function(address_stream, cache_name, .function, db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"),
+                          update = FALSE, ...) {
   assert_data_table(address_stream)
 
   if (!dir.exists(dirname(db_name))) {
@@ -264,8 +265,15 @@ address_cache <- function(address_stream, cache_name, .function, db_name = tessi
     # Cache doesn't yet exist
     cache <- .function(address_stream_distinct, ...)
     DBI::dbWriteTable(cache_db, cache_name, cache)
+
   } else {
-    cache <- DBI::dbReadTable(cache_db, cache_name) %>% setDT()
+    cache <- DBI::dbReadTable(cache_db, cache_name, row.names = update) %>% setDT()
+    if (update) {
+      cache_hit <- address_stream_distinct[cache, on = as.character(address_cols)]
+      DBI::dbExecute(cache_db, "DELETE FROM :cache_name WHERE rowid in :rowids", params = list(rowids = cache_hit$rowid))
+      cache$rowid <- NULL
+      cache <- cache[!cache_hit, on = as.character(address_cols)]
+    }
     cache_miss <- address_stream_distinct[!cache, ..address_cols, on = as.character(address_cols)] %>% .function(...)
 
     cache_schema <- tbl(cache_db, cache_name) %>% head %>% collect %>% sapply(typeof)
@@ -286,7 +294,6 @@ address_cache <- function(address_stream, cache_name, .function, db_name = tessi
 
     cache <- rbind(cache, cache_miss, fill = TRUE)
   }
-
 
   address_stream <- cache[address_stream[, ..address_cols], on = as.character(address_cols)]
 

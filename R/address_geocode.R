@@ -32,6 +32,9 @@ address_geocode_all <- function(address_stream) {
   address_stream_parsed <-
     address_stream_parsed[!address_stream_parsed[,lapply(.SD,is.na),.SDcols = address_cols] %>% purrr::reduce(`&`)]
 
+  if(nrow(address_stream_parsed) == 0)
+    return(address_stream_parsed)
+
   # fill NAs with blanks because these aren't handled well in some parsers
   setnafill(address_stream_parsed,"const",fill="",address_cols)
   address_stream_parsed[,(address_cols) := lapply(.SD,as.character), .SDcols=address_cols]
@@ -45,21 +48,42 @@ address_geocode_all <- function(address_stream) {
                          list(method = 'osm',
                               country = "country"))) %>% map(flatten)
 
-  (if(nrow(address_stream_parsed) > 0) {
-    geocode_combine(address_stream_parsed,
-                    queries = queries,
-                    global_params = global_params,
-                    query_names = map_chr(queries,~paste(.$method,.$street)),
-                    lat = "lat",
-                    long = "lng")
-  } else {
-    address_stream_parsed
-  }) %>% setDT
+  geocode_combine(address_stream_parsed,
+                  queries = queries,
+                  global_params = global_params,
+                  query_names = map_chr(queries,~paste(.$method,.$street)),
+                  lat = "lat",
+                  long = "lng") %>% setDT
 
 }
 
 address_geocode <- function(address_stream) {
   address_cache(address_stream, "address_geocode", address_geocode_all)
+}
+
+#' address_census_geography
+#'
+#' Gets census geography (tract/block/county/state) information for US addresses.
+#'
+#' @param address_stream data.table of addresses, must include `address_cols`
+#'
+#' @return data.table of addresses, one row address in `address_stream`
+#'
+address_census_geography <- function(address_stream) {
+  assert_data_table(address_stream)
+  assert_names(colnames(address_stream), must.include = address_cols)
+
+  address_stream_geocode <- address_geocode(address_stream)
+
+  address_reverse <- address_stream_geocode[is.na(census.tract_id) & !is.na(lat) & !is.na(lng) & inside(usa_bbox)] %>% distinct
+
+  address_cache(address_reverse, "address_geocode", address_reverse_census_geography, update = TRUE)
+
+}
+
+address_reverse_census_geography <- function(address_stream) {
+  address_reverse <- cxy_geography(lng, lat)
+
 }
 
 

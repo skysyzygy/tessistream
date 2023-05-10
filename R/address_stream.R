@@ -245,7 +245,7 @@ address_parse <- function(address_stream) {
 #'
 #' @return data.table of addresses processed
 #' @importFrom dplyr collect tbl
-#' @importFrom utils head
+#' @importFrom utils head capture.output
 address_cache <- function(address_stream, cache_name, .function, db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
   assert_data_table(address_stream)
 

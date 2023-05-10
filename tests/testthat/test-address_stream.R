@@ -224,7 +224,7 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
       "libpostal.",
       c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode")
     )
-  ))
+  ), ignore.order = TRUE)
 
   expect_equal(parsed$libpostal.house_number, rep("house_number", 8))
   expect_equal(parsed$libpostal.unit, rep(paste("unit", "level", "entrance", "staircase"), 8))
@@ -234,64 +234,68 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
   expect_equal(parsed$libpostal.country, rep(paste("country_region", "country", "world_region", sep = ", "), 8))
 })
 
-test_that("address_parse_libpostal returns empty columns so that the schema is always the same", {
-  parsed <- address_parse_libpostal(data.table(street1=NA,street2=NA,city=NA,state=NA,postal_code=NA,country=NA))
-  parsed_cols <- c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode")
-  expect_named(parsed, c(
-    as.character(address_cols), paste0("libpostal.",parsed_cols)
-  ))
-
-})
 
 # address_cache -----------------------------------------------------------
 tessilake:::local_cache_dirs()
 
 address_stream <- data.table(street1 = paste(1:100, "example lane"), something = "extra")
-address_processor <- function(address_stream) {
-  address_stream[, .(street1, processed = strsplit(street1, " ") %>% purrr::map_chr(1))]
-}
+address_result <- address_stream[, .(street1, processed = strsplit(street1, " ") %>% purrr::map_chr(1))]
 
 sqlite_file <- tessilake:::cache_path("address_stream.sqlite", "deep", "stream")
 db <- NULL
 
 test_that("address_cache handles cache non-existence and writes a cache file containing only address_processed cols", {
   expect_false(file.exists(sqlite_file))
-  address_cache(address_stream[1:50], "address_cache", address_processor)
+  address_processor <- mock(address_result[1:25])
+  address_cache(address_stream[1:25], "address_cache", address_processor)
   expect_true(file.exists(sqlite_file))
   db <<- DBI::dbConnect(RSQLite::SQLite(), sqlite_file)
   expect_named(DBI::dbReadTable(db, "address_cache"), c("street1", "processed"))
 })
 
 test_that("address_cache only send cache misses to .function", {
-  address_result <- address_processor(address_stream)
-  address_processor <- mock(address_result[51:100])
-  address_cache(address_stream, "address_cache", address_processor)
-  expect_equal(nrow(mock_args(address_processor)[[1]][[1]]), 50)
+  address_processor <- mock(address_result[26:50])
+  address_cache(address_stream[26:50], "address_cache", address_processor)
+  expect_equal(nrow(mock_args(address_processor)[[1]][[1]]), 25)
 })
 
 test_that("address_cache updates the the cache file after cache misses", {
-  expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 100)
+  expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 50)
   expect_named(DBI::dbReadTable(db, "address_cache"), c("street1", "processed"))
 })
 
 test_that("address_cache incremental runs match address_cache full runs", {
+  address_processor <- function(.) { address_result[.,on="street1"]}
+
   incremental <- DBI::dbReadTable(db, "address_cache") %>%
     collect() %>%
     setDT()
-  full <- address_cache(address_stream, "address_cache_full", address_processor)
+  full <- address_cache(address_stream[1:50], "address_cache_full", address_processor)
 
   expect_mapequal(incremental, full)
 })
 
+test_that("address_cache updates the the cache file when there are new columns to append", {
+  address_processor <- mock(address_stream[51:100, .(street1, new_int_feature = 1000, new_char_feature = "coolness")])
+  address_cache(address_stream, "address_cache", address_processor)
+  expect_equal(nrow(mock_args(address_processor)[[1]][[1]]), 50)
+  expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 100)
+  expect_named(DBI::dbReadTable(db, "address_cache"), c("street1", "processed", "new_int_feature", "new_char_feature"))
+  expect_equal(DBI::dbReadTable(db, "address_cache")$new_int_feature, c(rep(NA,50),rep(1000,50)))
+  expect_equal(DBI::dbReadTable(db, "address_cache")$new_char_feature, c(rep(NA,50),rep("coolness",50)))
+})
+
 test_that("address_cache saves only unique addresses", {
+  address_processor <- function(.) { address_result[.,on="street1"]}
   address_stream <- data.table(street1 = paste(c(5000,5000), "example lane"), something = "extra")
   address_cache(address_stream, "address_cache", address_processor)
   expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 101)
 })
 
 test_that("address_cache returns data appended to input", {
+  address_processor <- function(.) { address_result[.,on="street1"]}
   address_stream <- data.table(street1 = paste(c(1,5,1,5), "example lane"), something = "extra")
-  res <- address_cache(address_stream, "address_cache", address_processor)
+  res <- address_cache(address_stream, "address_cache", address_processor) %>% select(street1,processed)
   expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 101)
   expect_equal(res,cbind(address_stream[,.(street1)],processed = c("1","5","1","5")))
 })
@@ -305,9 +309,9 @@ address_stream_parsed <- data.table(
   house = "brooklyn academy of music",
   city = "brooklyn",
   state = "ny",
-  country = NA,
-  po_box = NA,
-  unit = NA,
+  country = NA_character_,
+  po_box = NA_character_,
+  unit = NA_character_,
   postcode = "11217"
 )
 

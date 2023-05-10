@@ -45,7 +45,7 @@ address_geocode_all <- function(address_stream) {
                          list(method = 'osm',
                               country = "country"))) %>% map(flatten)
 
-  out <- if(nrow(address_stream_parsed) > 0) {
+  (if(nrow(address_stream_parsed) > 0) {
     geocode_combine(address_stream_parsed,
                     queries = queries,
                     global_params = global_params,
@@ -54,20 +54,7 @@ address_geocode_all <- function(address_stream) {
                     long = "lng")
   } else {
     address_stream_parsed
-  }
-
-  # General columns
-  out_cols <- c(address_cols, "lat", "lng", "query",
-    # Census columns
-    "id", "input_address", "match_indicator",  "match_type", "matched_address", "tiger_line_id", "tiger_side",  "state_fips", "county_fips", "census_tract", "census_block", "place_id",
-    # OSM columns
-    "licence", "osm_type", "osm_id", "boundingbox",  "display_name", "class", "type", "importance")
-
-  out <- rbind(data.table::as.data.table(out),
-               as.list(structure(rep(list(character(0)), length(out_cols)), names = out_cols)),
-               fill = TRUE)
-
-  return(out)
+  }) %>% setDT
 
 }
 

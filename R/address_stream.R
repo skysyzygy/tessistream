@@ -209,9 +209,7 @@ address_parse_libpostal <- function(address_stream) {
   }
 
   # ok maybe we're finally done. Let's clean up
-  parsed_cols <- c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode")
-
-  parsed <- rbind(parsed, structure(rep(list(character(0)), length(parsed_cols)), names = parsed_cols), fill = TRUE)
+  parsed_cols <- intersect(colnames(parsed),c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode"))
 
   lapply(
     colnames(parsed),
@@ -246,7 +244,8 @@ address_parse <- function(address_stream) {
 #' @param ... additional options passed to `.function`
 #'
 #' @return data.table of addresses processed
-#' @importFrom dplyr collect
+#' @importFrom dplyr collect tbl
+#' @importFrom utils head
 address_cache <- function(address_stream, cache_name, .function, db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
   assert_data_table(address_stream)
 
@@ -255,6 +254,7 @@ address_cache <- function(address_stream, cache_name, .function, db_name = tessi
   }
 
   cache_db <- DBI::dbConnect(RSQLite::SQLite(), db_name)
+  withr::defer(DBI::dbDisconnect(cache_db))
 
   address_cols <- intersect(address_cols, colnames(address_stream))
 
@@ -268,12 +268,25 @@ address_cache <- function(address_stream, cache_name, .function, db_name = tessi
     cache <- DBI::dbReadTable(cache_db, cache_name) %>% setDT()
     cache_miss <- address_stream_distinct[!cache, ..address_cols, on = as.character(address_cols)] %>% .function(...)
 
+    cache_schema <- tbl(cache_db, cache_name) %>% head %>% collect %>% sapply(typeof)
+    input_schema <- sapply(cache_miss,typeof)
+    matching_names <- intersect(names(cache_schema), names(input_schema))
+
+    if(any(cache_schema[matching_names] != input_schema[matching_names]))
+      rlang::abort(c("Identical column names used for different column types, can't cache table.",
+                    "cache schema:",
+                    capture.output(print(cache_schema[matching_names])),
+                    "input_schema:",
+                    capture.output(print(input_schema[matching_names]))))
+
+    new_columns <- input_schema[setdiff(names(input_schema), names(cache_schema))]
+    purrr::imap(new_columns,~DBI::dbExecute(cache_db, paste0("ALTER TABLE ",cache_name," ADD COLUMN [",.y,"] [",.x,"]")))
+
     DBI::dbAppendTable(cache_db, cache_name, cache_miss)
 
     cache <- rbind(cache, cache_miss, fill = TRUE)
   }
 
-  DBI::dbDisconnect(cache_db)
 
   address_stream <- cache[address_stream[, ..address_cols], on = as.character(address_cols)]
 

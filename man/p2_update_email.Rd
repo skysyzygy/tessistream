@@ -4,26 +4,15 @@
 \alias{p2_update_email}
 \title{p2_update_email}
 \usage{
-p2_update_email(from = NULL, to = NULL, customer_no = NULL, dry_run = FALSE)
+p2_update_email(contact, email, dry_run = FALSE)
 }
 \arguments{
-\item{from}{character, email in P2 that needs to be changed}
+\item{contact}{integer P2 contact number}
 
-\item{to}{character, email that will replace the \code{from} email}
-
-\item{customer_no}{integer vector, customer numbers; one of which must match
-the customer # field in P2 or the update will not be run}
+\item{email}{character, new email for contact}
 
 \item{dry_run}{boolean, nothing will be changed in P2 if set to \code{TRUE}}
 }
-\value{
-\code{TRUE} if update is run succesfully, \code{FALSE} if not.
-}
 \description{
-Updates the \code{from} email in P2 to \code{to}. The update will fail if:
-\itemize{
-\item the email \code{from} does not exist in P2
-\item the email \code{to} is already used in P2
-\item the customer # field in P2 does not match a value passed to \code{customer_no}
-}
+Updates email for a contact on P2 (https://developers.activecampaign.com/reference/update-a-contact-new)
 }

@@ -24,36 +24,37 @@ tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
                timestamp = lubridate::force_tz(timestamp, Sys.timezone()))]
 
   default_time <- now() + dyears(100)
-  emails[,timestamp_end:=data.table::shift(timestamp,-1,fill=default_time),by="eaddress_no"]
+  emails[,`:=`(timestamp_end=data.table::shift(timestamp,-1,fill=default_time),
+               last_updated_by=data.table::shift(last_updated_by,-1)),by="eaddress_no"]
 
   p <- emails[primary_ind=="Y"]
   # find the next started primary address
-  p[p,`:=`(to=i.address,
-           to_last_updated_by=i.last_updated_by),on=c("customer_no","timestamp_end"="timestamp"),roll=Inf]
+  p[p,to:=i.address,on=c("customer_no","timestamp_end"="timestamp"),roll=Inf]
   # or the next ended as a fallback (defaults to current)
   p[p[,.(customer_no,address,last_updated_by,
-         timestamp_end=timestamp_end-.001)],
-    `:=`(to2=i.address,
-         to2_last_updated_by=i.last_updated_by),on=c("customer_no","timestamp_end"),roll=Inf]
+         timestamp_end=timestamp_end-.001)],to2:=i.address,on=c("customer_no","timestamp_end"),roll=Inf]
 
   emails <- p[,.(customer_no,
                  group_customer_no,
                  from = address,
                  to = coalesce(to,to2),
                  timestamp = timestamp_end,
-                 last_updated_by = coalesce(to_last_updated_by, to2_last_updated_by))] %>%
+                 last_updated_by)] %>%
     .[from != to & timestamp > since]
 
   setkey(emails, from, timestamp)
   emails[, .SD[.N], by = "from"]
 }
 
-#' p2_update_email
+#' p2_resolve_orphan
 #'
-#' Updates the `from` email in P2 to `to`. The update will fail if:
-#' * the email `from` does not exist in P2
-#' * the email `to` is already used in P2
-#' * the customer # field in P2 does not match a value passed to `customer_no`
+#' Resolves orphan accounts in P2 based on the following tests:
+#' 1. the email `from` exists in P2
+#' 2. the email `to` is not already used in P2
+#' 3. the customer # field in P2 matches a value passed in `customer_no`
+#'
+#' It updates the `from` email in P2 to `to`, iff #1, #2 & #3 pass;
+#' or it marks the account with a tag in P2 iff #1 and #3 pass, and #2 doesn't pass
 #'
 #' @param from character, email in P2 that needs to be changed
 #' @param to character, email that will replace the `from` email
@@ -62,7 +63,7 @@ tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
 #' @param dry_run boolean, nothing will be changed in P2 if set to `TRUE`
 #' @importFrom rlang inform
 #' @return `TRUE` if update is run succesfully, `FALSE` if not.
-p2_update_email <- function(from = NULL, to = NULL, customer_no = NULL, dry_run = FALSE) {
+p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_run = FALSE) {
   field <- value <- NULL
 
   customer_no_string <- paste0(customer_no, collapse = ", ")
@@ -83,54 +84,122 @@ p2_update_email <- function(from = NULL, to = NULL, customer_no = NULL, dry_run 
     )))
 
   tests <-
-    c("From email" = !is.null(p2_contact_from$contacts) && tolower(unlist(p2_contact_from$contacts$email)) == from,
-      "To email" = !is.null(p2_contact_to$contacts),
-      "Customer #" = !is.null(p2_contact_from$fieldValues) && !is.null(p2_contact_from$fieldValues$field) &&
+
+    c("From email is in P2" = !is.null(p2_contact_from$contacts) && tolower(unlist(p2_contact_from$contacts$email)) == from,
+      "To email is not in P2" = is.null(p2_contact_to$contacts),
+      "Customer # matches" = !is.null(p2_contact_from$fieldValues) && !is.null(p2_contact_from$fieldValues$field) &&
         unlist(p2_contact_from$fieldValues[field == 1, as.integer(value)]) %in% customer_no
     )
 
   # Report the result of the tests
   message <- paste(
-    names(tests),
-    ifelse(tests, "matches", "doesn't match"),
-    cli::col_blue(c(from, to, paste0(customer_no, collapse = ", ")))
+    names(tests),":",
+    cli::col_blue(c(from, to, customer_no_string, ""))
   )
-  tests[2] <- !tests[2]
   message <- setNames(message, ifelse(tests, "i", "x"))
-
   inform(message)
 
-  # If tests have failed
-  if ("x" %in% names(message)) {
+  contact <- p2_contact_from$contacts$id
 
-    ##in_automation <- !is.null(p2_contact_from$contactAutomations) && p2_contact_from$contactAutomations[completed != 1,.N] > 0
-    #if(!in_automation)
-
-    return(invisible(FALSE))
+  # If first three pass
+  if(all(tests[1:3])) {
+    p2_update_email(contact, to, dry_run = dry_run)
+  } else if (all(tests[c(1,3)])) {
+    p2_add_tag(contact, "Orphan Account", dry_run = dry_run)
   }
+}
 
-  # Prepare to do the change via the P2 API
-
-  url <- modify_url(api_url, path = file.path("api/3/contacts", unlist(p2_contact_from$contacts$id)))
-  obj <- list(contact = list(email = to))
-
-  inform(c(
-    "v" = "Doing it!",
-    "*" = url,
-    "*" = jsonlite::toJSON(obj, auto_unbox = T)
-  ))
+#' p2_execute_api
+#'
+#' Sends a JSON `object` to a P2 API endpoint `url` using an `api_key` and returns T/F based on `success_codes`
+#'
+#' @param url character, endpoint url for the API
+#' @param object list to be converted into JSON using `jsonlite::toJSON`
+#' @param success_codes, integer vector of success codes returned by the API
+#' @param method, character name of the `httr` function to call, usually `POST` or `PUT`
+#' @param api_key Active Campaign API key, defaults to `keyring::key_get("P2_API")`
+#' @param dry_run boolean, nothing will be changed in P2 if set to `TRUE`
+#'
+#' @return `TRUE` if success, `FALSE` if not
+#'
+#' @importFrom checkmate assert_integerish
+#' @importFrom rlang sym expr warn
+p2_execute_api <- function(url, object = list(), success_codes = c(200,201,202), method = "POST",
+                           api_key = keyring::key_get("P2_API"), dry_run = FALSE) {
+  assert_character(url,len=1)
+  assert_character(method,len=1)
+  assert_character(api_key,len=1)
 
   api_headers <- add_headers("Api-Token" = keyring::key_get("P2_API"))
+  inform(c(
+    "v" = paste("Executing",method,":",url),
+    "*" = jsonlite::toJSON(object, auto_unbox = T)
+  ))
+
   if (dry_run) {
-    rlang::inform(c("i" = "(dry run)"))
-  } else {
-    response <- httr::PUT(url, api_headers, body = obj, encode = "json")
-    if (!response$status_code == 200) {
-      rlang::warn(c("!" = paste("PUT to", url, "failed! Status code", response$status_code)), response = response)
-    }
+    inform(c("*" = "(dry run)"))
+    return(TRUE)
   }
 
-  invisible(TRUE)
+  fun <- eval(parse(text = paste0("httr::",method)))
+  response <- fun(url = url, api_headers, body = object, encode = "json")
+
+  if (!response$status_code %in% success_codes) {
+    warn(c("!" = paste(method, "to", url, "failed! Status code", response$status_code)), response = response)
+    return(FALSE)
+  }
+
+  TRUE
+}
+
+#' p2_update_email
+#'
+#' Updates email for a contact on P2 (https://developers.activecampaign.com/reference/update-a-contact-new)
+#'
+#' @param contact integer P2 contact number
+#' @param email character, new email for contact
+#' @param dry_run boolean, nothing will be changed in P2 if set to `TRUE`
+#'
+#' @importFrom checkmate assert_integerish
+p2_update_email <- function(contact, email, dry_run = FALSE) {
+  assert_integerish(contact,len=1)
+  assert_character(email,len=1)
+
+  # Prepare to do the change via the P2 API
+  p2_execute_api(
+    url = modify_url(api_url, path = file.path("api/3/contacts", contact)),
+    object = list(contact = list(email = email)),
+    method = "PUT",
+    dry_run = dry_run)
+
+}
+
+#' p2_add_tag
+#'
+#' Adds a tag to a contact on P2 (https://developers.activecampaign.com/reference/create-contact-tag)
+#'
+#' @param contact integer P2 contact number
+#' @param tag character, string for the tag
+#' @param dry_run boolean, nothing will be changed in P2 if set to `TRUE`
+#'
+#' @importFrom checkmate assert_integerish
+p2_add_tag <- function(contact, tag, dry_run = FALSE) {
+  assert_integerish(contact,len=1)
+  assert_character(tag,len=1)
+
+  tags <- p2_query_api(modify_url(api_url,
+                                  path = "api/3/tags",
+                                  query = list("filters[search][eq]" = tag)))
+
+  if(is.null(tags$tags)) {
+    warning(paste("Tag",shQuote(tag),"not found, not adding to contact"))
+  } else {
+    p2_execute_api(
+      url = modify_url(api_url, path = "api/3/contactTags"),
+      object = list(contactTag = list(contact = contact, tag = as.integer(tags$tags$id))),
+      dry_run = dry_run)
+  }
+
 }
 
 #' p2_update_orphans
@@ -150,7 +219,7 @@ p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_ema
 
   tessi_changed_emails(freshness = freshness, since = since) %>%
     split(seq_len(nrow(.))) %>%
-    purrr::walk(~ p2_update_email(
+    purrr::walk(~ p2_resolve_orphan(
       from = .$from,
       to = .$to,
       customer_no = customer_no_map[
@@ -250,7 +319,7 @@ p2_orphans_report <- function(freshness = 0) {
   p2_orphan_events <- merge(p2_orphan_events,memberships,all.x=T,by="group_customer_no")
 
   can_be_updated <- split(p2_orphan_events,1:nrow(p2_orphan_events)) %>%
-    map(~p2_update_email(.$from, .$to, .$i.customer_no, dry_run = TRUE))
+    map(~p2_resolve_orphan(.$from, .$to, .$i.customer_no, dry_run = TRUE))
 
 
   xlsx_file <- write_xlsx(p2_orphan_events[,.(

@@ -94,12 +94,12 @@ p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_ru
   # Report the result of the tests
   message <- paste(
     names(tests),":",
-    cli::col_blue(c(from, to, customer_no_string, ""))
+    cli::col_blue(c(from, to, customer_no_string))
   )
   message <- setNames(message, ifelse(tests, "i", "x"))
   inform(message)
 
-  contact <- p2_contact_from$contacts$id
+  contact <- as.integer(p2_contact_from$contacts$id)
 
   # If first three pass
   if(all(tests[1:3])) {

@@ -253,10 +253,23 @@ test_that("address_cache handles cache non-existence and writes a cache file con
   expect_named(DBI::dbReadTable(db, "address_cache"), c("street1", "processed"))
 })
 
+test_that("address_cache handles zero-row input gracefully", {
+  address_processor <- mock(address_result[0])
+  address_cache(address_stream[0], "address_cache", address_processor)
+  expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 25)
+})
+
 test_that("address_cache only send cache misses to .function", {
   address_processor <- mock(address_result[26:50])
   address_cache(address_stream[26:50], "address_cache", address_processor)
   expect_equal(nrow(mock_args(address_processor)[[1]][[1]]), 25)
+})
+
+test_that("address_cache handles fully-cached requests gracefully", {
+  address_processor <- mock(address_result[26:50])
+  res <- address_cache(address_stream[26:50], "address_cache", address_processor)
+  expect_length(mock_args(address_processor),0)
+  expect_equal(nrow(res), 25)
 })
 
 test_that("address_cache updates the the cache file after cache misses", {

@@ -246,8 +246,8 @@ address_parse <- function(address_stream) {
 #' @return data.table of addresses processed
 #' @importFrom dplyr collect tbl
 #' @importFrom utils head capture.output
-address_cache <- function(address_stream, cache_name, .function, db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"),
-                          update = FALSE, ...) {
+address_cache <- function(address_stream, cache_name, .function,
+                          db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
   assert_data_table(address_stream)
 
   if (!dir.exists(dirname(db_name))) {
@@ -263,34 +263,37 @@ address_cache <- function(address_stream, cache_name, .function, db_name = tessi
 
   if (!DBI::dbExistsTable(cache_db, cache_name)) {
     # Cache doesn't yet exist
-    cache <- .function(address_stream_distinct, ...)
-    DBI::dbWriteTable(cache_db, cache_name, cache)
+    cache <- NULL
+    cache_miss <- address_stream_distinct
+    db_function <- DBI::dbWriteTable
 
   } else {
-    cache <- DBI::dbReadTable(cache_db, cache_name, row.names = update) %>% setDT()
-    if (update) {
-      cache_hit <- address_stream_distinct[cache, on = as.character(address_cols)]
-      DBI::dbExecute(cache_db, "DELETE FROM :cache_name WHERE rowid in :rowids", params = list(rowids = cache_hit$rowid))
-      cache$rowid <- NULL
-      cache <- cache[!cache_hit, on = as.character(address_cols)]
+    cache <- DBI::dbReadTable(cache_db, cache_name) %>% setDT()
+    cache_miss <- address_stream_distinct[!cache, ..address_cols, on = as.character(address_cols)]
+    db_function <- DBI::dbAppendTable
+  }
+
+  if(nrow(cache_miss) > 0) {
+    cache_miss <- .function(cache_miss, ...)
+
+    if (DBI::dbExistsTable(cache_db, cache_name)) {
+
+      cache_schema <- tbl(cache_db, cache_name) %>% head %>% collect %>% sapply(typeof)
+      input_schema <- sapply(cache_miss,typeof)
+      matching_names <- intersect(names(cache_schema), names(input_schema))
+
+      if(any(cache_schema[matching_names] != input_schema[matching_names]))
+        rlang::abort(c("Identical column names used for different column types, can't cache table.",
+                      "cache schema:",
+                      capture.output(print(cache_schema[matching_names])),
+                      "input_schema:",
+                      capture.output(print(input_schema[matching_names]))))
+
+      new_columns <- input_schema[setdiff(names(input_schema), names(cache_schema))]
+      purrr::imap(new_columns,~DBI::dbExecute(cache_db, paste0("ALTER TABLE ",cache_name," ADD COLUMN [",.y,"] [",.x,"]")))
     }
-    cache_miss <- address_stream_distinct[!cache, ..address_cols, on = as.character(address_cols)] %>% .function(...)
 
-    cache_schema <- tbl(cache_db, cache_name) %>% head %>% collect %>% sapply(typeof)
-    input_schema <- sapply(cache_miss,typeof)
-    matching_names <- intersect(names(cache_schema), names(input_schema))
-
-    if(any(cache_schema[matching_names] != input_schema[matching_names]))
-      rlang::abort(c("Identical column names used for different column types, can't cache table.",
-                    "cache schema:",
-                    capture.output(print(cache_schema[matching_names])),
-                    "input_schema:",
-                    capture.output(print(input_schema[matching_names]))))
-
-    new_columns <- input_schema[setdiff(names(input_schema), names(cache_schema))]
-    purrr::imap(new_columns,~DBI::dbExecute(cache_db, paste0("ALTER TABLE ",cache_name," ADD COLUMN [",.y,"] [",.x,"]")))
-
-    DBI::dbAppendTable(cache_db, cache_name, cache_miss)
+    db_function(cache_db, cache_name, cache_miss)
 
     cache <- rbind(cache, cache_miss, fill = TRUE)
   }

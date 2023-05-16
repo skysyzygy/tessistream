@@ -13,6 +13,7 @@ address_geocode_all(address_stream)
 data.table of addresses, one row address in \code{address_stream}
 }
 \description{
-Geocodes addresses using the \link{tidygeocoder} package . Tries each address up to six times, using \code{libpostal} parsing, \code{street1}, and \code{street2}, and the
+Geocodes addresses using the \link{tidygeocoder} package.
+Tries each address up to six times, using \code{libpostal} parsing, \code{street1}, and \code{street2}, and the
 US census and openstreetmap geocoders.
 }

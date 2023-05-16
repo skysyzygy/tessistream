@@ -74,7 +74,7 @@ test_that("address_geocode_all gets US and international addresses", {
   capture.output(res <- address_geocode_all(address_stream), type = "message")
 
   # All get geocode
-  expect_false(any(is.na(res[,.(lat,lng)])))
+  expect_false(any(is.na(res[,.(lat,lon)])))
   # And those geocodes are for the right addresses
   expect_match(res[1,matched_address],"30 LAFAYETTE AVE")
   expect_match(res[2,display_name],"30.+Churchill Pl")
@@ -100,7 +100,7 @@ test_that("address_geocode_all works with missing data", {
   capture.output(res <- address_geocode_all(address_stream), type = "message")
 
   # All get geocode
-  expect_false(any(is.na(res[,.(lat,lng)])))
+  expect_false(any(is.na(res[,.(lat,lon)])))
   # And those geocodes are for the right addresses
   expect_match(res[1,display_name],"30.+Lafayette Ave")
   expect_match(res[2,display_name],"Lafayette Ave")
@@ -158,12 +158,57 @@ test_that("address_geocode does not retry successfully geocoded addresses", {
     lapply(as.character) %>%
     setDT()
 
-  stub(address_geocode_all,"geocode_combine",function(.tbl,...) { message(nrow(.tbl)); cbind(.tbl,lat=123,lng=456)})
+  stub(address_geocode_all,"geocode_combine",function(.tbl,...) { message(nrow(.tbl)); cbind(.tbl,lat=123,lon=456)})
 
   stub(address_geocode,"address_geocode_all",address_geocode_all)
 
   expect_message(result <- address_geocode(address_stream),"4")
   expect_silent(result2 <- address_geocode(address_stream))
   expect_equal(result,result2)
+
+})
+
+
+# address_reverse_census_all ----------------------------------------------
+
+test_that("address_reverse_census_all turns lat/lon pairs into census tract info",{
+  # NY, CA, MO, Toronto
+  coords <- data.table(lat = c(44.731171, 36.778259, 37.964252, 43.653225),
+                       lon = c(-75.428833, -119.417931, -91.831833, -79.383186))
+
+  res <- address_reverse_census_all(coords)
+
+  expect_equal(res$state_fips, c("36", "06", "29", NA))
+  expect_equal(res$county_fips, c("089", "019", "161", NA))
+  expect_named(res, c("state_fips","county_fips","census_tract","census_block","lat","lon"),
+               ignore.order = TRUE)
+  expect_equal(nrow(coords),nrow(res))
+
+})
+
+# address_reverse_census --------------------------------------------------
+
+test_that("address_reverse_census filters out non-US addresses based on lat/lon",{
+
+  address_stream <- data.table(
+    libpostal.house_number = "30",
+    libpostal.road = c("Lafayette Ave","Churchill Pl"),
+    street1 = c("30 Lafayette Ave","30 Churchill Pl"),
+    street2 = c("30 Lafayette Ave","30 Churchill Pl"),
+    city = c("Brooklyn","London"),
+    state = c("NY",NA),
+    country = c("USA","UK"),
+    postal_code = c("11217","E14 5EU")
+  )
+
+  address_reverse_census_all <- mock(address_stream)
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
+  address_geocode$census_tract <- NA
+
+  stub(address_reverse_census,"address_reverse_census_all",address_reverse_census_all)
+  stub(address_reverse_census,"address_geocode",address_geocode)
+
+  expect_message(res <- address_reverse_census(address_stream))
+  expect_equal(nrow(mock_args(address_reverse_census_all)[[1]][[1]]),1)
 
 })

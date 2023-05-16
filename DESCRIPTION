@@ -24,6 +24,7 @@ Suggests:
     withr
 Config/testthat/edition: 3
 Imports:
+    censusxy,
     checkmate,
     cli,
     data.table,
@@ -43,9 +44,11 @@ Imports:
     purrr,
     rlang,
     RSQLite,
+    sf,
     stringr,
     tessilake,
     tidygeocoder,
-    tidyr
+    tidyr,
+    tigris
 Remotes: 
     skysyzygy/tessilake

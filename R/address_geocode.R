@@ -19,7 +19,10 @@ address_geocode_all <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
+  # add index column
+  address_stream[,I:=.I]
   address_stream_parsed <- address_parse(address_stream)
+  address_stream <- address_stream[,c(address_cols,"I"),with=F]
 
   # build libpostal street name
   if(any(c("libpostal.house_number","libpostal.road") %in% colnames(address_stream_parsed))) {
@@ -34,27 +37,32 @@ address_geocode_all <- function(address_stream) {
     address_stream_parsed[!address_stream_parsed[,lapply(.SD,is.na),.SDcols = address_cols] %>% purrr::reduce(`&`)]
 
   if(nrow(address_stream_parsed) == 0)
-    return(address_stream_parsed)
+    return(address_stream[,setdiff(address_cols, "libpostal.street")])
 
   # fill NAs with blanks because these aren't handled well in some parsers
   setnafill(address_stream_parsed,"const",fill="",address_cols)
   address_stream_parsed[,(address_cols) := lapply(.SD,as.character), .SDcols=address_cols]
 
   global_params <- list(city = "city", state="state", postalcode = "postal_code",
-                  return_input = TRUE, full_results = TRUE, progress_bar = TRUE)
+                    return_input = TRUE, full_results = TRUE)
 
   queries <- cross2(map(sort(grep("street",as.character(address_cols),value=T)),~list(street=.)),
                     list(list(method = 'census',
+                              mode = "batch",
                               api_options = list(census_return_type = "geographies")),
                          list(method = 'osm',
                               country = "country"))) %>% map(flatten)
 
-  geocode_combine(address_stream_parsed,
-                  queries = queries,
-                  global_params = global_params,
-                  query_names = map_chr(queries,~paste(.$method,.$street)),
-                  lat = "lat",
-                  long = "lon") %>% setDT
+  result <- geocode_combine(address_stream_parsed,
+                    queries = queries,
+                    global_params = global_params,
+                    lat = "lat", long = "lon",
+                    query_names = map_chr(queries,~paste(.$method,.$street))) %>% setDT
+
+  result[address_stream,
+         setdiff(colnames(result),colnames(address_stream_parsed)),
+         with = F,
+         on = "I"] %>% cbind(address_stream) %>% .[,I:=NULL]
 
 }
 
@@ -116,93 +124,6 @@ address_reverse_census_all <- function(address_stream) {
 
 
 if(FALSE) {
-
-  # Reverse geocoding -------------------------------------------------------
-
-  # Add geoid data (tract/block/county/state) to rows that are missing it
-  addressStream[
-    is.na(cxy_tract_id) & !is.na(lat) & !is.na(lng) & (country == "usa" | google.country == "usa"),
-    .(cxy_lon = lng, cxy_lat = lat, benchmark, vintageName)
-  ] %>% distinct() %>%
-    # eliminate anything we've already done
-    .[!geocode_db, , on = c("cxy_lon", "cxy_lat", "vintageName")] %>%
-    # and then associate a cluster if there are a lot to do
-    .[, cluster := rep(seq(.N), length.out = .N, each = 100)] -> for_geocoding
-
-  with_progress({
-    p <- progressor(n_distinct(for_geocoding$cluster))
-    for_geocoding %>%
-      group_split(cluster) %>%
-      lapply(function(.x) {
-        future({
-          ret <- lapply(transpose(.x), function(.) {
-            cxy_geography(.[1], .[2], .[3], vintage = coalesce(.[4], "Current_Current"))
-          }) %>% rbindlist(., fill = T)
-          p()
-          ret
-        })
-      }) %>%
-      value() -> geocode_temp
-  })
-
-  geocode_temp %>%
-    rbindlist(fill = T) %>%
-    .[, .(
-      cxy_state_id = States.STATE,
-      cxy_county_id = Counties.COUNTY,
-      cxy_tract_id = Census.Tracts.TRACT,
-      cxy_block_id = Census.Blocks.BLOCK
-    )] %>%
-    cbind(for_geocoding[, -c("benchmark")]) %>%
-    rbind(geocode_db, fill = T) -> geocode_db
-  save(geocode_db, file = "geocode_db.RData")
-
-  addressStream[
-    geocode_db[addressStream[
-      is.na(cxy_tract_id) & !is.na(lat) & !is.na(lng) & (country == "usa" | google.country == "usa"),
-      .(cxy_lon = lng, cxy_lat = lat, benchmark, vintageName, I)
-    ],
-    .(cxy_state_id, cxy_county_id, cxy_tract_id, cxy_block_id, I),
-    on = c("cxy_lon", "cxy_lat", "vintageName")
-    ],
-    `:=`(
-      cxy_state_id = i.cxy_state_id,
-      cxy_county_id = i.cxy_county_id,
-      cxy_tract_id = i.cxy_tract_id,
-      cxy_block_id = i.cxy_block_id
-    ),
-    on = "I"
-  ] -> addressStream
-
-  # 99.9% of geocoded US addresses have census tract info
-  testit::assert(addressStream[!is.na(lat) & !is.na(lng) & (country == "usa" | google.country == "usa")] %>%
-    {
-      .[is.na(cxy_tract_id), .N] / .[, .N]
-    } < .001)
-
-  # Add distance and bearing info to addressStream
-  with_progress({
-    p <- progressor(100)
-    addressStream[!is.na(lat) & !is.na(lng), .(lat, lng, I, cluster = rep(seq(100), length.out = .N))] %>%
-      group_split(cluster) %>%
-      lapply(function(.) {
-        future(
-          {
-            ret <- setDT(.)[, `:=`(
-              distance = distm(cbind(lng, lat), BAM_center, distCosine),
-              bearing = bearingRhumb(BAM_center, cbind(lng, lat))
-            )]
-            p()
-            ret
-          },
-          packages = c("geosphere")
-        )
-      })
-  }) %>%
-    value() %>%
-    rbindlist() %>%
-    .[addressStream, c(colnames(addressStream), c("distance", "bearing")), on = "I", with = F] -> addressStream
-
 
   # Census data -------------------------------------------------------------
 

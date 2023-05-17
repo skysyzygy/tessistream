@@ -313,7 +313,12 @@ test_that("address_cache returns data appended to input", {
   expect_equal(res,cbind(address_stream[,.(street1)],processed = c("1","5","1","5")))
 })
 
-
+test_that("address_cache doesn't copy input data.table", {
+  address_processor <- function(.) { address_result[.,on="street1"]}
+  address_stream <- data.table(street1 = paste(c(1,5,1,5), "example lane"), something = "extra")
+  tracemem(address_stream)
+  expect_silent(address_cache(address_stream, "address_cache", address_processor))
+})
 
 # address_parse -----------------------------------------------------------
 address_stream_parsed <- data.table(

@@ -3,13 +3,15 @@ withr::local_package("mockery")
 
 tessilake:::local_cache_dirs()
 
+do_geocoding <- TRUE
+
 # address_geocode_all --------------------------------------------------
-stub(address_geocode_all,"address_parse",function(address_stream){address_stream})
+stub(address_geocode_all,"address_parse",function(.tbl){.tbl})
 
 test_that("address_geocode_all works with and without libpostal data", {
+  stub(address_geocode_all,"address_parse",function(.tbl){cbind(.tbl,libpostal.house_number = "30", libpostal.road = "libpostal.road")})
+
   address_stream <- data.table(
-    libpostal.house_number = "30",
-    libpostal.road = "libpostal.road",
     street1 = "30 street1",
     street2 = "30 street2",
     city = "Brooklyn",
@@ -18,13 +20,13 @@ test_that("address_geocode_all works with and without libpostal data", {
     postal_code = "11217"
   )
 
-  geocode_combine <- mock()
+  geocode_combine <- mock(cbind(address_stream, lat = 123, lon = 456), cycle = TRUE)
   stub(address_geocode_all,"geocode_combine",geocode_combine)
 
   address_geocode_all(address_stream)
   expect_equal(mock_args(geocode_combine)[[1]][[1]]$libpostal.street,"30 libpostal.road")
 
-  stub(address_geocode_all,"address_parse",address_stream[,..address_cols])
+  stub(address_geocode_all,"address_parse",function(.tbl){.tbl})
 
   address_geocode_all(address_stream)
   expect_equal(mock_args(geocode_combine)[[2]][[1]]$street1,"30 street1")
@@ -33,10 +35,9 @@ test_that("address_geocode_all works with and without libpostal data", {
 })
 
 test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder", {
+  stub(address_geocode_all,"address_parse",function(.tbl){cbind(.tbl,libpostal.house_number = "30", libpostal.road = "libpostal.road")})
 
   address_stream <- data.table(
-    libpostal.house_number = "30",
-    libpostal.road = "libpostal.road",
     street1 = "30 street1",
     street2 = "30 street2",
     city = "Brooklyn",
@@ -49,71 +50,74 @@ test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder"
   stub(address_geocode_all,"geocode_combine",geocode_combine)
 
   msg <- capture.output(capture.output(address_geocode_all(address_stream),type="message"))
-  expect_match(paste(msg,collapse="\\n"),paste0("census.+libpostal.+",
-                                                "census.+street1.+",
-                                                "census.+street2.+",
+  expect_match(paste(msg,collapse="\\n"),paste0("Census.+batch.+",
+                                                "Census.+batch.+",
+                                                "Census.+batch.+",
                                                 "openstreetmap.+libpostal.+",
                                                 "openstreetmap.+street1.+",
                                                 "openstreetmap.+street2.+"))
 
 })
 
-test_that("address_geocode_all gets US and international addresses", {
+if(do_geocoding) {
+  test_that("address_geocode_all gets US and international addresses", {
 
-  address_stream <- data.table(
-    libpostal.house_number = "30",
-    libpostal.road = c("Lafayette Ave","Churchill Pl"),
-    street1 = c("30 Lafayette Ave","30 Churchill Pl"),
-    street2 = c("30 Lafayette Ave","30 Churchill Pl"),
-    city = c("Brooklyn","London"),
-    state = c("NY",NA),
-    country = c("USA","UK"),
-    postal_code = c("11217","E14 5EU")
-  )
+    address_stream <- data.table(
+      libpostal.house_number = "30",
+      libpostal.road = c("Lafayette Ave","Churchill Pl"),
+      street1 = c("30 Lafayette Ave","30 Churchill Pl"),
+      street2 = c("30 Lafayette Ave","30 Churchill Pl"),
+      city = c("Brooklyn","London"),
+      state = c("NY",NA),
+      country = c("USA","UK"),
+      postal_code = c("11217","E14 5EU")
+    )
 
-  capture.output(res <- address_geocode_all(address_stream), type = "message")
+    capture.output(res <- address_geocode_all(address_stream), type = "message")
 
-  # All get geocode
-  expect_false(any(is.na(res[,.(lat,lon)])))
-  # And those geocodes are for the right addresses
-  expect_match(res[1,matched_address],"30 LAFAYETTE AVE")
-  expect_match(res[2,display_name],"30.+Churchill Pl")
-  # And we get census tract data when available
-  expect_false(is.na(res[1,census_tract]))
+    # All get geocode
+    expect_false(any(is.na(res[,.(lat,lon)])))
+    # And those geocodes are for the right addresses
+    expect_match(res[1,matched_address],"30 LAFAYETTE AVE")
+    expect_match(res[2,display_name],"30.+Churchill Pl")
+    # And we get census tract data when available
+    expect_false(is.na(res[1,census_tract]))
 
-})
+  })
 
-test_that("address_geocode_all works with missing data", {
+  test_that("address_geocode_all works with missing data", {
 
-  address_stream <- rbind(
-   data.table(libpostal.house_number = "30 Lafayette Ave"),
-   data.table(libpostal.road = "Lafayette Ave"),
-   data.table(street1 = "30 Lafayette Ave"),
-   data.table(street2 = "321 Ashland Pl"),
-   data.table(city = "Brooklyn"),
-   data.table(state = "NY"),
-   data.table(country = "USA"),
-   data.table(postal_code = "11217"),
-   fill = TRUE
-  )
+    address_stream <- rbind(
+     data.table(libpostal.house_number = "30 Lafayette Ave"),
+     data.table(libpostal.road = "Lafayette Ave"),
+     data.table(street1 = "30 Lafayette Ave"),
+     data.table(street2 = "321 Ashland Pl"),
+     data.table(city = "Brooklyn"),
+     data.table(state = "NY"),
+     data.table(country = "USA"),
+     data.table(postal_code = "11217"),
+     fill = TRUE
+    )
 
-  capture.output(res <- address_geocode_all(address_stream), type = "message")
+    capture.output(res <- address_geocode_all(address_stream), type = "message")
 
-  # All get geocode
-  expect_false(any(is.na(res[,.(lat,lon)])))
-  # And those geocodes are for the right addresses
-  expect_match(res[1,display_name],"30.+Lafayette Ave")
-  expect_match(res[2,display_name],"Lafayette Ave")
-  expect_match(res[3,display_name],"30.+Lafayette Ave")
-  expect_match(res[4,display_name],"321.+Ashland Pl")
-  expect_match(res[5,display_name],"Brooklyn")
-  expect_match(res[6,display_name],"New York")
-  expect_match(res[7,display_name],"United States")
-  expect_match(res[8,display_name],"11217")
+    # All get geocode
+    expect_false(any(is.na(res[,.(lat,lon)])))
+    # And those geocodes are for the right addresses
+    expect_match(res[1,display_name],"30.+Lafayette Ave")
+    expect_match(res[2,display_name],"Lafayette Ave")
+    expect_match(res[3,display_name],"30.+Lafayette Ave")
+    expect_match(res[4,display_name],"321.+Ashland Pl")
+    expect_match(res[5,display_name],"Brooklyn")
+    expect_match(res[6,display_name],"New York")
+    expect_match(res[7,display_name],"United States")
+    expect_match(res[8,display_name],"11217")
 
-})
+  })
+}
 
-test_that("address_geocode_all suppresses completely missing data", {
+test_that("address_geocode_all suppresses completely missing data because geocode_combine fails", {
+  stub(address_geocode_all,"geocode_combine",function(.tbl,...) { message(nrow(.tbl)); cbind(.tbl,lat=123,lon=456)})
 
   address_stream <- data.table(
     libpostal.house_number = NA,
@@ -126,7 +130,7 @@ test_that("address_geocode_all suppresses completely missing data", {
     postal_code = NA
   )
 
-  expect_silent(res <- address_geocode_all(address_stream))
+  expect_silent(address_geocode_all(address_stream))
 
   address_stream <- rbind(address_stream,data.table(
     street1 = c("30 Lafayette Ave"),
@@ -136,12 +140,61 @@ test_that("address_geocode_all suppresses completely missing data", {
     postal_code = c("11217")
   ), fill = T)
 
-  expect_warning(capture.output(res <- address_geocode_all(address_stream), type = "message"),"Bad Request")
+  expect_message(res <- address_geocode_all(address_stream), "1")
 
-  expect_equal(nrow(res),1)
+  expect_equal(nrow(res),2)
 
 })
 
+
+test_that("address_geocode_all returns one row per incoming address", {
+  stub(address_geocode_all,"geocode_combine",function(.tbl,...) { cbind(.tbl,lat=123,lon=456)})
+
+  address_stream <- rbind(
+    data.table(libpostal.house_number = "30 Lafayette Ave"),
+    data.table(libpostal.road = "Lafayette Ave"),
+    data.table(street1 = "30 Lafayette Ave"),
+    data.table(street2 = "321 Ashland Pl"),
+    data.table(city = "Brooklyn"),
+    data.table(state = "NY"),
+    data.table(country = "USA"),
+    data.table(postal_code = "11217"),
+    data.table(),
+    fill = TRUE
+  )
+
+  result <- address_geocode_all(address_stream)
+
+  expect_equal(nrow(result), nrow(address_stream))
+  expect_equal(result[,..address_cols],address_stream[,..address_cols])
+  expect_equal(result$lat,rep(123,nrow(address_stream)))
+  expect_equal(result$lon,rep(456,nrow(address_stream)))
+  expect_named(result, c(as.character(address_cols),"lat","lon"), ignore.order = TRUE)
+})
+
+test_that("address_geocode_all doesn't copy input data.table", {
+
+  address_stream <- rbind(
+    data.table(libpostal.house_number = "30 Lafayette Ave"),
+    data.table(libpostal.road = "Lafayette Ave"),
+    data.table(street1 = "30 Lafayette Ave"),
+    data.table(street2 = "321 Ashland Pl"),
+    data.table(city = "Brooklyn"),
+    data.table(state = "NY"),
+    data.table(country = "USA"),
+    data.table(postal_code = "11217"),
+    data.table(),
+    fill = TRUE
+  )
+
+  geocode_combine <- function(.tbl,...) { cbind(.tbl,lat=123,lon=456)}
+  stub(address_geocode_all,"geocode_combine",geocode_combine)
+  stub(address_geocode,"address_geocode_all",address_geocode_all)
+
+  tracemem(address_stream)
+  expect_silent(address_geocode_all(address_stream))
+
+})
 
 # address_geocode ---------------------------------------------------------
 
@@ -158,8 +211,8 @@ test_that("address_geocode does not retry successfully geocoded addresses", {
     lapply(as.character) %>%
     setDT()
 
-  stub(address_geocode_all,"geocode_combine",function(.tbl,...) { message(nrow(.tbl)); cbind(.tbl,lat=123,lon=456)})
-
+  geocode_combine <- function(.tbl,...) { message(nrow(.tbl)); cbind(.tbl,lat=123,lon=456)}
+  stub(address_geocode_all,"geocode_combine",geocode_combine)
   stub(address_geocode,"address_geocode_all",address_geocode_all)
 
   expect_message(result <- address_geocode(address_stream),"4")
@@ -212,3 +265,4 @@ test_that("address_reverse_census filters out non-US addresses based on lat/lon"
   expect_equal(nrow(mock_args(address_reverse_census_all)[[1]][[1]]),1)
 
 })
+

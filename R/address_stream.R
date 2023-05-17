@@ -259,7 +259,7 @@ address_cache <- function(address_stream, cache_name, .function,
 
   address_cols <- intersect(address_cols, colnames(address_stream))
 
-  address_stream_distinct <- address_stream[,..address_cols] %>% distinct
+  address_stream_distinct <- address_stream[,..address_cols] %>% unique
 
   if (!DBI::dbExistsTable(cache_db, cache_name)) {
     # Cache doesn't yet exist

@@ -14,7 +14,7 @@
 #' @importFrom purrr cross2 map flatten map_chr
 #' @importFrom checkmate assert_data_table assert_names
 address_geocode_all <- function(address_stream) {
-  libpostal.street <- NULL
+  . <- libpostal.street <- NULL
 
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
@@ -80,6 +80,8 @@ address_geocode <- function(address_stream) {
 #' @return data.table of addresses, one row address in `address_stream`
 #' @importFrom tigris nation
 address_reverse_census <- function(address_stream) {
+  . <- census_tract <- lat <- lon <- NULL
+
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
@@ -106,7 +108,7 @@ address_reverse_census <- function(address_stream) {
 #'
 #' @return data.table of census geographies, one row per lat/lon pair in `address_stream`
 #' @importFrom censusxy cxy_geography
-#' @importFrom data.table rbindlist
+#' @importFrom data.table rbindlist setnames
 address_reverse_census_all <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = c("lat","lon"))
@@ -118,7 +120,7 @@ address_reverse_census_all <- function(address_stream) {
   columns <- Vectorize(grep, "pattern")(paste0("Census\\.Blocks\\.",c("STATE","COUNTY","TRACT","BLOCK")),
                                         colnames(address_reverse), value = T)
 
-  address_reverse[,..columns] %>% setNames(c("state_fips","county_fips","census_tract","census_block")) %>%
+  address_reverse[,..columns] %>% setnames(c("state_fips","county_fips","census_tract","census_block")) %>%
     cbind(address_stream)
 }
 

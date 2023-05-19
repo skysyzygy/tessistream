@@ -247,8 +247,8 @@ test_that("address_reverse_census filters out non-US addresses based on lat/lon"
     postal_code = c("11217","E14 5EU")
   )
 
-  address_reverse_census_all <- mock(address_stream)
   address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
+  address_reverse_census_all <- mock(address_geocode[,.(lat,lon,state_fips,county_fips,census_tract,census_block)])
   address_geocode$census_tract <- NA
 
   stub(address_reverse_census,"address_reverse_census_all",address_reverse_census_all)

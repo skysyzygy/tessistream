@@ -10,9 +10,9 @@ address_reverse_census(address_stream)
 \item{address_stream}{data.table of addresses, must include \code{address_cols}}
 }
 \value{
-data.table of addresses, one row address in \code{address_stream}
+data.table of addresses, one row per address in \code{address_stream}
 }
 \description{
-Gets census geography (tract/block/county/state) information for US addresses. Filters out
-lat/lon pairs that aren't in the US and caches results.
+Gets census geography (tract/block/county/state) information for US addresses. Skips
+lat/lon pairs that aren't in the US and which have already been forward geocoded and caches results.
 }

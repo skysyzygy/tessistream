@@ -9,7 +9,7 @@
 #'
 #' @param address_stream data.table of addresses, must include `address_cols`
 #'
-#' @return data.table of addresses, one row address in `address_stream`
+#' @return data.table of addresses, one row address in `address_stream`. Contains only address_cols and columns returned by `tidygeocoder`
 #' @importFrom tidygeocoder geocode_combine
 #' @importFrom purrr cross2 map flatten map_chr
 #' @importFrom checkmate assert_data_table assert_names
@@ -19,10 +19,11 @@ address_geocode_all <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
-  # add index column
-  address_stream[,I:=.I]
   address_stream_parsed <- address_parse(address_stream)
-  address_stream <- address_stream[,c(address_cols,"I"),with=F]
+
+  # Add index columns
+  address_stream <- address_stream[,..address_cols] %>% .[,I:=.I]
+  address_stream_parsed[,I:=.I]
 
   # build libpostal street name
   if(any(c("libpostal.house_number","libpostal.road") %in% colnames(address_stream_parsed))) {
@@ -59,6 +60,8 @@ address_geocode_all <- function(address_stream) {
                     lat = "lat", long = "lon",
                     query_names = map_chr(queries,~paste(.$method,.$street))) %>% setDT
 
+  result <- purrr::keep(result, is.atomic)
+
   result[address_stream,
          setdiff(colnames(result),colnames(address_stream_parsed)),
          with = F,
@@ -72,12 +75,13 @@ address_geocode <- function(address_stream) {
 
 #' address_reverse_census
 #'
-#' Gets census geography (tract/block/county/state) information for US addresses. Filters out
-#' lat/lon pairs that aren't in the US and caches results.
+#' Gets census geography (tract/block/county/state) information for US addresses. Skips
+#' lat/lon pairs that aren't in the US and which have already been forward geocoded and caches results.
 #'
 #' @param address_stream data.table of addresses, must include `address_cols`
 #'
-#' @return data.table of addresses, one row address in `address_stream`
+#' @return data.table of addresses, one row per address in `address_stream`.  Contains only address_cols and
+#' "state_fips", "county_fips", "census_tract", "census_block", "lat", "lon"
 #' @importFrom tigris nation
 address_reverse_census <- function(address_stream) {
   . <- census_tract <- lat <- lon <- NULL
@@ -85,17 +89,36 @@ address_reverse_census <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
+  # filter and add index columns
+  address_stream <- address_stream[,..address_cols] %>% .[,I:=.I]
   address_stream_geocode <- address_geocode(address_stream) %>%
-    .[is.na(census_tract) & !is.na(lat) & !is.na(lon)] %>% distinct
+    .[,c("state_fips", "county_fips", "census_tract", "census_block", "lat", "lon"), with = F] %>%
+    .[,I:=.I]
 
-  usa <- nation()
-  points <- sf::st_as_sf(address_stream_geocode[,.(lon = as.numeric(lon),
-                                                   lat = as.numeric(lat))],
-                         coords=c("lon","lat"), crs="WGS84") %>%
-    sf::st_transform(sf::st_crs(usa))
+  # don't reverse geocode things that are already done or can't be reversed
+  to_reverse <- address_stream_geocode[is.na(census_tract) & !is.na(lat) & !is.na(lon)] %>% unique
 
-  address_stream_geocode[as.logical(sf::st_contains(usa, points, sparse = F)), ] %>%
-    address_cache("address_reverse_census", address_reverse_census_all)
+  if(nrow(to_reverse) > 0) {
+
+    usa <- nation()
+    points <- sf::st_as_sf(to_reverse[,.(lon = as.numeric(lon),
+                                                     lat = as.numeric(lat))],
+                           coords=c("lon","lat"), crs="WGS84") %>%
+      sf::st_transform(sf::st_crs(usa))
+
+    # don't reverse things not in the US
+    to_reverse <- to_reverse[as.logical(sf::st_contains(usa, points, sparse = F)), ] %>%
+      address_cache("address_reverse_census", address_reverse_census_all, key_cols = c("lat","lon"))
+  }
+
+  address_stream_geocode[to_reverse,
+                         `:=`(state_fips=i.state_fips,
+                              county_fips=i.county_fips,
+                              census_tract=i.census_tract,
+                              census_block=i.census_block),
+                         on=c("lat","lon")]
+
+  address_stream_geocode[address_stream,on = "I"] %>% .[,I:=NULL] %>% .[]
 
 }
 
@@ -112,6 +135,7 @@ address_reverse_census <- function(address_stream) {
 address_reverse_census_all <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = c("lat","lon"))
+  address_stream <- address_stream[,.(lat,lon)]
 
   address_reverse <- Vectorize(cxy_geography, SIMPLIFY = FALSE)(lon = address_stream$lon,
                                                                 lat = address_stream$lat) %>%

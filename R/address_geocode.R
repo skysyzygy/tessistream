@@ -84,7 +84,7 @@ address_geocode <- function(address_stream) {
 #' "state_fips", "county_fips", "census_tract", "census_block", "lat", "lon"
 #' @importFrom tigris nation
 address_reverse_census <- function(address_stream) {
-  . <- census_tract <- lat <- lon <- NULL
+  . <- census_tract <- lat <- lon <- i.state_fips <- i.county_fips <- i.census_tract <- i.census_block <- NULL
 
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
@@ -133,6 +133,8 @@ address_reverse_census <- function(address_stream) {
 #' @importFrom censusxy cxy_geography
 #' @importFrom data.table rbindlist setnames
 address_reverse_census_all <- function(address_stream) {
+  . <- lat <- lon <- NULL
+
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = c("lat","lon"))
   address_stream <- address_stream[,.(lat,lon)]

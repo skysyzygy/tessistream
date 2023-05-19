@@ -137,7 +137,7 @@ test_that("address_exec_libpostal handles UTF-8", {
 
 # address_parse_libpostal ------------------------------------------------
 
-test_that("address_parse_libpostal sends a distinct, lowercase character vector to libpostal", {
+test_that("address_parse_libpostal sends a lowercase character vector to libpostal", {
   libpostal <- mock(rlang::abort(class = "libpostal"))
   stub(address_parse_libpostal, "address_exec_libpostal", libpostal)
 
@@ -149,9 +149,7 @@ test_that("address_parse_libpostal sends a distinct, lowercase character vector 
     postal_code = "11217",
     country = "",
     primary_ind = "Y"
-  ) %>%
-    rbind(., .) %>%
-    setDT()
+  ) %>% setDT
 
   expect_error(address_parse_libpostal(address_stream), class = "libpostal")
 
@@ -238,8 +236,9 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
 # address_cache -----------------------------------------------------------
 tessilake:::local_cache_dirs()
 
-address_stream <- data.table(street1 = paste(1:100, "example lane"), something = "extra")
-address_result <- address_stream[, .(street1, processed = strsplit(street1, " ") %>% purrr::map_chr(1))]
+address_stream <- data.table(street1 = paste(1:100, "example lane"), something = "extra") %>% rbind(setNames(rep(list(character(0)),6),address_cols),
+                                                                                                    fill = TRUE)
+address_result <- data.table::copy(address_stream)[, processed := strsplit(street1, " ") %>% purrr::map_chr(1)]
 
 sqlite_file <- tessilake:::cache_path("address_stream.sqlite", "deep", "stream")
 db <- NULL
@@ -250,7 +249,7 @@ test_that("address_cache handles cache non-existence and writes a cache file con
   address_cache(address_stream[1:25], "address_cache", address_processor)
   expect_true(file.exists(sqlite_file))
   db <<- DBI::dbConnect(RSQLite::SQLite(), sqlite_file)
-  expect_named(DBI::dbReadTable(db, "address_cache"), c("street1", "processed"))
+  expect_named(DBI::dbReadTable(db, "address_cache"), c(as.character(address_cols), "something", "processed"), ignore.order = TRUE)
 })
 
 test_that("address_cache handles zero-row input gracefully", {
@@ -274,11 +273,11 @@ test_that("address_cache handles fully-cached requests gracefully", {
 
 test_that("address_cache updates the the cache file after cache misses", {
   expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 50)
-  expect_named(DBI::dbReadTable(db, "address_cache"), c("street1", "processed"))
+  expect_named(DBI::dbReadTable(db, "address_cache"), c(as.character(address_cols), "something", "processed"), ignore.order = TRUE)
 })
 
 test_that("address_cache incremental runs match address_cache full runs", {
-  address_processor <- function(.) { address_result[.,on="street1"]}
+  address_processor <- function(.) { address_result[.,on=as.character(address_cols)]}
 
   incremental <- DBI::dbReadTable(db, "address_cache") %>%
     collect() %>%
@@ -293,21 +292,21 @@ test_that("address_cache updates the the cache file when there are new columns t
   address_cache(address_stream, "address_cache", address_processor)
   expect_equal(nrow(mock_args(address_processor)[[1]][[1]]), 50)
   expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 100)
-  expect_named(DBI::dbReadTable(db, "address_cache"), c("street1", "processed", "new_int_feature", "new_char_feature"))
+  expect_named(DBI::dbReadTable(db, "address_cache"), c(as.character(address_cols), "something", "processed", "new_int_feature", "new_char_feature"), ignore.order = TRUE)
   expect_equal(DBI::dbReadTable(db, "address_cache")$new_int_feature, c(rep(NA,50),rep(1000,50)))
   expect_equal(DBI::dbReadTable(db, "address_cache")$new_char_feature, c(rep(NA,50),rep("coolness",50)))
 })
 
 test_that("address_cache saves only unique addresses", {
-  address_processor <- function(.) { address_result[.,on="street1"]}
-  address_stream <- data.table(street1 = paste(c(5000,5000), "example lane"), something = "extra")
+  address_processor <- function(.) { address_result[.,on=as.character(address_cols)]}
+  address_stream <- data.table(street1 = paste(c(5000,5000), "example lane"), something = "extra") %>% rbind(address_stream[0], fill = TRUE)
   address_cache(address_stream, "address_cache", address_processor)
   expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 101)
 })
 
 test_that("address_cache returns data appended to input", {
-  address_processor <- function(.) { address_result[.,on="street1"]}
-  address_stream <- data.table(street1 = paste(c(1,5,1,5), "example lane"), something = "extra")
+  address_processor <- function(.) { address_result[.,on=as.character(address_cols)]}
+  address_stream <- data.table(street1 = paste(c(1,5,1,5), "example lane"), something = "extra") %>% rbind(address_stream[0], fill = TRUE)
   res <- address_cache(address_stream, "address_cache", address_processor) %>% select(street1,processed)
   expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 101)
   expect_equal(res,cbind(address_stream[,.(street1)],processed = c("1","5","1","5")))
@@ -315,9 +314,18 @@ test_that("address_cache returns data appended to input", {
 
 test_that("address_cache doesn't copy input data.table", {
   address_processor <- function(.) { address_result[.,on="street1"]}
-  address_stream <- data.table(street1 = paste(c(1,5,1,5), "example lane"), something = "extra")
+  address_stream <- data.table(street1 = paste(c(1,5,1,5), "example lane"), something = "extra") %>% rbind(address_stream[0], fill = TRUE)
   tracemem(address_stream)
   expect_silent(address_cache(address_stream, "address_cache", address_processor))
+})
+
+test_that("address_cache works with other key columns", {
+  data_stream <- data.table(a=seq(100),b=runif(100))
+  data_result <- data_stream[,.(a,b=a/2)]
+  data_processor <- mock(data_result)
+  expect_equal(address_cache(data_stream[100:1], "data_stream", data_processor, key_cols = "a"),data_result[100:1])
+  expect_equal(address_cache(data_stream[100:1], "data_stream", data_processor, key_cols = "a"),data_result[100:1])
+  expect_length(mock_args(data_processor),1)
 })
 
 # address_parse -----------------------------------------------------------

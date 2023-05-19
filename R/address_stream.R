@@ -110,7 +110,7 @@ address_exec_libpostal <- function(addresses) {
 #'
 #' @param address_stream data.table of addresses
 #'
-#' @return data.table of addresses parsed, one per unique address in address_stream
+#' @return data.table of addresses parsed, one per row in address_stream. Contains only address_cols and libpostal columns.
 #' @importFrom tidyr unite
 #' @importFrom stringr str_detect str_match str_remove fixed
 #' @importFrom dplyr any_of distinct
@@ -122,10 +122,7 @@ address_parse_libpostal <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
-  # one row per unique address
-  address_stream <- address_stream[, ..address_cols] %>%
-    distinct() %>%
-    setDT()
+  address_stream <- address_stream[, ..address_cols]
 
   # make address string for libpostal
   address_stream[, address := unite(.SD, "address", sep = ", ", na.rm = TRUE), .SDcols = address_cols]
@@ -239,6 +236,7 @@ address_parse <- function(address_stream) {
 #'
 #' @param address_stream data.table of addresses
 #' @param cache_name name of cache file
+#' @param key_cols as.character(address_cols)
 #' @param .function function to be called for processing, is sent `address_stream[address_cols]` and additional parameters.
 #' @param db_name path to sqlite database, defaults to `tessilake:::cache_path("address_stream.sqlite","deep","stream")`
 #' @param ... additional options passed to `.function`
@@ -247,8 +245,10 @@ address_parse <- function(address_stream) {
 #' @importFrom dplyr collect tbl
 #' @importFrom utils head capture.output
 address_cache <- function(address_stream, cache_name, .function,
+                          key_cols = as.character(address_cols),
                           db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
   assert_data_table(address_stream)
+  assert_names(colnames(address_stream), must.include = key_cols)
 
   if (!dir.exists(dirname(db_name))) {
     dir.create(dirname(db_name))
@@ -257,9 +257,9 @@ address_cache <- function(address_stream, cache_name, .function,
   cache_db <- DBI::dbConnect(RSQLite::SQLite(), db_name)
   withr::defer(DBI::dbDisconnect(cache_db))
 
-  address_cols <- intersect(address_cols, colnames(address_stream))
+  key_cols <- intersect(key_cols, colnames(address_stream))
 
-  address_stream_distinct <- address_stream[,..address_cols] %>% unique
+  address_stream_distinct <- address_stream[,..key_cols] %>% unique
 
   if (!DBI::dbExistsTable(cache_db, cache_name)) {
     # Cache doesn't yet exist
@@ -269,7 +269,7 @@ address_cache <- function(address_stream, cache_name, .function,
 
   } else {
     cache <- DBI::dbReadTable(cache_db, cache_name) %>% setDT()
-    cache_miss <- address_stream_distinct[!cache, ..address_cols, on = as.character(address_cols)]
+    cache_miss <- address_stream_distinct[!cache, ..key_cols, on = as.character(key_cols)]
     db_function <- DBI::dbAppendTable
   }
 
@@ -298,7 +298,7 @@ address_cache <- function(address_stream, cache_name, .function,
     cache <- rbind(cache, cache_miss, fill = TRUE)
   }
 
-  address_stream <- cache[address_stream[, ..address_cols], on = as.character(address_cols)]
+  address_stream <- cache[address_stream[, ..key_cols], on = key_cols]
 
   return(address_stream)
 }

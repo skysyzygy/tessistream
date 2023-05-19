@@ -20,7 +20,7 @@ address_parse(address_stream)
 \value{
 data.frame of parsed addresses, one row per vector i
 
-data.table of addresses parsed, one per unique address in address_stream
+data.table of addresses parsed, one per row in address_stream
 
 data.table of addresses parsed
 }

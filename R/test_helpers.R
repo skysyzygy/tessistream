@@ -1,6 +1,24 @@
+address_geocode_prepare_fixtures <- function() {
+  tessilake:::local_cache_dirs()
+
+  address_stream <- data.table(
+    street1 = c("30 Lafayette Ave","321 Ashland Pl","30 Churchill Pl"),
+    street2 = NA_character_,
+    city = c("Brooklyn","Brooklyn","London"),
+    state = c("NY","NY",NA_character_),
+    country = c("USA","USA","UK"),
+    postal_code = c("11217","11217","E14 5EU")
+  )
+
+  address_geocode(address_stream) %>%
+    saveRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
+}
+
 address_prepare_fixtures <- function() {
   . <- N <- table_name <- alternate_key <- address_no <- NULL
+  tessilake:::local_cache_dirs()
 
+  # only take customers with lots of changes
   audit <- read_tessi("audit", freshness = 0) %>%
     filter(table_name == "T_ADDRESS") %>%
     collect() %>%
@@ -15,6 +33,7 @@ address_prepare_fixtures <- function() {
     collect() %>%
     setDT()
 
+  # anonymize address number
   address_map <- data.table(address_no = unique(c(audit$alternate_key, addresses$address_no)))[, I := .I]
   addresses <- merge(addresses, address_map, by = "address_no") %>%
     .[, address_no := I] %>%
@@ -23,6 +42,7 @@ address_prepare_fixtures <- function() {
     .[, alternate_key := I] %>%
     .[, I := NULL]
 
+  # anonymize customer number
   customer_map <- data.table(customer_no = unique(c(audit$customer_no, addresses$customer_no)))[, I := .I]
   addresses <- merge(addresses, customer_map, by = "customer_no") %>%
     .[, `:=`(customer_no = I, group_customer_no = I)] %>%
@@ -36,10 +56,8 @@ address_prepare_fixtures <- function() {
   saveRDS(audit, testthat::test_path("address_audit.Rds"))
   saveRDS(addresses, testthat::test_path("addresses.Rds"))
 
-  mockery::stub(address_load, "read_tessi", addresses)
-  mockery::stub(address_load_audit, "read_tessi", audit)
-  mockery::stub(address_create_stream, "address_load", address_load)
-  mockery::stub(address_create_stream, "address_load_audit", address_load_audit)
+  mockery::stub(stream_from_audit, "read_tessi", mockery::mock(audit,addresses))
+  mockery::stub(address_create_stream, "stream_from_audit", stream_from_audit)
 
   stream <- address_create_stream()
 

@@ -10,7 +10,8 @@ address_reverse_census(address_stream)
 \item{address_stream}{data.table of addresses, must include \code{address_cols}}
 }
 \value{
-data.table of addresses, one row per address in \code{address_stream}
+data.table of addresses, one row per address in \code{address_stream}.  Contains only address_cols and
+"state_fips", "county_fips", "census_tract", "census_block", "lat", "lon"
 }
 \description{
 Gets census geography (tract/block/county/state) information for US addresses. Skips

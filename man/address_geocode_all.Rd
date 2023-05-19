@@ -10,7 +10,7 @@ address_geocode_all(address_stream)
 \item{address_stream}{data.table of addresses, must include \code{address_cols}}
 }
 \value{
-data.table of addresses, one row address in \code{address_stream}
+data.table of addresses, one row address in \code{address_stream}. Contains only address_cols and columns returned by \code{tidygeocoder}
 }
 \description{
 Geocodes addresses using the \link{tidygeocoder} package.

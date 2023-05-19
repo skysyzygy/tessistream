@@ -102,7 +102,7 @@ address_reverse_census <- function(address_stream) {
 
     usa <- nation()
     points <- sf::st_as_sf(to_reverse[,.(lon = as.numeric(lon),
-                                                     lat = as.numeric(lat))],
+                                         lat = as.numeric(lat))],
                            coords=c("lon","lat"), crs="WGS84") %>%
       sf::st_transform(sf::st_crs(usa))
 

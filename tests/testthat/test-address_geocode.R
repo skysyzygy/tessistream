@@ -237,18 +237,16 @@ test_that("address_reverse_census_all turns lat/lon pairs into census tract info
 test_that("address_reverse_census filters out non-US addresses based on lat/lon",{
 
   address_stream <- data.table(
-    libpostal.house_number = "30",
-    libpostal.road = c("Lafayette Ave","Churchill Pl"),
     street1 = c("30 Lafayette Ave","30 Churchill Pl"),
-    street2 = c("30 Lafayette Ave","30 Churchill Pl"),
+    street2 = NA,
     city = c("Brooklyn","London"),
     state = c("NY",NA),
     country = c("USA","UK"),
     postal_code = c("11217","E14 5EU")
   )
 
-  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
-  address_reverse_census_all <- mock(address_geocode[,.(lat,lon,state_fips,county_fips,census_tract,census_block)])
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  address_reverse_census_all <- mock(address_geocode[,.(lat,lon,state_fips,county_fips,census_tract = "address_reverse_census",census_block)])
   address_geocode$census_tract <- NA
 
   stub(address_reverse_census,"address_reverse_census_all",address_reverse_census_all)
@@ -256,6 +254,33 @@ test_that("address_reverse_census filters out non-US addresses based on lat/lon"
 
   expect_message(res <- address_reverse_census(address_stream))
   expect_equal(nrow(mock_args(address_reverse_census_all)[[1]][[1]]),1)
+  expect_equal(res$census_tract, c("address_reverse_census",NA))
+
+})
+
+
+test_that("address_reverse_census combines census data from address_geocode and address_reverse_census caches" ,{
+
+  address_stream <- data.table(
+    street1 = c("30 Lafayette Ave","321 Ashland Pl"),
+    street2 = NA,
+    city = "Brooklyn",
+    state = "NY",
+    country = "USA",
+    postal_code = "11217"
+  )
+
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  address_reverse_census_all <- mock(address_geocode[2,.(lat,lon,state_fips,county_fips,census_tract = "oops",census_block)])
+  address_geocode[street1 == "30 Lafayette Ave", census_tract := NA]
+  address_geocode[street1 == "321 Ashland Pl", census_tract := "address_geocode"]
+
+  stub(address_reverse_census,"address_reverse_census_all",address_reverse_census_all)
+  stub(address_reverse_census,"address_geocode",address_geocode)
+
+  expect_message(res <- address_reverse_census(address_stream))
+  expect_length(mock_args(address_reverse_census_all),0)
+  expect_equal(res$census_tract, c("address_reverse_census","address_geocode"))
 
 })
 

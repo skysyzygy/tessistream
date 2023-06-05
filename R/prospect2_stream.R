@@ -27,6 +27,9 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) 
     by <- 100
   }
 
+  if (offset >= total)
+    return(invisible())
+
   jobs <- data.table(off = seq(offset, total, by = by))
   jobs <- jobs[, len := c(off[-1], total) - off][len > 0]
 

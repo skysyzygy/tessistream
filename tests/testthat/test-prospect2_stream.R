@@ -50,7 +50,6 @@ test_that("p2_query_api returns NULL when offset is larger than available data",
   stub(p2_query_api, "GET", GET)
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
-  debugonce(p2_query_api)
   expect_equal(p2_query_api("test", offset = 1234),NULL)
   expect_match(mock_args(GET)[[1]][[1]], "limit=1")
   expect_length(mock_args(GET),1)

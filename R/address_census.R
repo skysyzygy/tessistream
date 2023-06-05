@@ -24,7 +24,7 @@ census_variables <- function() {
 
   variables[grepl("^(number|estimate|total)",label, ignore.case = TRUE) & (
     grepl("sex by age($| \\[)",concept,ignore.case=T) | grepl("sex and age",label,ignore.case=T)) &
-      !grepl("(18|65) years and over|total( population)?$|sex ratio", label, ignore.case = T), type := "sex_and_age"]
+      grepl("!!\\d+ (to \\d+ )?years?$|Under (1|5) year|(85|110) years and over|(fe)?male$", label, ignore.case = T, perl = TRUE), type := "sex_and_age"]
   variables[type == "sex_and_age", `:=`(sex = stringr::str_match(label, stringr::regex("(?<sex>Male|Female)", ignore_case = TRUE))[,"sex"],
                                         age = stringr::str_match(label, stringr::regex("(!!|^)(?<age>[^!]*year[^!]*)$", ignore_case = TRUE))[,"age"])]
   variables[type == "sex_and_age" & is.na(sex) & is.na(age), type := NA]

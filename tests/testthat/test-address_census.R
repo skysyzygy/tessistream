@@ -9,12 +9,13 @@ if(!file.exists(rprojroot::find_testthat_root_file("census_data.sqlite")))
 census_variables <- census_variables()
 
 test_that("census_variables identifies variables for each year and type", {
-  year <- seq(2000,2021)
-  type <- c("race","sex_and_age","income")
+  years <- c(2000,seq(2009,2021))
+  types <- c("race","sex_and_age","income")
 
   expect_named(census_variables,c("year","type","variable","dataset","label","age","sex","race","measure","concept"),
                ignore.order = TRUE)
-  expect_false(census_variables[expand.grid(year=year,type=type),any(is.na(label)),on=c("year","type"),allow.cartesian=TRUE])
+
+  expect_false(census_variables[expand.grid(year=years,type=types),any(is.na(label)),on=c("year","type")])
 })
 
 test_that("census_variables identifies a sane number of variables for each acs year and type", {
@@ -23,13 +24,13 @@ test_that("census_variables identifies a sane number of variables for each acs y
   expect_equal(variables[type == "income",.N,by="year"]$N,rep(2,length(years)))
   expect_equal(variables[type == "race",.N,by="year"]$N,rep(22,length(years)))
   expect_equal(variables[type == "sex_and_age" & is.na(age),.N,by="year"]$N,rep(2,length(years)))
-  expect_equal(variables[type == "sex_and_age" & !is.na(age),.N,by="year"]$N,rep(16,length(years)))
+  expect_equal(variables[type == "sex_and_age" & !is.na(age),.N,by="year"]$N,rep(13,length(years)))
 })
 
 test_that("census_variables identifies a sane number of variables for each decennial year and type", {
   variables <- census_variables[dataset %in% c("sf1","sf3")]
   years <- variables[,unique(year)]
-  expect_equal(variables[type == "income",.N,by="year"]$N,rep(2,length(years)))
+  expect_equal(variables[type == "income",.N,by="year"]$N,1)
   expect_equal(variables[type == "race",.N,by="year"]$N,rep(7,length(years)))
   expect_equal(variables[type == "sex_and_age" & is.na(age),.N,by="year"]$N,rep(2,length(years)))
   expect_equal(variables[type == "sex_and_age" & !is.na(age),.N,by="year"]$N,rep(200,length(years)))

@@ -5,7 +5,7 @@ if(!file.exists(rprojroot::find_testthat_root_file("census_data.sqlite")))
   address_census_prepare_fixtures()
 
 # census_variables --------------------------------------------------------
-
+debugonce(census_variables)
 census_variables <- census_variables()
 
 test_that("census_variables identifies variables for each year and type", {
@@ -22,7 +22,7 @@ test_that("census_variables identifies a sane number of variables for each acs y
   variables <- census_variables[!dataset %in% c("sf1","sf3")]
   years <- variables[,unique(year)]
   expect_equal(variables[type == "income",.N,by="year"]$N,rep(2,length(years)))
-  expect_equal(variables[type == "race",.N,by="year"]$N,rep(22,length(years)))
+  expect_equal(variables[type == "race",.N,by="year"]$N,rep(6,length(years)))
   expect_equal(variables[type == "sex_and_age" & is.na(age),.N,by="year"]$N,rep(2,length(years)))
   expect_equal(variables[type == "sex_and_age" & !is.na(age),.N,by="year"]$N,rep(13,length(years)))
 })
@@ -30,10 +30,10 @@ test_that("census_variables identifies a sane number of variables for each acs y
 test_that("census_variables identifies a sane number of variables for each decennial year and type", {
   variables <- census_variables[dataset %in% c("sf1","sf3")]
   years <- variables[,unique(year)]
-  expect_equal(variables[type == "income",.N,by="year"]$N,1)
-  expect_equal(variables[type == "race",.N,by="year"]$N,rep(7,length(years)))
-  expect_equal(variables[type == "sex_and_age" & is.na(age),.N,by="year"]$N,rep(2,length(years)))
-  expect_equal(variables[type == "sex_and_age" & !is.na(age),.N,by="year"]$N,rep(200,length(years)))
+  expect_equal(variables[type == "income",.N,by="year"]$N,1) # income is in acs for 2010
+  expect_equal(variables[type == "race",.N,by="year"]$N,6) # race is in acs for 2010
+  expect_equal(variables[type == "sex_and_age" & is.na(age),.N,by="year"]$N,2) # sex is in acs for 2010
+  expect_equal(variables[type == "sex_and_age" & !is.na(age),.N,by="year"]$N,rep(204,length(years)))
 })
 
 test_that("census_variables categorizes each variable", {

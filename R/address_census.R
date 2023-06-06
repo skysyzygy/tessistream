@@ -23,23 +23,25 @@ census_variables <- function() {
     flatten() %>% rbindlist(fill=T)
 
   variables[grepl("^(number|estimate|total)",label, ignore.case = TRUE) & (
-    grepl("sex by age($| \\[)",concept,ignore.case=T) | grepl("sex and age",label,ignore.case=T)) &
-      grepl("!!\\d+ (to \\d+ )?years?$|Under (1|5) year|(85|110) years and over|(fe)?male$", label, ignore.case = T, perl = TRUE), type := "sex_and_age"]
+    grepl("sex and age",label,ignore.case=T) & grepl("!!\\d+ (to \\d+ )?years?$|Under 5 years|85 years and over|(fe)?male$",
+                                                      label, ignore.case = T, perl = TRUE) |
+    grepl("^sex by age( \\[|$)",concept,ignore.case=T) & grepl("!!(fe)?male(!!(\\d+ years?$|Under 1 years$|1\\d{2})|$)", label, ignore.case = T, perl = TRUE)),
+    type := "sex_and_age"]
   variables[type == "sex_and_age", `:=`(sex = stringr::str_match(label, stringr::regex("(?<sex>Male|Female)", ignore_case = TRUE))[,"sex"],
                                         age = stringr::str_match(label, stringr::regex("(!!|^)(?<age>[^!]*year[^!]*)$", ignore_case = TRUE))[,"age"])]
   variables[type == "sex_and_age" & is.na(sex) & is.na(age), type := NA]
-  variables[type == "sex_and_age",I:=1:.N,by=c("year","age","sex")]
+  variables[type == "sex_and_age",I:=1:.N,by=list(year,age,tolower(sex))]
   # variables[type == "sex_and_age"] %>% View
 
-  variables[grepl("^(number|estimate|total).+one race", label, ignore.case = T), type := "race"]
-  variables[type == "race", race := stringr::str_match(label, stringr::regex("(?<race>[^!]+$)", ignore_case = TRUE))[,"race"]]
-  variables[type == "race", I:=1:.N, by=c("year", "race")]
+  variables[grepl("^(number|estimate|total).+one race!![^!]+$", label, ignore.case = T), type := "race"]
+  variables[type == "race", race := stringr::str_match(label, stringr::regex("(?<race>[^!]+?)( alone)?$", ignore_case = TRUE))[,"race"]]
+  variables[type == "race", I:=1:.N, by=list(year, tolower(race))]
   # variables[type == "race"] %>% View
 
   variables[grepl("(median|mean) household income", label, ignore.case = T) &
               grepl("number|estimate|total", label, ignore.case = T), type := "income"]
   variables[type == "income", measure := stringr::str_match(label, stringr::regex("(?<measure>Mean|Median)", ignore_case = TRUE))[,"measure"]]
-  variables[type == "income", I:=1:.N, by=c("year","measure")]
+  variables[type == "income", I:=1:.N, by=list(year,measure)]
   # variables[type == "income"] %>% View
 
   variables <- variables[!is.na(type) & I==1]

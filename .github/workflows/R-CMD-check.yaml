@@ -24,13 +24,6 @@ jobs:
       # - name: Setup upterm session
       #   uses: lhotari/action-upterm@v1
 
-      - name: install ffbase
-        run: |
-          cd ..
-          Rscript -e 'install.packages("remotes")
-          remotes::install_github("ffbase=edwindj/ffbase/pkg")'
-        shell: bash
-
       - name: cache libpostal
         uses: actions/cache@v3
         with:
@@ -48,9 +41,11 @@ jobs:
           extra-packages: any::rcmdcheck
           needs: check
 
-      # - name: Install miniconda
-      #   run: reticulate::install_miniconda()
-      #   shell: Rscript {0}
+      - name: cache census fixtures
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/tests/testthat/census_data.sqlite
+          key: census_fixtures-${{ runner.os }}
 
       - uses: r-lib/actions/check-r-package@v2
 

@@ -21,7 +21,7 @@ address_census_prepare_fixtures <- function() {
   stub(census_get_data,"unique","NY")
   stub(census_get_data_all,"census_get_data",census_get_data)
   stub(census_data,"census_get_data_all",census_get_data_all)
-  debugonce(census_get_data)
+
   census_data(census_variables(), db_name = rprojroot::find_testthat_root_file("census_data.sqlite"))
 
 }

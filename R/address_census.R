@@ -23,25 +23,25 @@ census_variables <- function() {
     flatten() %>% rbindlist(fill=T)
 
   variables[grepl("^(number|estimate|total)",label, ignore.case = TRUE) & (
-    grepl("sex and age",label,ignore.case=T) & grepl("!!\\d+ (to \\d+ )?years?$|Under 5 years|85 years and over|(fe)?male$",
-                                                      label, ignore.case = T, perl = TRUE) |
-    grepl("^sex by age( \\[|$)",concept,ignore.case=T) & grepl("!!(fe)?male(!!(\\d+ years?$|Under 1 years$|1\\d{2})|$)", label, ignore.case = T, perl = TRUE)),
+    grepl("sex and age",label,ignore.case=T) | grepl("^sex by age( \\[49|$)",concept,ignore.case=T)) &
+      grepl("!!\\d+ (to|and) \\d+ years$|!!(18|19|20|21) years$|Under 5 years|85 years and over|(fe)?male$", label, ignore.case = T, perl = TRUE) &
+      grepl("^(DP\\d|P\\d)", name),
     type := "sex_and_age"]
   variables[type == "sex_and_age", `:=`(sex = stringr::str_match(label, stringr::regex("(?<sex>Male|Female)", ignore_case = TRUE))[,"sex"],
                                         age = stringr::str_match(label, stringr::regex("(!!|^)(?<age>[^!]*year[^!]*)$", ignore_case = TRUE))[,"age"])]
   variables[type == "sex_and_age" & is.na(sex) & is.na(age), type := NA]
-  variables[type == "sex_and_age",I:=1:.N,by=list(year,age,tolower(sex))]
+  variables[type == "sex_and_age",I:=1:.N,by=list(year,dataset,age,tolower(sex))]
   # variables[type == "sex_and_age"] %>% View
 
   variables[grepl("^(number|estimate|total).+one race!![^!]+$", label, ignore.case = T), type := "race"]
   variables[type == "race", race := stringr::str_match(label, stringr::regex("(?<race>[^!]+?)( alone)?$", ignore_case = TRUE))[,"race"]]
-  variables[type == "race", I:=1:.N, by=list(year, tolower(race))]
+  variables[type == "race", I:=1:.N, by=list(year,dataset, tolower(race))]
   # variables[type == "race"] %>% View
 
   variables[grepl("(median|mean) household income", label, ignore.case = T) &
               grepl("number|estimate|total", label, ignore.case = T), type := "income"]
   variables[type == "income", measure := stringr::str_match(label, stringr::regex("(?<measure>Mean|Median)", ignore_case = TRUE))[,"measure"]]
-  variables[type == "income", I:=1:.N, by=list(year,measure)]
+  variables[type == "income", I:=1:.N, by=list(year,dataset,measure)]
   # variables[type == "income"] %>% View
 
   variables <- variables[!is.na(type) & I==1]
@@ -116,76 +116,64 @@ census_get_data_all <- function(census_variables) {
 
 }
 
+#' @describeIn census_features Prepares census race/ethnicity data
+census_race_features <- function() {
+
+  race_variables <- census_variables()[type == "race" & (year != 2010 | dataset == "sf1")]
+  race_features <- census_data(race_variables) %>% .[,.(year, GEOID, value = dplyr::coalesce(value,estimate), moe, feature = race)] %>%
+    .[,feature := ifelse(grepl("some other",feature,ignore.case = TRUE),"Other",feature)]
+
+}
+
+#' @describeIn census_features Prepares census sex data
+census_sex_features <- function() {
+
+  sex_variables <- census_variables()[type == "sex_and_age" & sex %in% c("Female","Male") & is.na(age) & (year != 2010 | dataset == "sf1")]
+  sex_features <- census_data(sex_variables)[,value := coalesce(value,estimate)] %>%
+    .[,.(value = sum(value,na.rm=T),moe = sum(moe,na.rm = TRUE)), by = list(year,GEOID,feature = sex)]
+
+}
+
+#' @describeIn census_features Prepares census age data
+census_age_features <- function() {
+
+  age_variables <- census_variables()[type == "sex_and_age" & !is.na(age) & (year != 2010 | dataset == "sf1")]
+
+  age_features <- census_data(age_variables)
+
+  acs_variables <- age_variables[grepl("acs",dataset),.(age = unique(age))] %>%
+    .[,c("start","end") := stringr::str_match(age,"(Under|(?<start>\\d+)).+?(and|(?<end>\\d+))")[,c("start","end")] %>% as.data.frame %>% lapply(as.integer)]
+
+  # Normalize ages
+  age_features[!age %in% acs_variables$age, age := acs_variables[
+    age_features[!age %in% acs_variables$age,.(start = stringr::str_match(age,"\\d+") %>% as.integer)],
+    age, on = "start", roll = TRUE]]
+
+  age_features[,value := coalesce(value,estimate)] %>%
+    .[,.(value = sum(value,na.rm=T),moe=sum(moe,na.rm=T)), by = list(year,GEOID,feature = age)]
+
+}
+
+#' @describeIn census_features Prepares census income data
+census_income_features <- function() {
+
+  income_variables <- census_variables()[type == "income" & !is.na(measure)]
+  income_features <- census_data(income_variables) %>% .[,.(year,GEOID,value = dplyr::coalesce(value,estimate),moe,feature = paste(measure,"Income"))]
+
+}
+
 #' census_features
 #'
 #' Prepare features from raw census data
 #'
 #' @return data.table of features extracted from census datasets
-census_race_features <- function() {
-
-  race_variables <- census_variables()[type == "race" & (year != 2010 | dataset == "sf1")]
-
-  race_features <- census_data(race_variables) %>% .[,.(year, GEOID, value = dplyr::coalesce(value,estimate), moe, feature = race)] %>%
-  # Normalize race descriptions
-    .[,feature := dplyr::case_when(grepl("some other",feature,ignore.case = TRUE) ~ "Other",
-                                   grepl("one race",feature,ignore.case = TRUE) ~ "Total",
-                                   grepl("asian|chinese|filipino|japanese|korean|vietnamese",feature,ignore.case = TRUE) ~ "Asian",
-                                   grepl("hawaiian|chamorro|samoan|pacific",feature,ignore.case = TRUE) ~ "Native Hawaiian and Other Pacific Islander",
-                                   grepl("tribal|indian",feature,ignore.case = TRUE) ~ "American Indian and Alaska Native",
-                                   TRUE ~ feature) %>%
-                                   # CamelCase them
-                                   gsub(" alone$","", .) %>%
-                                   gsub("\\s(\\w)","\\U\\1", ., perl = TRUE), by = "feature"]
-}
-
-census_sex_features <- function() {
-
-  sex_variables <- census_variables()[type == "sex_and_age" & sex %in% c("Female","Male") & is.na(age)]
-  sex_features <- census_data(sex_variables) %>% .[,.(year,GEOID,value = dplyr::coalesce(value,estimate),moe,feature = sex)]
-
-  }
-
-census_age_features <- function() {
-
-  age_variables <- census_variables()[type == "sex_and_age" & !is.na(age) & !grepl("and over", age) & grepl("\\d",age) & age != "Under 18 years"]
-
-  age_features <- census_data(age_variables)
-
-  # Turn labels into sequences of ages
-  age_weights <- age_features[, stringr::str_match_all(age, "\\d+") %>%
-                                purrr::map(~as.integer(.) %>% {
-                                  if(grepl("^Under", age)) {seq(0,.-1)}
-                                  else if (length(.) == 2) {do.call(seq,as.list(.))}
-                                  else {.}} %>%
-                                # Round to the nearest ten to reduce the number of features
-                                  {10*floor(./10)} %>%
-                                # Run length encoding to get weights by decade
-                                  rle) %>%
-                                {data.table(feature = purrr::map(.,"values") %>% unlist %>% {paste0("Age",.)},
-                                            weight = purrr::map(.,"lengths") %>% unlist %>% {./sum(.)})}, by="age"]
-
-  # Expand the age brackets and re-weight
-  age_features <- age_features[age_weights, on="age", allow.cartesian = TRUE]
-  age_features[,value := dplyr::coalesce(value,estimate) * weight]
-  age_features[,.(year,GEOID,value,moe,feature)]
-
-}
-
-census_income_features <- function() {
-
-  income_variables <- census_variables()[type == "income" & !is.na(measure)]
-
-  census_data(income_variables) %>%
-    .[,.(year,GEOID,value = dplyr::coalesce(value,estimate),moe,feature = paste0(measure,"Income"))]
-
-
-}
-
 census_features <- function() {
   rbind(census_race_features(),
         census_sex_features(),
         census_age_features(),
         census_income_features()) %>%
+    # snake_case them
+    .[,feature := tolower(feature) %>% gsub("\\s+","_", .), by = "feature"] %>%
     data.table::dcast(year + GEOID ~ feature, fun.aggregate = sum, na.rm = TRUE, value.var = "value")
 
 }

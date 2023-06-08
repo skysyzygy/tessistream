@@ -18,6 +18,48 @@ address_cols <- c(
   "country_desc" = "country"
 )
 
+
+# address_stream ----------------------------------------------------------
+
+#' address_stream
+#'
+#' Create a data.table stream of addresses and timestamps, drawing from Tessitura TA_AUDIT_TRAIL and T_ADDRESS data, geocoding using the [tidygeocoder] package.
+#' Tries each address up to six times, using `libpostal` parsing, `street1`, and `street2`, and the US census and openstreetmap geocoders.
+#' Appends census demographic and aggregate income data and iWave income data.
+#'
+#' @param freshness data will be at least this fresh
+#'
+#' @return data.table of addresses and additional address-based features
+#' @export
+#' @importFrom tessilake read_tessi
+address_stream <- function(freshness = as.difftime(7, units = "days")) {
+  address_stream <- address_create_stream(freshness = freshness) %>%
+    address_geocode(.)[., on = ..address_cols] %>%
+    address_census(.)[., on = c(address_cols,"timestamp")]
+
+  i_wave <- read_tessi("iwave") %>% collect() %>% setDT()
+
+  i_wave[, .(group_customer_no, event_type = "Address", event_subtype = "iWave Score",
+        pro_score, capacity_value, properties_total_value, donations_total_value)]
+
+  address_stream[`:=`(event_type = "Address")]
+
+  address_stream_full <- copy(address_stream)
+  address_stream <- address_stream[primary_ind == "y" & group_customer_no >= 200]
+
+  tessilake:::cache_write(address_stream_full, "address_stream_full", "deep", "stream",
+                          primary_keys = c("address_no", "timestamp"))
+  tessilake:::cache_write(address_stream, "address_stream", "deep", "stream",
+                          primary_keys = c("address_no", "timestamp"))
+
+  #address_stream <- address_stream %>% mutate_all(fix_vmode) %>% as.ffdf
+
+  #pack.ffdf(file.path(streamDir, "addressStream.gz"), addressStream)
+
+
+}
+
+
 #' address_create_stream
 #'
 #' Creates address data with timestamps from TA_AUDIT_TABLE and T_ADDRESS data

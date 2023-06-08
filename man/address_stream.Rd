@@ -13,7 +13,7 @@ address_stream(freshness = as.difftime(7, units = "days"))
 data.table of addresses and additional address-based features
 }
 \description{
-Create a data.table of addresses, drawing from Tessitura TA_AUDIT_TRAIL and T_ADDRESS data, geocoding using the \link{tidygeocoder} package.
+Create a data.table stream of addresses and timestamps, drawing from Tessitura TA_AUDIT_TRAIL and T_ADDRESS data, geocoding using the \link{tidygeocoder} package.
 Tries each address up to six times, using \code{libpostal} parsing, \code{street1}, and \code{street2}, and the US census and openstreetmap geocoders.
-Append census demographic and aggregate income data and iWave income data.
+Appends census demographic and aggregate income data and iWave income data.
 }

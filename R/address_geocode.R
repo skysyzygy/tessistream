@@ -1,4 +1,3 @@
-
 # Geocoding ---------------------------------------------------------------
 
 #' address_geocode
@@ -11,7 +10,8 @@
 #'
 #' @return data.table of addresses, one row per address in input, must include `address_cols`. Contains only address_cols and columns returned by `tidygeocoder`
 #' @importFrom tidygeocoder geocode_combine
-#' @importFrom purrr cross2 map flatten map_chr
+#' @importFrom purrr map flatten map_chr
+#' @importFrom tidyr expand_grid
 #' @importFrom checkmate assert_data_table assert_names
 #' @describeIn address_geocode geocode all addresses
 address_geocode_all <- function(address_stream) {
@@ -29,9 +29,10 @@ address_geocode_all <- function(address_stream) {
   # build libpostal street name
   if(any(c("libpostal.house_number","libpostal.road") %in% colnames(address_stream_parsed))) {
      address_stream_parsed <- address_stream_parsed %>%
-      unite("libpostal.street", any_of(c("libpostal.house_number", "libpostal.road")), sep = " ", na.rm = TRUE)
+      unite("libpostal.street", any_of(c("libpostal.house_number", "libpostal.road")), sep = " ", na.rm = TRUE) %>%
+      setDT
     address_stream_parsed[libpostal.street == "",libpostal.street := NA_character_]
-    address_cols <- c(address_cols, "libpostal.street")
+    address_cols <- c("libpostal.street", address_cols)
   }
 
   # suppress completely missing data
@@ -48,12 +49,15 @@ address_geocode_all <- function(address_stream) {
   global_params <- list(city = "city", state="state", postalcode = "postal_code",
                     return_input = TRUE, full_results = TRUE)
 
-  queries <- cross2(map(sort(grep("street",as.character(address_cols),value=T)),~list(street=.)),
-                    list(list(method = 'census',
-                              mode = "batch",
-                              api_options = list(census_return_type = "geographies")),
-                         list(method = 'osm',
-                              country = "country"))) %>% map(flatten)
+  queries <- expand_grid(params = list(list(method = 'census',
+                                            mode = "batch",
+                                            api_options = list(census_return_type = "geographies")),
+                                       list(method = 'osm',
+                                            country = "country")),
+                         street = as.character(grep("street",address_cols,value=T))) %>%
+    split(1:nrow(.)) %>%
+    map(tidyr::unnest_wider,"params") %>%
+    map(flatten)
 
   result <- geocode_combine(address_stream_parsed,
                     queries = queries,

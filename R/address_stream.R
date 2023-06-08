@@ -247,6 +247,7 @@ address_parse_libpostal <- function(address_stream) {
     parsed <- parsed %>% unite("country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = TRUE)
   }
 
+  setDT(parsed)
   # ok maybe we're finally done. Let's clean up
   parsed_cols <- intersect(colnames(parsed),c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode"))
 

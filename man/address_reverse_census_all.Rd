@@ -13,6 +13,6 @@ address_reverse_census_all(address_stream)
 data.table of census geographies, one row per lat/lon pair in \code{address_stream}
 }
 \description{
-Gets census geography (tract/block/county/state) information for US addresses using \code{censusxy::cxy_geography.}
-Calls once per row.
+Gets census geography (tract/block/county/state) information for US addresses using \link[censusxy:cxy_geography]{censusxy::cxy_geography}.
+Calls \link{cxy_geography} once per row.
 }

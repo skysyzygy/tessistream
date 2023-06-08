@@ -1,18 +1,19 @@
 
 # Geocoding ---------------------------------------------------------------
 
-#' address_geocode_all
+#' address_geocode
 #'
 #' Geocodes addresses using the [tidygeocoder] package.
 #' Tries each address up to six times, using `libpostal` parsing, `street1`, and `street2`, and the
 #' US census and openstreetmap geocoders.
 #'
-#' @param address_stream data.table of addresses, must include `address_cols`
+#' @param address_stream data.table of addresses
 #'
-#' @return data.table of addresses, one row address in `address_stream`. Contains only address_cols and columns returned by `tidygeocoder`
+#' @return data.table of addresses, one row per address in input, must include `address_cols`. Contains only address_cols and columns returned by `tidygeocoder`
 #' @importFrom tidygeocoder geocode_combine
 #' @importFrom purrr cross2 map flatten map_chr
 #' @importFrom checkmate assert_data_table assert_names
+#' @describeIn address_geocode geocode all addresses
 address_geocode_all <- function(address_stream) {
   . <- libpostal.street <- NULL
 
@@ -69,6 +70,7 @@ address_geocode_all <- function(address_stream) {
 
 }
 
+#' @describeIn address_geocode geocode only uncached addresses, load others from cache
 address_geocode <- function(address_stream) {
   address_cache(address_stream, "address_geocode", address_geocode_all)
 }
@@ -124,8 +126,8 @@ address_reverse_census <- function(address_stream) {
 
 #' address_reverse_census_all
 #'
-#' Gets census geography (tract/block/county/state) information for US addresses using `censusxy::cxy_geography.`
-#' Calls once per row.
+#' Gets census geography (tract/block/county/state) information for US addresses using [censusxy::cxy_geography].
+#' Calls [cxy_geography] once per row.
 #'
 #' @param address_stream data.table of addresses, must include `lat` and `lon`
 #'

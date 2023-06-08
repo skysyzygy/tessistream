@@ -70,7 +70,7 @@ test_that("census_get_data_all calls census_get_data once per combination of yea
 
 # census_features ---------------------------------------------------------
 
-#.census_data <- DBI::dbReadTable(DBI::dbConnect(RSQLite::SQLite(), rprojroot::find_testthat_root_file("census_data.sqlite")), "address_census") %>% collect %>% setDT
+.census_data <- DBI::dbReadTable(DBI::dbConnect(RSQLite::SQLite(), rprojroot::find_testthat_root_file("census_data.sqlite")), "address_census") %>% collect %>% setDT
 stub(census_data, "address_cache", .census_data)
 
 test_that("census_race_features returns all race/ethnicity data", {
@@ -177,10 +177,12 @@ test_that("census_features returns a data.table with all features snake_cased", 
   census_features <- census_features()
 
   expect_named(census_features,ignore.order = T,
-               c('under_5_years', '10_to_14_years', '15_to_19_years', '20_to_24_years', '25_to_34_years', '35_to_44_years', '45_to_54_years',
-                 '55_to_59_years', '5_to_9_years', '60_to_64_years', '65_to_74_years', '75_to_84_years', '85_years_and_over',
-                 'american_indian_and_alaska_native', 'asian', 'black_or_african_american', 'native_hawaiian_and_other_pacific_islander', 'other', 'white',
-                 'female', 'male', 'mean_income', 'median_income',
+               c(paste("address",
+                     c('under_5_years', '10_to_14_years', '15_to_19_years', '20_to_24_years', '25_to_34_years', '35_to_44_years', '45_to_54_years',
+                     '55_to_59_years', '5_to_9_years', '60_to_64_years', '65_to_74_years', '75_to_84_years', '85_years_and_over',
+                     'american_indian_and_alaska_native', 'asian', 'black_or_african_american', 'native_hawaiian_and_other_pacific_islander', 'other', 'white',
+                     'female', 'male', 'mean_income', 'median_income'),
+                     "level",sep="_"),
                  'year', 'GEOID'))
 
   expect_data_table(census_features)
@@ -208,3 +210,93 @@ test_that("census_*_features return features whose sums are (mostly) consistent 
 
 })
 
+# address_census ----------------------------------------------------------
+
+test_that("address_census adds census data to address_stream", {
+  tessilake:::local_cache_dirs()
+
+  address_stream <- data.table(
+    street1 = c("30 Lafayette Ave","30 Churchill Pl"),
+    street2 = NA,
+    city = c("Brooklyn","London"),
+    state = c("NY",NA),
+    country = c("USA","UK"),
+    postal_code = c("11217","E14 5EU"),
+    timestamp = lubridate::now()
+  )
+
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  stub(address_reverse_census,"address_geocode",address_geocode)
+  stub(address_census,"address_reverse_census",address_reverse_census)
+  stub(address_census, "census_features", readRDS(rprojroot::find_testthat_root_file("census_features.Rds")))
+
+  expect_message(res <- address_census(address_stream))
+  expect_named(res,ignore.order = T,
+               c("address_under_5_years_level", "address_10_to_14_years_level",  "address_15_to_19_years_level", "address_20_to_24_years_level",
+                 "address_25_to_34_years_level", "address_35_to_44_years_level",  "address_45_to_54_years_level", "address_55_to_59_years_level",
+                 "address_5_to_9_years_level", "address_60_to_64_years_level",  "address_65_to_74_years_level", "address_75_to_84_years_level",
+                 "address_85_years_and_over_level",
+                 "address_american_indian_and_alaska_native_level",  "address_asian_level", "address_black_or_african_american_level",
+                 "address_native_hawaiian_and_other_pacific_islander_level", "address_other_level",  "address_white_level",
+                 "address_female_level", "address_male_level",
+                 "address_mean_income_level", "address_median_income_level",
+                 as.character(address_cols),"timestamp"))
+
+})
+
+test_that("address_census converts demographic labels to percentages", {
+  tessilake:::local_cache_dirs()
+  withr::local_package("dplyr")
+
+  address_stream <- data.table(
+    street1 = c("30 Lafayette Ave","30 Churchill Pl"),
+    street2 = NA,
+    city = c("Brooklyn","London"),
+    state = c("NY",NA),
+    country = c("USA","UK"),
+    postal_code = c("11217","E14 5EU"),
+    timestamp = lubridate::now()
+  )
+
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  stub(address_reverse_census,"address_geocode",address_geocode)
+  stub(address_census,"address_reverse_census",address_reverse_census)
+  stub(address_census, "census_features", readRDS(rprojroot::find_testthat_root_file("census_features.Rds")))
+
+  expect_message(res <- address_census(address_stream))
+
+  expect_true(between(sum(res[,c("address_under_5_years_level", "address_10_to_14_years_level",  "address_15_to_19_years_level", "address_20_to_24_years_level",
+                      "address_25_to_34_years_level", "address_35_to_44_years_level",  "address_45_to_54_years_level", "address_55_to_59_years_level",
+                      "address_5_to_9_years_level", "address_60_to_64_years_level",  "address_65_to_74_years_level", "address_75_to_84_years_level",
+                      "address_85_years_and_over_level"),with=F],na.rm=T),.9,1.1))
+  expect_true(between(sum(res[,c("address_american_indian_and_alaska_native_level",  "address_asian_level", "address_black_or_african_american_level",
+                          "address_native_hawaiian_and_other_pacific_islander_level", "address_other_level",  "address_white_level"),with=F],na.rm=T),.9,1.1))
+  expect_true(between(sum(res[,c("address_female_level", "address_male_level"),with=F],na.rm=T),.9,1.1))
+})
+
+test_that("address_census replaces 0s in income columns with NA", {
+  tessilake:::local_cache_dirs()
+
+  address_stream <- data.table(
+    street1 = c("30 Lafayette Ave","30 Churchill Pl"),
+    street2 = NA,
+    city = c("Brooklyn","London"),
+    state = c("NY",NA),
+    country = c("USA","UK"),
+    postal_code = c("11217","E14 5EU"),
+    timestamp = lubridate::now()
+  )
+
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  stub(address_reverse_census,"address_geocode",address_geocode)
+  stub(address_census,"address_reverse_census",address_reverse_census)
+  census_features <- readRDS(rprojroot::find_testthat_root_file("census_features.Rds"))
+  census_features[,`:=`(address_median_income_level = 0, address_mean_income_level = 0)]
+  stub(address_census, "census_features", census_features)
+
+  expect_message(res <- address_census(address_stream))
+
+  expect_equal(res$address_median_income_level,rep(NA_real_,2))
+  expect_equal(res$address_mean_income_level,rep(NA_real_,2))
+
+})

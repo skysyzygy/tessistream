@@ -173,213 +173,46 @@ census_features <- function() {
         census_age_features(),
         census_income_features()) %>%
     # snake_case them
-    .[,feature := tolower(feature) %>% gsub("\\s+","_", .), by = "feature"] %>%
+    .[,feature := paste("address",tolower(feature),"level") %>% gsub("\\s+","_", .), by = "feature"] %>%
     data.table::dcast(year + GEOID ~ feature, fun.aggregate = sum, na.rm = TRUE, value.var = "value")
 
 }
 
-if(FALSE) {
+#' address_census
+#'
+#' Append census features to a data.table of addresses based on matching `address_cols` and `timestamp`
+#'
+#' @param address_stream data.table of addresses
+#' @importFrom lubridate year
+#' @return data.table of addresses, one row per input row. Contains `address_cols`, `timestamp` and added census features.
+address_census <- function(address_stream) {
+  timestamp <- NULL
 
+  assert_data_table(address_stream)
+  assert_names(colnames(address_stream), must.include = c(address_cols,"timestamp"))
 
+  address_stream <- cbind(address_reverse_census(address_stream[,..address_cols,with=F]),
+                          timestamp = address_stream$timestamp) %>%
+    .[,`:=`(GEOID = paste0(state_fips,county_fips,census_tract),
+            year = year(address_stream$timestamp))]
 
-  if (!exists("census_db")) {
-
-
-    # add column names
-    merge(census_db, variables, by.x = c("variable", "year"), by.y = c("name", "year"), all.x = T) %>%
-      .[!is.na(label)] %>%
-      .[, .(year, GEOID, estimate = coalesce(estimate, value), label, type)] %>%
-      # cleanup and normalize columns
-      .[type == "income" & grepl("Median", label), variable := "addressMedianIncomeLevel"] %>%
-      # drop mean income for now...
-      .[type != "income" | grepl("Median", label)] %>%
-      # cleanup race labels
-      .[type == "race", variable := paste0("address", gsub(" |Alone", "", stringr::str_to_title(label)), "Level")] %>%
-      # add population totals
-      rbind(.[type == "race", .(type = min(type), estimate = sum(estimate, na.rm = T), label = NA, variable = "addressTotalLevel"), by = c("GEOID", "year")]) %>%
-      {
-        rbind(
-          # get median age from age brackets
-          .[type == "sex_and_age" & year > 2000, .(age = stringr::str_extract(label, "\\d+") %>% as.integer() + 5, GEOID, year, estimate)] %>%
-            setkey(year, GEOID, age) %>%
-            .[, pct := cumsum(estimate) / sum(estimate, na.rm = T), by = c("year", "GEOID")] %>%
-            .[pct > .5, .(estimate = age[1], type = "sex_and_age"), by = c("year", "GEOID")],
-          .[type != "sex_and_age" | year == 2000],
-          fill = T
-        ) %>%
-          .[type == "sex_and_age", variable := "addressMedianAgeLevel"]
-      } -> census_db
-
-    save(census_db, file = "census_db.RData")
-  }
-
-  zcta_crosswalk <- as.data.table(zcta_crosswalk)
-  census_db_zcta <- merge(census_db, zcta_crosswalk[, .(GEOID = as.character(GEOID), ZCTA5)], by = "GEOID", all.x = T, allow.cartesian = T) %>%
-    .[, .(mean = mean(estimate, na.rm = T), sum = sum(estimate, na.rm = T)), by = c("ZCTA5", "year", "variable")] %>%
-    .[, .(ZCTA5, year, variable, estimate = if_else(grepl("Median", variable), mean, sum))] %>%
-    .[is.nan(estimate), estimate := NA]
-
-  dcast(census_db, year + GEOID ~ variable, value.var = "estimate") -> census_db_wide
-  dcast(census_db_zcta, year + ZCTA5 ~ variable, value.var = "estimate")[!is.na(ZCTA5)] -> census_db_zcta_wide
-
-  # Combine with addressStream by ZCTA or zip
-
-  addressStream[!is.na(cxy_tract_id), GEOID := sprintf("%02d%03d%06d", as.integer(cxy_state_id), as.integer(cxy_county_id), as.integer(cxy_tract_id))]
-  addressStream <- census_db_zcta_wide[
-    census_db_wide[addressStream, , on = c("GEOID", "year"), roll = "nearest"], ,
-    on = c("ZCTA5" = "zipcode", "year"), roll = "nearest"
-  ]
-
-  cols <- grep("^i\\.", colnames(addressStream), value = T) %>% sub(pattern = "^i\\.", replacement = "")
-  for (col in cols) {
-    addressStream[!is.na(get(paste0("i.", col))), (col) := get(paste0("i.", col))]
-    addressStream[, (paste0("i.", col)) := NULL]
-  }
-
-
-  # Output ------------------------------------------------------------------
-
-  # make distance and bearing features
-  addressStream[, c("addressDistanceLevel", "addressBearingLevel") := mget(c("distance", "bearing"))][, c("distance", "bearing") := NULL]
+  census_features <- census_features()
+  address_stream <- census_features[address_stream,c(address_cols,"timestamp",colnames(census_features)),on=c("GEOID","year"),roll="nearest",with=F] %>%
+    .[,`:=`(GEOID = NULL, year = NULL)]
 
   # convert demographic data to percentages
-  demography <- grep("^address(?!Median|_|Total|Distance|Bearing|$)", colnames(addressStream), value = T, perl = T)
-  medians <- grep("^addressMedian", colnames(addressStream), value = T)
-  addressStream[addressTotalLevel > 0, (demography) := lapply(.SD, function(x) {
-    x * 1.0 / get("addressTotalLevel")
-  }), .SDcols = demography]
+  demography_cols <- grep("^address_(?!median|mean)", colnames(address_stream), value = T, perl = T)
+  address_stream[, (demography_cols) := purrr::map(.SD, ~{ . * 1.0 / sum(.SD,na.rm=T) * 3 }), .SDcols = demography_cols, by = 1:nrow(address_stream)]
 
-  # replace 0 medians and total with NA
-  addressStream[, (c(medians, "addressTotalLevel")) := lapply(.SD, function(.) {
-    if_else(. == 0, NA_real_, as.double(.))
-  }),
-  .SDcols = c(medians, "addressTotalLevel")
-  ]
+  # # make distance and bearing features
+  # address_stream[, c("address_distance_level", "address_bearing_level") := mget(c("distance", "bearing"))][, c("distance", "bearing") := NULL]
 
-  # update values for customers who move
-  setkey(addressStream, group_customer_no, timestamp)
-  addressStream[, I := 1:.N, by = c("group_customer_no")]
+  # replace 0 income with NA
+  income_cols <- grep("^address_(median|mean)", colnames(address_stream), value = T)
+  purrr::walk(income_cols, ~address_stream[get(.x) == 0, c(.x) := NA_real_])
 
-  for (i in seq(2, addressStream[, max(I)])) {
-    # essentially a rolling log average but taking into account NAs
-    addressStream[I == i - 1 & group_customer_no == lead(group_customer_no) | I == i & group_customer_no == lag(group_customer_no),
-                  (medians) := lapply(.SD, function(x) {
-                    i0 <- log(x[seq(1, length(x), 2)] + .01)
-                    i1 <- log(x[seq(2, length(x), 2)] + .01)
-                    i1 <- coalesce(i1, i0)
-                    i0 <- coalesce(i0, i1)
-                    i1 <- exp((i1 + i0) / 2)
-                    x[seq(2, .N, 2)] <- i1
-                    x
-                  }),
-                  .SDcols = medians
-    ]
-    # bayesian updating of percentages
-    addressStream[I == i - 1 & group_customer_no == lead(group_customer_no) | I == i & group_customer_no == lag(group_customer_no),
-                  (demography) := lapply(.SD, function(x) {
-                    i0 <- x[seq(1, length(x), 2)]
-                    i1 <- x[seq(2, length(x), 2)]
-                    i1 <- coalesce(i1, i0)
-                    i0 <- coalesce(i0, i1)
-                    i1 <- (i1 + i0) / 2
-                    # i1 = coalesce(i1*i0/(i1*i0+(1-i1)*(1-i0)),i0)
-                    x[seq(2, .N, 2)] <- i1
-                    x
-                  }),
-                  .SDcols = demography
-    ]
-  }
-
-  addressStream[, I := NULL]
-
-  # Add in iWave data
-
-  i <- read_tessi("iwave") %>%
-    collect() %>%
-    setDT()
-  i[, .(group_customer_no,
-        event_type = "Address", event_subtype = "iWave Score",
-        addressProScoreLevel = pro_score, addressCapacityLevel = capacity_value,
-        addressPropertiesLevel = properties_total_value, addressDonationsLevel = donations_total_value, timestamp = floor_date(score_dt, "day")
-  )] %>%
-    rbind(addressStream, fill = T) -> addressStream
-
-  # Done!
-
-  addressStreamFull <- copy(addressStream)
-  addressStream <- addressStream[primary_ind == "y" & group_customer_no >= 200]
-
-  # drop cxy columns
-  addressStream[, c(
-    "cluster", "vintageName", "GEOID", "ZCTA5", "year", "I", "primary_ind",
-    grep("^(cxy|libpostal|google)", colnames(addressStream), value = T)
-  ) := NULL]
-  addressStream[, timestamp := timestamp_day][, timestamp_day := NULL]
-
-  addressStream <- addressStream %>%
-    mutate_all(adaptVmode) %>%
-    as.ffdf()
-  addressStreamFull <- addressStreamFull %>%
-    mutate_all(adaptVmode) %>%
-    as.ffdf()
-
-  pack.ffdf(file.path(streamDir, "addressStream.gz"), addressStream)
-  pack.ffdf(file.path(streamDir, "addressStreamFull.gz"), addressStreamFull)
-  rm(list = ls())
-  save.image()
+  address_stream
 }
 
-if (FALSE) {
 
 
-
-
-
-
-
-
-  # Add geocode info from the zipcodeR database
-
-  zip_code_db <- as.data.table(zip_code_db)
-  BAM_center <- c(-73.977765, 40.686876)
-
-  # But not every postal code has a centroid so we need to do some fancy re-matching
-  # First clean the postal codes so they are all five digits and make a 2-digit blocking criteria
-  addressStream[
-    !is.na(postal_code) & country == "usa" & stringr::str_length(postal_code) > 4 &
-      grepl("^\\d+$", postal_code) & as.numeric(postal_code) > 0,
-    .(
-      zipcode = substr(postal_code, 1, 5),
-      zipcode2 = substr(postal_code, 1, 2)
-    )
-  ] %>%
-    distinct() %>%
-    merge(zip_code_db[!is.na(lat) & !is.na(lng), .(zipcode, lat, lng,
-                                                   zipcode2 = substr(zipcode, 1, 2)
-    )],
-    by = "zipcode2", all.x = T, allow.cartesian = T
-    ) %>%
-    .[!is.na(lat) & !is.na(lng)] %>%
-    # Then join them together using the closest (numerically) postal code within the blocking criteria
-    .[, diff := abs(as.numeric(zipcode.x) - as.numeric(zipcode.y))] %>%
-    setkey(zipcode.x, diff) %>%
-    .[, .SD[1], by = "zipcode.x"] %>%
-    .[, .(zipcode = zipcode.x, lat, lng)] %>%
-    # Then merge it all together
-    merge(addressStream[, zipcode := substr(postal_code, 1, 5)], all.y = T, by = "zipcode") -> addressStream
-
-  # 99.9% of valid postal codes now have a geocode
-  testit::assert(addressStream[stringr::str_length(postal_code) > 4 & grepl("^\\d+$", postal_code) & country == "usa"] %>%
-                   {
-                     nrow(.[is.na(lat)]) / nrow(.)
-                   } < .001)
-
-  # remove blanks
-  addressStream[, colnames(addressStream) := lapply(.SD, function(c) {
-    if (is.character(c)) {
-      replace(c, which(c == ""), NA)
-    } else {
-      c
-    }
-  })]
-}

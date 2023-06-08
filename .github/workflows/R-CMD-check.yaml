@@ -44,7 +44,7 @@ jobs:
       - name: cache census fixtures
         uses: actions/cache@v3
         with:
-          path: ${{ github.workspace }}/tests/testthat/census_data.sqlite
+          path: ${{ github.workspace }}/tests/testthat/census_*
           key: census_fixtures-${{ runner.os }}
 
       - uses: r-lib/actions/check-r-package@v2

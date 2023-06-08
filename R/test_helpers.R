@@ -17,12 +17,27 @@ address_geocode_prepare_fixtures <- function() {
 address_census_prepare_fixtures <- function() {
   withr::local_package("mockery")
 
+  census_data <- function(...) {tessistream:::census_data(db_name = rprojroot::find_testthat_root_file("census_data.sqlite"), ...)}
+
   # only load data from NY
   stub(census_get_data,"unique","NY")
   stub(census_get_data_all,"census_get_data",census_get_data)
   stub(census_data,"census_get_data_all",census_get_data_all)
 
-  census_data(census_variables(), db_name = rprojroot::find_testthat_root_file("census_data.sqlite"))
+  # load data to temp database
+  census_data(census_variables())
+
+  stub(census_race_features, "census_data", census_data)
+  stub(census_sex_features, "census_data", census_data)
+  stub(census_age_features, "census_data", census_data)
+  stub(census_income_features, "census_data", census_data)
+
+  stub(census_features, "census_race_features", census_race_features)
+  stub(census_features, "census_sex_features", census_sex_features)
+  stub(census_features, "census_age_features", census_age_features)
+  stub(census_features, "census_income_features", census_income_features)
+
+  saveRDS(census_features(),rprojroot::find_testthat_root_file("census_features.Rds"))
 
 }
 

@@ -221,13 +221,13 @@ p2_update <- function() {
   updated_timestamp <- id <- linkclicks <- NULL
 
   # not immutable or filterable, just reload the whole thing
-  p2_load("campaigns", overwrite = FALSE)
-  p2_load("messages", overwrite = FALSE)
-  p2_load("links", overwrite = FALSE)
-  p2_load("lists", overwrite = FALSE)
-  p2_load("bounceLogs", overwrite = FALSE)
-  p2_load("contactLists", overwrite = FALSE)
-  p2_load("fieldValues", path = "api/3/fieldValues", query = list("filters[fieldid]" = 1), overwrite = FALSE)
+  p2_load("campaigns")
+  p2_load("messages")
+  p2_load("links")
+  p2_load("lists")
+  p2_load("bounceLogs")
+  p2_load("contactLists", overwrite = TRUE)
+  p2_load("fieldValues", path = "api/3/fieldValues", query = list("filters[fieldid]" = 1))
 
   # has a date filter
   contacts_max_date <- if (DBI::dbExistsTable(tessistream$p2_db, "contacts")) {

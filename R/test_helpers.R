@@ -23,7 +23,7 @@ address_census_prepare_fixtures <- function() {
   # only load data from NY
   stub(census_get_data,"unique","NY")
   stub(census_get_data_all,"census_get_data",census_get_data)
-  stub(.census_data,"census_get_data_all",census_get_data_all)
+  stub(census_data,"census_get_data_all",census_get_data_all)
 
   # load data to temp database
   .census_data(census_variables())

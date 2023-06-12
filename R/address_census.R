@@ -206,7 +206,9 @@ address_census <- function(address_stream) {
 
   # convert demographic data to percentages
   demography_cols <- grep("^address_(?!median|mean)", colnames(address_stream), value = T, perl = T)
-  address_stream[, (demography_cols) := purrr::map(.SD, ~{ . * 1.0 / sum(.SD,na.rm=T) * 3 }), .SDcols = demography_cols, by = 1:nrow(address_stream)]
+  address_stream[, sum := sum(.SD, na.rm = T), .SDcols = demography_cols, by = 1:nrow(address_stream)]
+  address_stream[, (demography_cols) := purrr::map(.SD, ~{ . * 1.0 / sum * 3 }), .SDcols = demography_cols]
+  address_stream[, sum := NULL]
 
   # # make distance and bearing features
   # address_stream[, c("address_distance_level", "address_bearing_level") := mget(c("distance", "bearing"))][, c("distance", "bearing") := NULL]

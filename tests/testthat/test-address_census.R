@@ -1,9 +1,6 @@
 withr::local_package("checkmate")
 withr::local_package("mockery")
 
-if(!file.exists(rprojroot::find_testthat_root_file("census_data.sqlite")))
-  address_census_prepare_fixtures()
-
 # census_variables --------------------------------------------------------
 census_variables <- census_variables()
 

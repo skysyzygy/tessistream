@@ -52,5 +52,5 @@ Imports:
     tidyr,
     tigris
 Remotes: 
-    skysyzygy/tessilake
+    skysyzygy/tessilake,
     chris-prener/censusxy

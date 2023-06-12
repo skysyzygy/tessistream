@@ -25,7 +25,6 @@ address_census_prepare_fixtures <- function() {
   stub(census_get_data_all,"census_get_data",census_get_data)
   stub(.census_data,"census_get_data_all",census_get_data_all)
 
-  debugonce(census_data)
   # load data to temp database
   .census_data(census_variables())
 

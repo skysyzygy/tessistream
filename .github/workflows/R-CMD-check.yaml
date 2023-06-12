@@ -54,7 +54,7 @@ jobs:
       #   uses: lhotari/action-upterm@v1
 
       - name: prepare census fixtures
-        run: Rscript -e future::plan('multisession') -e tessistream:::address_census_prepare_fixtures()
+        run: Rscript -e "future::plan('multisession') -e tessistream:::address_census_prepare_fixtures()"
         shell: bash
 
       - uses: r-lib/actions/check-r-package@v2

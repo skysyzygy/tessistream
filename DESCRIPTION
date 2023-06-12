@@ -24,7 +24,6 @@ Suggests:
     withr
 Config/testthat/edition: 3
 Imports:
-    censusxy,
     checkmate,
     cli,
     config,
@@ -51,6 +50,7 @@ Imports:
     tidycensus,
     tidygeocoder,
     tidyr,
-    tigris
+    tigris,
+    censusxy
 Remotes: 
     skysyzygy/tessilake

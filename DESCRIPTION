@@ -50,7 +50,7 @@ Imports:
     tidycensus,
     tidygeocoder,
     tidyr,
-    tigris,
-    censusxy
+    tigris
 Remotes: 
     skysyzygy/tessilake
+    chris-prener/censusxy

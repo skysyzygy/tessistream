@@ -34,7 +34,8 @@ address_cols <- c(
 #' @importFrom tessilake read_tessi
 #' @importFrom data.table copy
 address_stream <- function(freshness = as.difftime(7, units = "days")) {
-  . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <- NULL
+  . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-
+    event_subtype <- timestamp <- NULL
 
   address_stream <- address_create_stream(freshness = freshness) %>%
     address_geocode(distinct(.[,..address_cols]))[., on = as.character(address_cols)] %>%

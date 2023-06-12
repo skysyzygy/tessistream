@@ -8,7 +8,7 @@
 #' @importFrom lubridate year
 #' @importFrom purrr map flatten discard
 census_variables <- function() {
-  label <- concept <- name <- type <- sex <- age <- dataset <- race <- measture <- NULL
+  label <- concept <- name <- type <- sex <- age <- dataset <- race <- measure <- NULL
 
   load_variables <- function(year) {
     map(c("acs5/profile","sf1","sf3"),
@@ -65,6 +65,8 @@ census_variables <- function() {
 #' @importFrom tidycensus get_decennial get_acs
 #' @importFrom checkmate assert_integerish
 census_get_data <- function(year,dataset,variables) {
+  . <- NULL
+
   assert_integerish(year,len = 1)
   assert_character(dataset, len = 1)
   assert_character(variables, min.len = 1, any.missing = FALSE)

@@ -27,6 +27,7 @@ Imports:
     censusxy,
     checkmate,
     cli,
+    config,
     data.table,
     DBI,
     dplyr,

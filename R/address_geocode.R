@@ -49,6 +49,7 @@ address_geocode_all <- function(address_stream) {
   global_params <- list(city = "city", state="state", postalcode = "postal_code",
                     return_input = TRUE, full_results = TRUE)
 
+  # Make the list of queries to run
   queries <- expand_grid(params = list(list(method = 'census',
                                             mode = "batch",
                                             api_options = list(census_return_type = "geographies")),
@@ -59,12 +60,14 @@ address_geocode_all <- function(address_stream) {
     map(tidyr::unnest_wider,"params") %>%
     map(flatten)
 
+  # RUn the queries
   result <- geocode_combine(address_stream_parsed,
                     queries = queries,
                     global_params = global_params,
                     lat = "lat", long = "lon",
                     query_names = map_chr(queries,~paste(.$method,.$street))) %>% setDT
 
+  # Throw away list columns
   result <- purrr::keep(result, is.atomic)
 
   result[address_stream,

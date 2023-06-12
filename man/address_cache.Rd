@@ -9,7 +9,7 @@ address_cache(
   cache_name,
   .function,
   key_cols = as.character(address_cols),
-  db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"),
+  db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
   ...
 )
 }
@@ -22,7 +22,7 @@ address_cache(
 
 \item{key_cols}{as.character(address_cols)}
 
-\item{db_name}{path to sqlite database, defaults to \code{tessilake:::cache_path("address_stream.sqlite","deep","stream")}}
+\item{db_name}{path to sqlite database, defaults to \code{tessilake::cache_path("address_stream.sqlite","deep","stream")}}
 
 \item{...}{additional options passed to \code{.function}}
 }

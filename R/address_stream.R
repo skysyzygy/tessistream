@@ -32,7 +32,10 @@ address_cols <- c(
 #' @return data.table of addresses and additional address-based features
 #' @export
 #' @importFrom tessilake read_tessi
+#' @importFrom data.table copy
 address_stream <- function(freshness = as.difftime(7, units = "days")) {
+  . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind
+
   address_stream <- address_create_stream(freshness = freshness) %>%
     address_geocode(.)[., on = ..address_cols] %>%
     address_census(.)[., on = c(address_cols,"timestamp")]
@@ -281,7 +284,7 @@ address_parse <- function(address_stream) {
 #' @param cache_name name of cache file
 #' @param key_cols as.character(address_cols)
 #' @param .function function to be called for processing, is sent `address_stream[address_cols]` and additional parameters.
-#' @param db_name path to sqlite database, defaults to `tessilake:::cache_path("address_stream.sqlite","deep","stream")`
+#' @param db_name path to sqlite database, defaults to `tessilake::cache_path("address_stream.sqlite","deep","stream")`
 #' @param ... additional options passed to `.function`
 #'
 #' @return data.table of addresses processed
@@ -289,7 +292,7 @@ address_parse <- function(address_stream) {
 #' @importFrom utils head capture.output
 address_cache <- function(address_stream, cache_name, .function,
                           key_cols = as.character(address_cols),
-                          db_name = tessilake:::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
+                          db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = key_cols)
 

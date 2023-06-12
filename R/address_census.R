@@ -8,6 +8,8 @@
 #' @importFrom lubridate year
 #' @importFrom purrr map flatten discard
 census_variables <- function() {
+  label <- concept <- name <- type <- sex <- age <- dataset <- race <- measture <- NULL
+
   load_variables <- function(year) {
     map(c("acs5/profile","sf1","sf3"),
                ~try(
@@ -118,7 +120,7 @@ census_get_data_all <- function(census_variables) {
 
 #' @describeIn census_features Prepares census race/ethnicity data
 census_race_features <- function() {
-
+  . <- value <- estimate <- moe <- GEOID <- type <- dataset <- race <- feature <- NULL
   race_variables <- census_variables()[type == "race" & (year != 2010 | dataset == "sf1")]
   race_features <- census_data(race_variables) %>% .[,.(year, GEOID, value = dplyr::coalesce(value,estimate), moe, feature = race)] %>%
     .[,feature := ifelse(grepl("some other",feature,ignore.case = TRUE),"Other",feature)]
@@ -127,7 +129,7 @@ census_race_features <- function() {
 
 #' @describeIn census_features Prepares census sex data
 census_sex_features <- function() {
-
+  . <- value <- estimate <- moe <- GEOID <- type <- dataset <- sex <- age <- NULL
   sex_variables <- census_variables()[type == "sex_and_age" & sex %in% c("Female","Male") & is.na(age) & (year != 2010 | dataset == "sf1")]
   sex_features <- census_data(sex_variables)[,value := coalesce(value,estimate)] %>%
     .[,.(value = sum(value,na.rm=T),moe = sum(moe,na.rm = TRUE)), by = list(year,GEOID,feature = sex)]
@@ -136,7 +138,7 @@ census_sex_features <- function() {
 
 #' @describeIn census_features Prepares census age data
 census_age_features <- function() {
-
+  . <- value <- estimate <- moe <- GEOID <- type <- dataset <- age <- NULL
   age_variables <- census_variables()[type == "sex_and_age" & !is.na(age) & (year != 2010 | dataset == "sf1")]
 
   age_features <- census_data(age_variables)
@@ -156,7 +158,7 @@ census_age_features <- function() {
 
 #' @describeIn census_features Prepares census income data
 census_income_features <- function() {
-
+  . <- value <- estimate <- moe <- GEOID <- type <- dataset <- measure <- NULL
   income_variables <- census_variables()[type == "income" & !is.na(measure)]
   income_features <- census_data(income_variables) %>% .[,.(year,GEOID,value = dplyr::coalesce(value,estimate),moe,feature = paste(measure,"Income"))]
 
@@ -168,6 +170,8 @@ census_income_features <- function() {
 #'
 #' @return data.table of features extracted from census datasets
 census_features <- function() {
+  . <- feature <- NULL
+
   rbind(census_race_features(),
         census_sex_features(),
         census_age_features(),
@@ -186,7 +190,7 @@ census_features <- function() {
 #' @importFrom lubridate year
 #' @return data.table of addresses, one row per input row. Contains `address_cols`, `timestamp` and added census features.
 address_census <- function(address_stream) {
-  timestamp <- NULL
+  . <- timestamp <- state_fips <- county_fips <- census_tract <- NULL
 
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = c(address_cols,"timestamp"))

@@ -15,9 +15,10 @@ address_geocode_prepare_fixtures <- function() {
 }
 
 address_census_prepare_fixtures <- function() {
+  stub <- NULL
   withr::local_package("mockery")
 
-  census_data <- function(...) {tessistream:::census_data(db_name = rprojroot::find_testthat_root_file("census_data.sqlite"), ...)}
+  census_data <- function(...) {tessistream::census_data(db_name = rprojroot::find_testthat_root_file("census_data.sqlite"), ...)}
 
   # only load data from NY
   stub(census_get_data,"unique","NY")

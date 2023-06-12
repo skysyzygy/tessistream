@@ -34,32 +34,40 @@ address_cols <- c(
 #' @importFrom tessilake read_tessi
 #' @importFrom data.table copy
 address_stream <- function(freshness = as.difftime(7, units = "days")) {
-  . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind
+  . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <- NULL
 
   address_stream <- address_create_stream(freshness = freshness) %>%
-    address_geocode(.)[., on = ..address_cols] %>%
-    address_census(.)[., on = c(address_cols,"timestamp")]
+    address_geocode(distinct(.[,..address_cols]))[., on = as.character(address_cols)] %>%
+    address_census(distinct(.[,c(address_cols,"timestamp"),with=F]))[., on = c(as.character(address_cols),"timestamp")]
 
   i_wave <- read_tessi("iwave") %>% collect() %>% setDT()
 
-  i_wave[, .(group_customer_no, event_type = "Address", event_subtype = "iWave Score",
-        pro_score, capacity_value, properties_total_value, donations_total_value)]
+  address_stream <- rbind(address_stream,
+                          i_wave[, .(group_customer_no, event_subtype = "iWave Score",
+        address_pro_score_level = pro_score,
+        address_capacity_level = capacity_value,
+        address_properties_level = properties_total_value,
+        address_donations_level = donations_total_value)],
+        fill = TRUE)
 
-  address_stream[`:=`(event_type = "Address")]
+  address_stream[,`:=`(event_type = "Address")]
+  setkey(address_stream,group_customer_no,timestamp)
 
   address_stream_full <- copy(address_stream)
-  address_stream <- address_stream[primary_ind == "y" & group_customer_no >= 200]
+  address_stream <- address_stream[(primary_ind == "Y" | event_subtype == "iWave Score") & group_customer_no >= 200,
+                                   c(address_cols, "group_customer_no", "timestamp",
+                                     "event_type", "event_subtype", "address_no", "lat", "lon",
+                                     grep("^address.+level$",colnames(address_stream), value = T)), with = F]
 
   tessilake:::cache_write(address_stream_full, "address_stream_full", "deep", "stream",
-                          primary_keys = c("address_no", "timestamp"))
+                          primary_keys = c("address_no", "timestamp"), partition = FALSE, overwrite = TRUE)
   tessilake:::cache_write(address_stream, "address_stream", "deep", "stream",
-                          primary_keys = c("address_no", "timestamp"))
+                          primary_keys = c("address_no", "timestamp"), partition = FALSE, overwrite = TRUE)
 
+  tessilake:::cache_read("address_stream", "deep", "stream")
   #address_stream <- address_stream %>% mutate_all(fix_vmode) %>% as.ffdf
 
   #pack.ffdf(file.path(streamDir, "addressStream.gz"), addressStream)
-
-
 }
 
 

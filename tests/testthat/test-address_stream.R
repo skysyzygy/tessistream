@@ -6,6 +6,54 @@ addresses <- readRDS(test_path("addresses.Rds"))
 # Use this to turn off libpostal execution
 # stub(address_exec_libpostal,"Sys.which","")
 
+
+# address_stream ----------------------------------------------------------
+
+local({
+  tessilake:::local_cache_dirs()
+
+  test_that("address_stream combines data from address_census, address_geocode, and read_tessi and returns all rows and a subset of columns", {
+
+    address_stream_original <- readRDS(rprojroot::find_testthat_root_file("address_stream.Rds"))
+    stub(address_stream, "address_create_stream", address_stream_original)
+
+    address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
+    stub(address_stream, "address_geocode", address_geocode)
+
+    stub(address_reverse_census,"address_geocode",address_geocode)
+    stub(address_census,"address_reverse_census",address_reverse_census)
+    stub(address_census, "census_features", readRDS(rprojroot::find_testthat_root_file("census_features.Rds")))
+    stub(address_stream, "address_census", address_census)
+
+    iwave <- readRDS(rprojroot::find_testthat_root_file("address_iwave.Rds"))
+    stub(address_stream, "read_tessi", iwave)
+
+    expect_message(address_stream <- address_stream())
+
+    expect_equal(nrow(address_stream),
+                 nrow(address_stream_original[group_customer_no >= 200 & primary_ind == "Y"]) +
+                 nrow(iwave))
+
+    expect_true(all(colnames(address_stream) %in% c(address_cols, "lat", "lon",
+                                                    "event_type", "event_subtype", "group_customer_no", "address_no",
+                                                    "timestamp", "address_no") |
+                    grepl("^address.+level$",colnames(address_stream))))
+
+    expect_equal(sum(grepl("median_income|over_65|male|african_american",colnames(address_stream))),4)
+
+  })
+
+  test_that("address_stream writes a full file containing additional data", {
+    address_stream <- tessilake:::cache_read("address_stream", "deep", "stream")
+    address_stream_full <- tessilake:::cache_read("address_stream_full", "deep", "stream")
+
+    expect_gt(nrow(address_stream_full), nrow(address_stream))
+    expect_gt(ncol(address_stream_full), ncol(address_stream))
+
+  })
+
+})
+
 # address_create_stream ---------------------------------------------------
 
 test_that("address_create_stream builds a stream using all data from audit table", {

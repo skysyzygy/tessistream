@@ -289,3 +289,33 @@ stream_from_audit <- function(table_name, ...) {
   stream_debounce(stream,!!pk_name,"timestamp")
 
 }
+
+
+#' setunite
+#'
+#' Convenience function to paste together multiple columns into one. Thin wrapper around [tidyr::unite]
+#'
+#' @param data data.table to act on
+#' @param col The name of the new column, as a string or symbol.
+#' @param ... `<tidy-select>` Columns to unite
+#' @param sep Separator to use between values.
+#' @param remove If `TRUE`, the default, remove input columns from output data frame.
+#' @param na.rm If `TRUE`, missing values will be removed prior to uniting each value.
+#' @export
+#'
+setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
+  assert_data_table(data)
+
+  col <- rlang::as_name(col)
+  cols <- colnames(data)[tidyselect::eval_select(rlang::expr(c(...)), data)]
+
+  united <- tidyr::unite(data[,cols,with=F], col, cols, sep = sep, remove = TRUE, na.rm = na.rm) %>%
+    setDT %>% .[,col]
+
+  data[, (col) := united]
+
+  cols_to_remove <- setdiff(cols,col)
+  if(remove && length(cols_to_remove) > 0)
+    data[, (cols_to_remove) := NULL]
+
+}

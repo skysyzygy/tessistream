@@ -279,3 +279,28 @@ test_that("stream_from_audit has all audit changes and carries them forward", {
   comparison <- audit_table[change_data,on=c("alternate_key"="id","column_updated"="variable","date"="timestamp"),roll=Inf]
   expect_equal(comparison[new_value!=value,.N],0)
 })
+
+
+# setunite -------------------------------------------------------------------
+
+test_that("setunite combines named columns", {
+  data <- data.table(a = letters, b = LETTERS)
+  setunite(data, "c", a, b, sep = "!")
+  expect_equal(data, data.table(c=paste(letters, LETTERS, sep = "!")))
+})
+
+test_that("setunite combines named columns with NAs", {
+  data <- data.table(a = letters, b = NA_character_)
+  setunite(data, "c", a, b, sep = "!")
+  expect_equal(data, data.table(c=paste(letters, NA, sep = "!")))
+
+  data <- data.table(a = letters, b = NA_character_)
+  setunite(data, "c", a, b, sep = "!", na.rm = TRUE)
+  expect_equal(data, data.table(c=letters))
+})
+
+test_that("setunite keeps old columns around if remove = FALSE", {
+  data <- data.table(a = letters, b = LETTERS)
+  setunite(data, "c", "a", b, sep = "!", remove = FALSE)
+  expect_equal(data, data.table(a = letters, b = LETTERS, c=paste(letters, LETTERS, sep = "!")))
+})

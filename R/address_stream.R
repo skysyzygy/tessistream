@@ -179,7 +179,7 @@ address_parse_libpostal <- function(address_stream) {
   address_stream <- address_stream[, ..address_cols]
 
   # make address string for libpostal
-  address_stream[, address := unite(.SD, "address", sep = ", ", na.rm = TRUE), .SDcols = address_cols]
+  setunite(address_stream, "address", address_cols, sep = ", ", na.rm = TRUE, remove = FALSE)
   addresses <- tolower(address_stream[!is.na(address), address])
 
   # TODO: map english numbers to numerals
@@ -244,22 +244,21 @@ address_parse_libpostal <- function(address_stream) {
 
   # Now merge everything else together
   if (any(c("unit", "level", "entrance", "staircase") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = TRUE)
+    setunite(parsed, "unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = TRUE)
   }
   if (any(c("house", "category", "near") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("house", any_of(c("house", "category", "near")), sep = " ", na.rm = TRUE)
+    setunite(parsed, "house", any_of(c("house", "category", "near")), sep = " ", na.rm = TRUE)
   }
   if (any(c("suburb", "city_district", "city", "island") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = TRUE)
+    setunite(parsed, "city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = TRUE)
   }
   if (any(c("state_district", "state") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("state", any_of(c("state_district", "state")), sep = ", ", na.rm = TRUE)
+    setunite(parsed, "state", any_of(c("state_district", "state")), sep = ", ", na.rm = TRUE)
   }
   if (any(c("country_region", "country", "world_region") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = TRUE)
+    setunite(parsed, "country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = TRUE)
   }
 
-  setDT(parsed)
   # ok maybe we're finally done. Let's clean up
   parsed_cols <- intersect(colnames(parsed),c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode"))
 

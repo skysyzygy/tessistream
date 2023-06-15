@@ -18,6 +18,13 @@ address_cols <- c(
   "country_desc" = "country"
 )
 
+doit <- function() {
+  withr::local_envvar(R_CONFIG_FILE="")
+  withr::local_package("progressr")
+  future::plan("multisession")
+  with_progress(address_stream(),handler_pbcol())
+}
+
 
 # address_stream ----------------------------------------------------------
 
@@ -26,6 +33,8 @@ address_cols <- c(
 #' Create a data.table stream of addresses and timestamps, drawing from Tessitura TA_AUDIT_TRAIL and T_ADDRESS data, geocoding using the [tidygeocoder] package.
 #' Tries each address up to six times, using `libpostal` parsing, `street1`, and `street2`, and the US census and openstreetmap geocoders.
 #' Appends census demographic and aggregate income data and iWave income data.
+#'
+#' @note Uses [future] for parallel processing and [progressr] for progress tracking
 #'
 #' @param freshness data will be at least this fresh
 #'
@@ -322,12 +331,10 @@ address_cache <- function(address_stream, cache_name, .function,
     # Cache doesn't yet exist
     cache <- NULL
     cache_miss <- address_stream_distinct
-    db_function <- DBI::dbWriteTable
 
   } else {
     cache <- DBI::dbReadTable(cache_db, cache_name) %>% setDT()
     cache_miss <- address_stream_distinct[!cache, ..key_cols, on = as.character(key_cols)]
-    db_function <- DBI::dbAppendTable
   }
 
   if(nrow(cache_miss) > 0) {
@@ -350,7 +357,10 @@ address_cache <- function(address_stream, cache_name, .function,
       purrr::imap(new_columns,~DBI::dbExecute(cache_db, paste0("ALTER TABLE ",cache_name," ADD COLUMN [",.y,"] [",.x,"]")))
     }
 
-    db_function(cache_db, cache_name, cache_miss)
+    tryCatch(DBI::dbWriteTable(cache_db, cache_name, cache_miss),
+             error = function(e){
+               DBI::dbAppendTable(cache_db, cache_name, cache_miss)
+             })
 
     cache <- rbind(cache, cache_miss, fill = TRUE)
   }

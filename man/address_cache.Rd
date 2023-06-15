@@ -2,9 +2,19 @@
 % Please edit documentation in R/address_stream.R
 \name{address_cache}
 \alias{address_cache}
+\alias{address_cache_parallel}
 \title{address_cache}
 \usage{
 address_cache(
+  address_stream,
+  cache_name,
+  .function,
+  key_cols = as.character(address_cols),
+  db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
+  ...
+)
+
+address_cache_parallel(
   address_stream,
   cache_name,
   .function,
@@ -32,3 +42,8 @@ data.table of addresses processed
 \description{
 Handles caching of already-processed addresses so that they're only processed once
 }
+\section{Functions}{
+\itemize{
+\item \code{address_cache_parallel()}: Parallel wrapper around address_cache using \link{furrr} and \link{progressr}
+
+}}

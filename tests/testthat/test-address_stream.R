@@ -12,10 +12,12 @@ addresses <- readRDS(test_path("addresses.Rds"))
 local({
   tessilake:::local_cache_dirs()
 
-  test_that("address_stream combines data from address_census, address_geocode, and read_tessi and returns all rows and a subset of columns", {
+  test_that("address_stream combines data from address_parse, address_census, address_geocode, and read_tessi and returns all rows and a subset of columns", {
 
     address_stream_original <- readRDS(rprojroot::find_testthat_root_file("address_stream.Rds"))
     stub(address_stream, "address_create_stream", address_stream_original)
+    stub(address_stream, "address_parse", cbind(address_stream_original,libpostal =
+                                                  structure(rep(NA_character_,9), names = c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode"))))
 
     address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
     stub(address_stream, "address_geocode", address_geocode)
@@ -28,7 +30,7 @@ local({
     iwave <- readRDS(rprojroot::find_testthat_root_file("address_iwave.Rds"))
     stub(address_stream, "read_tessi", iwave)
 
-    expect_message(address_stream <- address_stream())
+    suppressMessages(address_stream <- address_stream())
 
     expect_equal(nrow(address_stream),
                  nrow(address_stream_original[group_customer_no >= 200 & primary_ind == "Y"]) +
@@ -208,7 +210,7 @@ test_that("address_parse_libpostal sends a lowercase character vector to libpost
 
 test_that("address_parse_libpostal handles unit #s hidden in postalcode, street2, and road", {
   address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(
-    street1 = 1:8,
+    street1 = c(1:8,"Main Street"),
     street2 = c("4k", rep(NA, 7)),
     postal_code = rep("11217", 8)
   )]
@@ -228,7 +230,7 @@ test_that("address_parse_libpostal handles unit #s hidden in postalcode, street2
   expect_equal(parsed$libpostal.road, c(rep("lafayette ave", 7), "lafayette ave w"))
 })
 test_that("address_parse_libpostal cleans up duplicated unit #s", {
-  address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(street1 = 1:8)]
+  address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(street1 = c(1:8,"Main Street"),)]
 
   libpostal_return <- data.table(
     "road" = c("lafayette ave", "lafayette st e"),
@@ -260,7 +262,7 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
     as.list() %>%
     setDT() %>%
     .[rep(1, 8)]
-  address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(street1 = 1:8)]
+  address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(street1 = c(1:8,"Main Street"))]
   stub(address_parse_libpostal, "address_exec_libpostal", libpostal_return)
 
   parsed <- address_parse_libpostal(address_stream)

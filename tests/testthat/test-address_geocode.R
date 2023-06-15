@@ -6,10 +6,7 @@ tessilake:::local_cache_dirs()
 do_geocoding <- T
 
 # address_geocode_all --------------------------------------------------
-stub(address_geocode_all,"address_parse",function(.tbl){.tbl[,..address_cols]})
-
 test_that("address_geocode_all works with and without libpostal data", {
-  stub(address_geocode_all,"address_parse",function(.tbl){cbind(.tbl,libpostal.house_number = "30", libpostal.road = "libpostal.road")})
 
   address_stream <- data.table(
     street1 = "30 street1",
@@ -26,7 +23,7 @@ test_that("address_geocode_all works with and without libpostal data", {
   address_geocode_all(address_stream)
   expect_equal(mock_args(geocode_combine)[[1]][[1]]$libpostal.street,"30 libpostal.road")
 
-  stub(address_geocode_all,"address_parse",function(.tbl){.tbl})
+  address_stream <- cbind(address_stream,libpostal.house_number = "30", libpostal.road = "libpostal.road")
 
   address_geocode_all(address_stream)
   expect_equal(mock_args(geocode_combine)[[2]][[1]]$street1,"30 street1")
@@ -35,7 +32,6 @@ test_that("address_geocode_all works with and without libpostal data", {
 })
 
 test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder", {
-  stub(address_geocode_all,"address_parse",function(.tbl){cbind(.tbl,libpostal.house_number = "30", libpostal.road = "libpostal.road")})
 
   address_stream <- data.table(
     street1 = "30 street1",
@@ -43,7 +39,9 @@ test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder"
     city = "Brooklyn",
     state = "NY",
     country = "USA",
-    postal_code = "11217"
+    postal_code = "11217",
+    libpostal.house_number = "30",
+    libpostal.road = "libpostal.road"
   )
 
   geocode_combine <- function(global_params,...) { tidygeocoder::geocode_combine(global_params = c(global_params, no_query = TRUE), ...)}

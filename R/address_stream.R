@@ -38,13 +38,14 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
     event_subtype <- timestamp <- NULL
 
   address_stream <- address_create_stream(freshness = freshness) %>%
+    address_parse(distinct(.[,..address_cols]))[., on = as.character(address_cols)] %>%
     address_geocode(distinct(.[,..address_cols]))[., on = as.character(address_cols)] %>%
     address_census(distinct(.[,c(address_cols,"timestamp"),with=F]))[., on = c(as.character(address_cols),"timestamp")]
 
-  i_wave <- read_tessi("iwave") %>% collect() %>% setDT()
+  iwave <- read_tessi("iwave") %>% collect() %>% setDT()
 
   address_stream <- rbind(address_stream,
-                          i_wave[, .(group_customer_no, event_subtype = "iWave Score",
+                          iwave[, .(group_customer_no, event_subtype = "iWave Score",
         address_pro_score_level = pro_score,
         address_capacity_level = capacity_value,
         address_properties_level = properties_total_value,
@@ -87,6 +88,9 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
 #' @importFrom lubridate as_date
 address_create_stream <- function(freshness = as.difftime(7, units = "days")) {
   . <- timestamp <- NULL
+
+  p <- progressor(1)
+  p("Running address_create_stream", amount = 0)
 
   stream_from_audit("addresses", freshness = freshness) %>%
     .[,timestamp := as_date(timestamp)] %>%
@@ -165,7 +169,6 @@ address_exec_libpostal <- function(addresses) {
 #' @param address_stream data.table of addresses
 #'
 #' @return data.table of addresses parsed, one per row in address_stream. Contains only address_cols and libpostal columns.
-#' @importFrom tidyr unite
 #' @importFrom stringr str_detect str_match str_remove fixed
 #' @importFrom dplyr any_of distinct
 #' @importFrom checkmate assert_data_table assert_names
@@ -281,7 +284,7 @@ address_parse_libpostal <- function(address_stream) {
 #' @return data.table of addresses parsed
 #' @importFrom dplyr collect
 address_parse <- function(address_stream) {
-  address_cache(address_stream, "address_parse", address_parse_libpostal)
+  address_cache_parallel(address_stream, "address_parse", address_parse_libpostal)
 }
 
 #' address_cache
@@ -310,6 +313,7 @@ address_cache <- function(address_stream, cache_name, .function,
 
   cache_db <- DBI::dbConnect(RSQLite::SQLite(), db_name)
   withr::defer(DBI::dbDisconnect(cache_db))
+  RSQLite::sqliteSetBusyHandler(cache_db, 60000)
 
   key_cols <- intersect(key_cols, colnames(address_stream))
 
@@ -328,7 +332,7 @@ address_cache <- function(address_stream, cache_name, .function,
   }
 
   if(nrow(cache_miss) > 0) {
-    cache_miss <- .function(cache_miss, ...)
+    cache_miss <- .function(cache_miss,...)
 
     if (DBI::dbExistsTable(cache_db, cache_name)) {
 
@@ -355,4 +359,31 @@ address_cache <- function(address_stream, cache_name, .function,
   address_stream <- cache[address_stream[, ..key_cols], on = key_cols]
 
   return(address_stream)
+}
+
+#' @describeIn address_cache Parallel wrapper around address_cache using [furrr] and [progressr]
+address_cache_parallel <- function(address_stream, cache_name, .function,
+                                   key_cols = as.character(address_cols),
+                                   db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
+  . <- NULL
+
+  if(nrow(address_stream) == 0)
+    return()
+
+  chunks <- if(nrow(address_stream) > 1000) {
+    address_stream %>% split(rep(seq(1:nrow(.)), each = 1000, length.out = nrow(.)))
+  } else {
+    list(address_stream)
+  }
+
+  p <- progressor(length(chunks))
+  p(paste("Caching address results for",cache_name), amount = 0)
+
+  address_stream <- furrr::future_map(chunks, ~progress_expr(address_cache(address_stream = .,
+                                           cache_name = cache_name, .function = .function,
+                                           key_cols = key_cols, db_name = db_name),
+                                           .progress = p),
+                                      .options = furrr::furrr_options(seed = TRUE)) %>%
+    rbindlist(fill = TRUE)
+
 }

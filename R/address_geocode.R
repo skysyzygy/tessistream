@@ -20,17 +20,14 @@ address_geocode_all <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
-  address_stream_parsed <- address_parse(address_stream)
-
   # Add index columns
+  address_stream_parsed <- address_stream[,I:=.I]
   address_stream <- address_stream[,..address_cols] %>% .[,I:=.I]
-  address_stream_parsed[,I:=.I]
 
   # build libpostal street name
   if(any(c("libpostal.house_number","libpostal.road") %in% colnames(address_stream_parsed))) {
      address_stream_parsed <- address_stream_parsed %>%
-      unite("libpostal.street", any_of(c("libpostal.house_number", "libpostal.road")), sep = " ", na.rm = TRUE) %>%
-      setDT
+      setunite("libpostal.street", any_of(c("libpostal.house_number", "libpostal.road")), sep = " ", na.rm = TRUE)
     address_stream_parsed[libpostal.street == "",libpostal.street := NA_character_]
     address_cols <- c("libpostal.street", address_cols)
   }
@@ -79,7 +76,7 @@ address_geocode_all <- function(address_stream) {
 
 #' @describeIn address_geocode geocode only uncached addresses, load others from cache
 address_geocode <- function(address_stream) {
-  address_cache(address_stream, "address_geocode", address_geocode_all)
+  address_cache_parallel(address_stream, "address_geocode", address_geocode_all)
 }
 
 #' address_reverse_census
@@ -117,7 +114,7 @@ address_reverse_census <- function(address_stream) {
 
     # don't reverse things not in the US
     to_reverse <- to_reverse[as.logical(sf::st_contains(usa, points, sparse = F)), ] %>%
-      address_cache("address_reverse_census", address_reverse_census_all, key_cols = c("lat","lon"))
+      address_cache_parallel("address_reverse_census", address_reverse_census_all, key_cols = c("lat","lon"))
   }
 
   address_stream_geocode[to_reverse,

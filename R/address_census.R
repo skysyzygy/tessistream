@@ -102,7 +102,7 @@ census_get_data <- function(year,dataset,variables) {
 #' @describeIn census_data Loads census data through cache
 census_data <- function(census_variables, ...) {
 
-  address_cache(census_variables, "address_census", census_get_data_all,
+  census_variables %>% address_cache_parallel(., "address_census", census_get_data_all,
                 key_cols = c("year","dataset","variable"),
                 ...) %>%
     merge(census_variables, by=c("year","dataset","variable"))
@@ -110,9 +110,12 @@ census_data <- function(census_variables, ...) {
 }
 
 #' @describeIn census_data Loads census data (does not cache)
+#' @importFrom data.table uniqueN
 census_get_data_all <- function(census_variables) {
   assert_data_table(census_variables)
   assert_names(colnames(census_variables), must.include = c("year","dataset","variable"))
+
+  p <- progressor(uniqueN(census_variables[,.(year,dataset)]))
 
   split(census_variables,by=c("year","dataset")) %>%
     purrr::map(~census_get_data(.$year[[1]],.$dataset[[1]],.$variable)) %>%

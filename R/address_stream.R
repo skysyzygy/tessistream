@@ -237,8 +237,8 @@ address_parse_libpostal <- function(address_stream) {
     function(col) {
       parsed[!is.na(unit), (col) := str_remove(
         get(col),
-        # Escape the unit so that it can work as a regex
-        paste0("(^|\\W+)", str_replace_all(unit, "[^a-z0-9]", "\\$0"), "(\\W+|$)")
+        # Escape special characters in the unit so that it can work as a regex
+        paste0("(^|\\W+)", str_replace_all(unit, "[.+*?^$()\\[\\]{}|\\\\]", "\\$0"), "(\\W+|$)")
       )]
       parsed[!is.na(unit) & get(col) == "", (col) := NA_character_]
     }

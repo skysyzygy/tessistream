@@ -102,7 +102,8 @@ census_get_data <- function(year,dataset,variables) {
 #' @describeIn census_data Loads census data through cache
 census_data <- function(census_variables, ...) {
 
-  census_variables %>% address_cache_parallel(., "address_census", census_get_data_all,
+  # census_get_data does parallel processing, so this needs to be un-parallel
+  census_variables %>% address_cache(., "address_census", census_get_data_all,
                 key_cols = c("year","dataset","variable"),
                 ...) %>%
     merge(census_variables, by=c("year","dataset","variable"))

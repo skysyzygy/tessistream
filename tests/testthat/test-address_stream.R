@@ -211,7 +211,7 @@ test_that("address_parse_libpostal sends a lowercase character vector to libpost
 test_that("address_parse_libpostal handles unit #s hidden in postalcode, street2, and road", {
   address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(
     street1 = paste(1:8,"Main Street"),
-    street2 = c("4N", rep(NA, 7)),
+    street2 = c("4k", rep(NA, 7)),
     postal_code = rep("11217", 8)
   )]
 

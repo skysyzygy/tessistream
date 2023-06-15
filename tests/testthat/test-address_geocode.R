@@ -6,7 +6,7 @@ tessilake:::local_cache_dirs()
 do_geocoding <- T
 
 # address_geocode_all --------------------------------------------------
-test_that("address_geocode_all works with and without libpostal data", {
+test_that("address_geocode_all uses libpostal and non-libpostal data", {
 
   address_stream <- data.table(
     street1 = "30 street1",
@@ -21,13 +21,13 @@ test_that("address_geocode_all works with and without libpostal data", {
   stub(address_geocode_all,"geocode_combine",geocode_combine)
 
   address_geocode_all(address_stream)
-  expect_equal(mock_args(geocode_combine)[[1]][[1]]$libpostal.street,"30 libpostal.road")
+  expect_equal(mock_args(geocode_combine)[[1]][[1]]$street1,"30 street1")
+  expect_false("libpostal.street" %in% colnames(mock_args(geocode_combine)[[1]][[1]]))
 
   address_stream <- cbind(address_stream,libpostal.house_number = "30", libpostal.road = "libpostal.road")
 
   address_geocode_all(address_stream)
-  expect_equal(mock_args(geocode_combine)[[2]][[1]]$street1,"30 street1")
-  expect_false("libpostal.street" %in% colnames(mock_args(geocode_combine)[[2]][[1]]))
+  expect_equal(mock_args(geocode_combine)[[2]][[1]]$libpostal.street,"30 libpostal.road")
 
 })
 

@@ -187,7 +187,6 @@ address_parse_libpostal <- function(address_stream) {
 
   # TODO: map english numbers to numerals
   parsed <- data.table(address = addresses, address_exec_libpostal(addresses))
-  parsed <- parsed[address_stream$address, on = "address"]
   parsed[, I := .I]
 
   # add columns if they don't exist

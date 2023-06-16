@@ -54,4 +54,5 @@ Imports:
     tigris
 Remotes: 
     skysyzygy/tessilake,
-    chris-prener/censusxy
+    chris-prener/censusxy,
+    tidyverse/dbplyr

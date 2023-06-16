@@ -46,10 +46,11 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
   . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-
     event_subtype <- timestamp <- NULL
 
-  address_stream <- address_create_stream(freshness = freshness) %>%
-    address_parse(distinct(.[,..address_cols]))[., on = as.character(address_cols)] %>%
-    address_geocode(distinct(.[,..address_cols]))[., on = as.character(address_cols)] %>%
-    address_census(distinct(.[,c(address_cols,"timestamp"),with=F]))[., on = c(as.character(address_cols),"timestamp")]
+  address_stream <- address_create_stream(freshness = freshness)
+  address_geocode <- address_parse(address_stream) %>% address_geocode
+  address_census <- address_census(address_stream)
+
+  address_stream <- cbind(address_stream, address_geocode[,-address_cols, with = F], address_census[,-address_cols, with = F])
 
   iwave <- read_tessi("iwave") %>% collect() %>% setDT()
 
@@ -187,6 +188,9 @@ address_parse_libpostal <- function(address_stream) {
 
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
+
+  if(nrow(address_stream) == 0)
+    return(address_stream)
 
   address_stream <- address_stream[, ..address_cols]
 
@@ -333,7 +337,7 @@ address_cache <- function(address_stream, cache_name, .function,
     cache_miss <- address_stream_distinct
 
   } else {
-    cache <- DBI::dbReadTable(cache_db, cache_name) %>% setDT()
+    cache <- tbl(cache_db, cache_name) %>% semi_join(address_stream_distinct, by = key_cols, copy = T, na_matches = "na") %>% collect %>% setDT
     cache_miss <- address_stream_distinct[!cache, ..key_cols, on = as.character(key_cols)]
   }
 

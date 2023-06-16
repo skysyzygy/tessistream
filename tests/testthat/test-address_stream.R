@@ -20,7 +20,7 @@ local({
           data.table()[,c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode") := NA_character_]))
 
     address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
-    stub(address_stream, "address_geocode", address_geocode)
+    stub(address_stream, "address_geocode", address_geocode[address_stream_original,on=as.character(address_cols)])
 
     stub(address_reverse_census,"address_geocode",address_geocode)
     stub(address_census,"address_reverse_census",address_reverse_census)

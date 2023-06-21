@@ -3,8 +3,8 @@
 #' address_geocode
 #'
 #' Geocodes addresses using the [tidygeocoder] package.
-#' Tries each address up to six times, using `libpostal` parsing, `street1`, and `street2`, and the
-#' US census and openstreetmap geocoders.
+#' Tries each address up to six times, using `libpostal` parsing (if `libpostal.house_number` and `libpostal.road` are passed in as columnes),
+#' `street1`, and `street2`, and the US census and openstreetmap geocoders.
 #'
 #' @param address_stream data.table of addresses
 #'

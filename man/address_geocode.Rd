@@ -17,8 +17,8 @@ data.table of addresses, one row per address in input, must include \code{addres
 }
 \description{
 Geocodes addresses using the \link{tidygeocoder} package.
-Tries each address up to six times, using \code{libpostal} parsing, \code{street1}, and \code{street2}, and the
-US census and openstreetmap geocoders.
+Tries each address up to six times, using \code{libpostal} parsing (if \code{libpostal.house_number} and \code{libpostal.road} are passed in as columnes),
+\code{street1}, and \code{street2}, and the US census and openstreetmap geocoders.
 }
 \section{Functions}{
 \itemize{

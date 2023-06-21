@@ -344,13 +344,6 @@ address_cache <- function(address_stream, cache_name, .function,
       input_schema <- sapply(cache_miss,typeof)
       matching_names <- intersect(names(cache_schema), names(input_schema))
 
-      if(any(cache_schema[matching_names] != input_schema[matching_names]))
-        rlang::abort(c("Identical column names used for different column types, can't cache table.",
-                      "cache schema:",
-                      capture.output(print(cache_schema[matching_names])),
-                      "input_schema:",
-                      capture.output(print(input_schema[matching_names]))))
-
       new_columns <- input_schema[setdiff(names(input_schema), names(cache_schema))]
       purrr::imap(new_columns,~DBI::dbExecute(cache_db, paste0("ALTER TABLE ",cache_name," ADD COLUMN [",.y,"] [",.x,"]")))
     }

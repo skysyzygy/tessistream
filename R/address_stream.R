@@ -18,13 +18,6 @@ address_cols <- c(
   "country_desc" = "country"
 )
 
-doit <- function() {
-  withr::local_envvar(R_CONFIG_FILE="")
-  withr::local_package("progressr")
-  future::plan("multisession")
-  with_progress(address_stream(),handler_pbcol())
-}
-
 
 # address_stream ----------------------------------------------------------
 

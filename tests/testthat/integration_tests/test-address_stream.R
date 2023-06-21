@@ -1,0 +1,6 @@
+withr::local_envvar(R_CONFIG_FILE="")
+withr::local_package("progressr")
+future::plan("multisession")
+mockery::stub(address_stream, "address_create_stream", readRDS(rprojroot::find_testthat_root_file("address_stream.Rds")))
+debugonce(address_geocode)
+with_progress(address_stream(),handler_pbcol())

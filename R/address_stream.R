@@ -296,7 +296,7 @@ address_parse_libpostal <- function(address_stream) {
 #' @return data.table of addresses parsed
 #' @importFrom dplyr collect
 address_parse <- function(address_stream) {
-  address_cache_parallel(address_stream, "address_parse", address_parse_libpostal)
+  address_cache_chunked(address_stream, "address_parse", address_parse_libpostal)
 }
 
 #' address_cache

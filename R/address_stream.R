@@ -322,7 +322,7 @@ address_cache <- function(address_stream, cache_name, .function,
 
   key_cols <- intersect(key_cols, colnames(address_stream))
 
-  address_stream_distinct <- address_stream[,..key_cols] %>% unique
+  address_stream_distinct <- unique(address_stream, by = key_cols)
 
   if (!DBI::dbExistsTable(cache_db, cache_name)) {
     # Cache doesn't yet exist
@@ -332,7 +332,7 @@ address_cache <- function(address_stream, cache_name, .function,
   } else {
     cache <- tbl(cache_db, cache_name) %>%
       semi_join(address_stream_distinct, by = key_cols, copy = TRUE, na_matches = "na", auto_index = TRUE) %>% collect %>% setDT
-    cache_miss <- address_stream_distinct[!cache, ..key_cols, on = as.character(key_cols)]
+    cache_miss <- address_stream_distinct[!cache, on = as.character(key_cols)]
   }
 
   if(nrow(cache_miss) > 0) {

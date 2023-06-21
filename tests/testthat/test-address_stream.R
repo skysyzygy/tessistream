@@ -332,7 +332,7 @@ test_that("address_cache updates the the cache file after cache misses", {
 })
 
 test_that("address_cache incremental runs match address_cache full runs", {
-  address_processor <- function(.) { address_result[.,on=as.character(address_cols)]}
+  address_processor <- function(.) { address_result[.[,..address_cols],on=as.character(address_cols)]}
 
   incremental <- DBI::dbReadTable(db, "address_cache") %>%
     collect() %>%

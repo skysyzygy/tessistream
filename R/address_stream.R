@@ -311,7 +311,7 @@ address_parse <- function(address_stream) {
 #' @param ... additional options passed to `.function`
 #'
 #' @return data.table of addresses processed
-#' @importFrom dplyr collect tbl
+#' @importFrom dplyr collect tbl semi_join
 #' @importFrom utils head capture.output
 address_cache <- function(address_stream, cache_name, .function,
                           key_cols = as.character(address_cols),
@@ -337,7 +337,8 @@ address_cache <- function(address_stream, cache_name, .function,
     cache_miss <- address_stream_distinct
 
   } else {
-    cache <- tbl(cache_db, cache_name) %>% semi_join(address_stream_distinct, by = key_cols, copy = T, na_matches = "na") %>% collect %>% setDT
+    cache <- tbl(cache_db, cache_name) %>%
+      semi_join(address_stream_distinct, by = key_cols, copy = TRUE, na_matches = "na", auto_index = TRUE) %>% collect %>% setDT
     cache_miss <- address_stream_distinct[!cache, ..key_cols, on = as.character(key_cols)]
   }
 
@@ -361,10 +362,17 @@ address_cache <- function(address_stream, cache_name, .function,
       purrr::imap(new_columns,~DBI::dbExecute(cache_db, paste0("ALTER TABLE ",cache_name," ADD COLUMN [",.y,"] [",.x,"]")))
     }
 
-    tryCatch(DBI::dbWriteTable(cache_db, cache_name, cache_miss),
+    tryCatch({
+      DBI::dbWriteTable(cache_db, cache_name, cache_miss)
+      DBI::dbExecute(cache_db, paste("CREATE UNIQUE INDEX",
+                                           paste(cache_name,"index",sep="_"),
+                                           "ON",cache_name,
+                                           "(",paste(key_cols, collapse = ", "),")"))
+    },
              error = function(e){
                DBI::dbAppendTable(cache_db, cache_name, cache_miss)
              })
+
 
     cache <- rbind(cache, cache_miss, fill = TRUE)
   }
@@ -374,17 +382,30 @@ address_cache <- function(address_stream, cache_name, .function,
   return(address_stream)
 }
 
+#' @param parallel boolean whether to run chunks in parallel, defaults to `TRUE` when [furrr] is installed.
+#' @param n integer chunk size
 #' @describeIn address_cache Parallel wrapper around address_cache using [furrr] and [progressr]
-address_cache_parallel <- function(address_stream, cache_name, .function,
+address_cache_chunked <- function(address_stream, cache_name, .function,
                                    key_cols = as.character(address_cols),
-                                   db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
+                                   db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
+                                   parallel = system.file(package = "furrr") != "",
+                                   n = 100, ...) {
   . <- NULL
 
   if(nrow(address_stream) == 0)
     return()
 
-  chunks <- if(nrow(address_stream) > 1000) {
-    address_stream %>% split(rep(seq(1:nrow(.)), each = 1000, length.out = nrow(.)))
+  mapper <-
+  if(parallel) {
+    function(...) {
+      furrr::future_map(.options = furrr::furrr_options(seed = TRUE), ...)
+    }
+  } else {
+    purrr::map
+  }
+
+  chunks <- if(nrow(address_stream) > n) {
+    address_stream %>% split(rep(seq(1:nrow(.)), each = n, length.out = nrow(.)))
   } else {
     list(address_stream)
   }
@@ -392,11 +413,10 @@ address_cache_parallel <- function(address_stream, cache_name, .function,
   p <- progressor(length(chunks))
   p(paste("Caching address results for",cache_name), amount = 0)
 
-  address_stream <- furrr::future_map(chunks, ~progress_expr(address_cache(address_stream = .,
+  address_stream <- mapper(chunks, ~progress_expr(address_cache(address_stream = .,
                                            cache_name = cache_name, .function = .function,
                                            key_cols = key_cols, db_name = db_name),
-                                           .progress = p),
-                                      .options = furrr::furrr_options(seed = TRUE)) %>%
+                                           .progress = p)) %>%
     rbindlist(fill = TRUE)
 
 }

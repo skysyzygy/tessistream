@@ -302,6 +302,11 @@ test_that("address_cache handles cache non-existence and writes a cache file con
   expect_named(DBI::dbReadTable(db, "address_cache"), c(as.character(address_cols), "something", "processed"), ignore.order = TRUE)
 })
 
+test_that("address_cache adds an index to the table", {
+  db <<- DBI::dbConnect(RSQLite::SQLite(), sqlite_file)
+  expect_equal(nrow(DBI::dbGetQuery(db, "select * from sqlite_master where type = 'index'")),1)
+})
+
 test_that("address_cache handles zero-row input gracefully", {
   address_processor <- mock(address_result[0])
   address_cache(address_stream[0], "address_cache", address_processor)
@@ -377,6 +382,45 @@ test_that("address_cache works with other key columns", {
   expect_equal(address_cache(data_stream[100:1], "data_stream", data_processor, key_cols = "a"),data_result[100:1])
   expect_length(mock_args(data_processor),1)
 })
+
+
+# address_cache_chunked ---------------------------------------------------
+
+test_that("address_cache_chunked divides data.table into chunks of size n and sends to address_cache", {
+  address_cache <- mock(address_stream, cycle = TRUE)
+  stub(address_cache_chunked,"address_cache",address_cache)
+  address_cache_chunked(address_stream, "address_cache", .function = force, n = 1, parallel = FALSE)
+  address_cache_chunked(address_stream, "address_cache", .function = force, n = 10, parallel = FALSE)
+  address_cache_chunked(address_stream, "address_cache", .function = force, n = 100, parallel = FALSE)
+
+  expect_length(mock_args(address_cache),111)
+  expect_equal(nrow(mock_args(address_cache)[[1]][[1]]),1)
+  expect_equal(nrow(mock_args(address_cache)[[101]][[1]]),10)
+  expect_equal(nrow(mock_args(address_cache)[[111]][[1]]),100)
+
+})
+
+test_that("address_cache_chunked returns the same results as address_cache for all n and parallel settings", {
+  address_processor <- mock(address_result)
+  future::plan("multisession")
+
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 1, parallel = FALSE))
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 10, parallel = FALSE))
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 100, parallel = FALSE))
+
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 1, parallel = TRUE))
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 10, parallel = TRUE))
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 100, parallel = TRUE))
+
+  future::plan("sequential")
+})
+
 
 # address_parse -----------------------------------------------------------
 address_stream_parsed <- data.table(

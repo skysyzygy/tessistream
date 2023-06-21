@@ -2,7 +2,7 @@
 % Please edit documentation in R/address_stream.R
 \name{address_cache}
 \alias{address_cache}
-\alias{address_cache_parallel}
+\alias{address_cache_chunked}
 \title{address_cache}
 \usage{
 address_cache(
@@ -14,12 +14,14 @@ address_cache(
   ...
 )
 
-address_cache_parallel(
+address_cache_chunked(
   address_stream,
   cache_name,
   .function,
   key_cols = as.character(address_cols),
   db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
+  parallel = system.file(package = "furrr") != "",
+  n = 100,
   ...
 )
 }
@@ -35,6 +37,10 @@ address_cache_parallel(
 \item{db_name}{path to sqlite database, defaults to \code{tessilake::cache_path("address_stream.sqlite","deep","stream")}}
 
 \item{...}{additional options passed to \code{.function}}
+
+\item{parallel}{boolean whether to run chunks in parallel, defaults to \code{TRUE} when \link{furrr} is installed.}
+
+\item{n}{integer chunk size}
 }
 \value{
 data.table of addresses processed
@@ -44,6 +50,6 @@ Handles caching of already-processed addresses so that they're only processed on
 }
 \section{Functions}{
 \itemize{
-\item \code{address_cache_parallel()}: Parallel wrapper around address_cache using \link{furrr} and \link{progressr}
+\item \code{address_cache_chunked()}: Parallel wrapper around address_cache using \link{furrr} and \link{progressr}
 
 }}

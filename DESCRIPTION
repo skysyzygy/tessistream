@@ -16,6 +16,8 @@ Depends:
 LazyData: true
 Suggests: 
     covr,
+    furrr,
+    future,
     mockery,
     png,
     progressr,
@@ -32,8 +34,6 @@ Imports:
     DBI,
     dplyr,
     forcats,
-    furrr,
-    future,
     ggplot2,
     httr,
     jsonlite,

@@ -76,7 +76,8 @@ address_geocode_all <- function(address_stream) {
 
 #' @describeIn address_geocode geocode only uncached addresses, load others from cache
 address_geocode <- function(address_stream) {
-  address_cache_parallel(address_stream, "address_geocode", address_geocode_all)
+  # Not allowed to do geocoding from multiple threads, see Nominatim use policy
+  address_cache_chunked(address_stream, "address_geocode", address_geocode_all, parallel = FALSE)
 }
 
 #' address_reverse_census
@@ -114,7 +115,7 @@ address_reverse_census <- function(address_stream) {
 
     # don't reverse things not in the US
     to_reverse <- to_reverse[as.logical(sf::st_contains(usa, points, sparse = F)), ] %>%
-      address_cache_parallel("address_reverse_census", address_reverse_census_all, key_cols = c("lat","lon"))
+      address_cache_chunked("address_reverse_census", address_reverse_census_all, key_cols = c("lat","lon"))
   }
 
   address_stream_geocode[to_reverse,

@@ -38,7 +38,7 @@ address_cache_chunked(
 
 \item{...}{additional options passed to \code{.function}}
 
-\item{parallel}{boolean whether to run chunks in parallel, defaults to \code{TRUE} when \link{furrr} is installed.}
+\item{parallel}{boolean whether to run chunks in parallel, defaults to \code{TRUE} when \code{furrr} is installed.}
 
 \item{n}{integer chunk size}
 }
@@ -50,6 +50,6 @@ Handles caching of already-processed addresses so that they're only processed on
 }
 \section{Functions}{
 \itemize{
-\item \code{address_cache_chunked()}: Parallel wrapper around address_cache using \link{furrr} and \link{progressr}
+\item \code{address_cache_chunked()}: Parallel wrapper around address_cache using \link[furrr:furrr-package]{furrr::furrr} and \link{progressr:progressr}
 
 }}

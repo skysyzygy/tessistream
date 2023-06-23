@@ -18,5 +18,5 @@ Tries each address up to six times, using \code{libpostal} parsing, \code{street
 Appends census demographic and aggregate income data and iWave income data.
 }
 \note{
-Uses \link{future} for parallel processing and \link{progressr} for progress tracking
+Uses \link[future:future]{future::future} for parallel processing and \link[progressr:progressr]{progressr::progressr} for progress tracking
 }

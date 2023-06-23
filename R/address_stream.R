@@ -40,7 +40,8 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
     event_subtype <- timestamp <- NULL
 
   address_stream <- address_create_stream(freshness = freshness)
-  address_geocode <- address_parse(address_stream) %>% address_geocode
+  address_parsed <- address_parse(address_stream)
+  address_geocode <- address_geocode(address_parsed)
   address_census <- address_census(address_stream)
 
   address_stream <- cbind(address_stream, address_geocode[,-address_cols, with = F], address_census[,-address_cols, with = F])

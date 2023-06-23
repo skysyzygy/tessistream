@@ -105,7 +105,7 @@ census_get_data <- function(year,dataset,variables) {
 census_data <- function(census_variables, ...) {
 
   address_cache_chunked(census_variables, "address_census", census_get_data_all, n = 10,
-                key_cols = c("year","dataset","variable"),
+                key_cols = c("year","dataset","variable","GEOID"),
                 ...) %>%
     merge(census_variables, by=c("year","dataset","variable"))
 

@@ -311,7 +311,6 @@ address_cache <- function(address_stream, cache_name, .function,
                           key_cols = as.character(address_cols),
                           db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
   assert_data_table(address_stream)
-  assert_names(colnames(address_stream), must.include = key_cols)
 
   if (!dir.exists(dirname(db_name))) {
     dir.create(dirname(db_name))

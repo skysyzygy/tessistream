@@ -44,10 +44,11 @@ address_geocode_all <- function(address_stream) {
   address_street_cols <- paste0("address_",street_cols)
   for (street_col in street_cols)
     setunite(address_stream_parsed,paste0("address_",street_col),c(street_col,"city","state","postal_code","country"), sep = ", ", na.rm = TRUE, remove = FALSE)
+  address_stream_parsed[,map(.SD,\(x) tolower(trimws(x))), .SDcols = address_street_cols]
 
   # remove duplicates
-  for (i in rev(seq_along(address_street_cols[-1])))
-    address_stream_parsed[get(address_street_cols[i+1]) == get(address_street_cols[i]), (address_street_cols[i+1]) := NA ]
+  for (i in rev(seq_along(address_street_cols)[-1]))
+    address_stream_parsed[get(address_street_cols[i]) %in% mget(address_street_cols[-i]), (address_street_cols[i]) := NA ]
 
   global_params <- list(return_input = TRUE, full_results = TRUE)
 
@@ -82,7 +83,7 @@ address_geocode_all <- function(address_stream) {
 #' @describeIn address_geocode geocode only uncached addresses, load others from cache
 address_geocode <- function(address_stream) {
   # limit to 50 per batch for Bing transaction limit
-  address_cache_chunked(address_stream, "address_geocode", address_geocode_all, n = 50, parallel = F)
+  address_cache_chunked(address_stream, "address_geocode", address_geocode_all, n = 1000, parallel = F)
 }
 
 #' address_reverse_census
@@ -153,9 +154,9 @@ address_reverse_census_all <- function(address_stream) {
 
   address_reverse <- Vectorize(cxy_geography, SIMPLIFY = FALSE)(lon = address_stream$lon,
                                                                 lat = address_stream$lat) %>%
-    purrr::modify_if(is.null,~list(NA)) %>% rbindlist(fill=T)
+    purrr::modify_if(is.null,~list(NA)) %>% rbindlist(fill = TRUE)
 
-  columns <- Vectorize(grep, "pattern")(paste0("Census\\.Blocks\\.",c("STATE","COUNTY","TRACT","BLOCK")),
+  columns <- Vectorize(grep, "pattern")(paste0("Census\\.Blocks\\.",c("STATE","COUNTY","TRACT","BLOCK"),"$"),
                                         colnames(address_reverse), value = T)
 
   address_reverse[,..columns] %>% setnames(c("state_fips","county_fips","census_tract","census_block")) %>%

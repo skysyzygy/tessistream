@@ -22,8 +22,7 @@ Suggests:
     png,
     progressr,
     rprojroot,
-    testthat (>= 3.0.0),
-    withr
+    testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Imports:
     censusxy,
@@ -52,7 +51,8 @@ Imports:
     tidygeocoder,
     tidyr,
     tidyselect,
-    tigris
+    tigris,
+    withr
 Remotes: 
     skysyzygy/tessilake,
     chris-prener/censusxy,

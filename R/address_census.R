@@ -10,19 +10,10 @@
 census_variables <- function() {
   label <- concept <- name <- type <- sex <- age <- dataset <- race <- measure <- NULL
 
-  load_variables <- function(year) {
-    map(c("acs5/profile","sf1","sf3"),
-               ~try(
-                 cbind(tidycensus::load_variables(year, ., cache = TRUE),
-                       dataset = .,
-                       year = year),
-                 silent = TRUE)
-    )
-  }
+  datasets <- expand_grid(year = seq(2000,year(Sys.Date())),
+                          dataset = c("acs5/profile","sf1","sf3")) %>% setDT
 
-  variables <- map(seq(1990,year(Sys.Date())), load_variables) %>%
-    map(discard,~!is.data.frame(.)) %>%
-    flatten() %>% rbindlist(fill=T)
+  variables <- .mapply(census_variables_load, datasets, list()) %>% rbindlist
 
   variables[grepl("^(number|estimate|total)",label, ignore.case = TRUE) & (
     grepl("sex and age",label,ignore.case=T) | grepl("^sex by age( \\[49|$)",concept,ignore.case=T)) &
@@ -50,6 +41,15 @@ census_variables <- function() {
   setnames(variables, "name", "variable")
   variables$I <- NULL
   variables[]
+
+}
+
+census_variables_load <- function(year, dataset) {
+
+  tryCatch(load_variables(year, dataset, cache = TRUE) %>% setDT %>% .[,`:=`(year = year,
+                                                                             dataset = dataset)],
+           error = \(e) data.table())
+
 
 }
 
@@ -103,7 +103,7 @@ census_get_data <- function(year,dataset,variables) {
 #' @describeIn census_data Loads census data through cache
 census_data <- function(census_variables, ...) {
 
-  census_variables %>% address_cache_chunked(., "address_census", census_get_data_all,
+  census_variables %>% address_cache_chunked(., "address_census", census_get_data_all, n = 10,
                 key_cols = c("year","dataset","variable"),
                 ...) %>%
     merge(census_variables, by=c("year","dataset","variable"))
@@ -115,8 +115,6 @@ census_data <- function(census_variables, ...) {
 census_get_data_all <- function(census_variables) {
   assert_data_table(census_variables)
   assert_names(colnames(census_variables), must.include = c("year","dataset","variable"))
-
-  p <- progressor(uniqueN(census_variables[,.(year,dataset)]))
 
   split(census_variables,by=c("year","dataset")) %>%
     purrr::map(~census_get_data(.$year[[1]],.$dataset[[1]],.$variable)) %>%

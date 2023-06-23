@@ -1,5 +1,7 @@
 withr::local_envvar(R_CONFIG_FILE="")
 withr::local_package("progressr")
 future::plan("multisession")
+handlers("cli")
 mockery::stub(address_stream, "address_create_stream", readRDS(rprojroot::find_testthat_root_file("address_stream.Rds")))
-with_progress(address_stream(),handler_pbcol())
+with_progress(address_stream <- address_stream())
+browser()

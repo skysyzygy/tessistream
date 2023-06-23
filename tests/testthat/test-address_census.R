@@ -68,7 +68,7 @@ test_that("census_get_data_all calls census_get_data once per combination of yea
 # census_features ---------------------------------------------------------
 
 .census_data <- DBI::dbReadTable(DBI::dbConnect(RSQLite::SQLite(), rprojroot::find_testthat_root_file("census_data.sqlite")), "address_census") %>% collect %>% setDT
-stub(census_data, "address_cache", .census_data)
+stub(census_data, "address_cache_chunked", .census_data)
 
 test_that("census_race_features returns all race/ethnicity data", {
   stub(census_race_features, "census_data", census_data)

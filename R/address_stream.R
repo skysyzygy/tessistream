@@ -27,7 +27,7 @@ address_cols <- c(
 #' Tries each address up to six times, using `libpostal` parsing, `street1`, and `street2`, and the US census and openstreetmap geocoders.
 #' Appends census demographic and aggregate income data and iWave income data.
 #'
-#' @note Uses [future] for parallel processing and [progressr] for progress tracking
+#' @note Uses [future::future] for parallel processing and [progressr::progressr] for progress tracking
 #'
 #' @param freshness data will be at least this fresh
 #'
@@ -369,9 +369,9 @@ address_cache <- function(address_stream, cache_name, .function,
   return(address_stream)
 }
 
-#' @param parallel boolean whether to run chunks in parallel, defaults to `TRUE` when [furrr] is installed.
+#' @param parallel boolean whether to run chunks in parallel, defaults to `TRUE` when `furrr` is installed.
 #' @param n integer chunk size
-#' @describeIn address_cache Parallel wrapper around address_cache using [furrr] and [progressr]
+#' @describeIn address_cache Parallel wrapper around address_cache using [furrr::furrr] and [progressr:progressr]
 address_cache_chunked <- function(address_stream, cache_name, .function,
                                    key_cols = as.character(address_cols),
                                    db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),

@@ -45,6 +45,7 @@ census_variables <- function() {
 }
 
 census_variables_load <- function(year, dataset) {
+  . <- NULL
 
   tryCatch(load_variables(year, dataset, cache = TRUE) %>% setDT %>% .[,`:=`(year = year,
                                                                              dataset = dataset)],
@@ -103,7 +104,7 @@ census_get_data <- function(year,dataset,variables) {
 #' @describeIn census_data Loads census data through cache
 census_data <- function(census_variables, ...) {
 
-  census_variables %>% address_cache_chunked(., "address_census", census_get_data_all, n = 10,
+  address_cache_chunked(census_variables, "address_census", census_get_data_all, n = 10,
                 key_cols = c("year","dataset","variable"),
                 ...) %>%
     merge(census_variables, by=c("year","dataset","variable"))

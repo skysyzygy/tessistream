@@ -304,6 +304,8 @@ stream_from_audit <- function(table_name, ...) {
 #' @export
 #' @importFrom tidyselect eval_select
 setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
+  . <- NULL
+
   assert_data_table(data)
 
   col <- rlang::as_name(col)

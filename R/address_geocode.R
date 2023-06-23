@@ -22,7 +22,7 @@ address_geocode_all <- function(address_stream) {
 
   # Add index columns
   address_stream_parsed <- address_stream[,I:=.I]
-  address_stream <- address_stream[,..address_cols] %>% .[,I:=.I]
+  address_stream <- address_stream[,c(address_cols,"I"),with=F]
 
   # build libpostal street name
   if(any(c("libpostal.house_number","libpostal.road") %in% colnames(address_stream_parsed))) {
@@ -37,22 +37,26 @@ address_geocode_all <- function(address_stream) {
     address_stream_parsed[!address_stream_parsed[,lapply(.SD,is.na),.SDcols = address_cols] %>% purrr::reduce(`&`)]
 
   if(nrow(address_stream_parsed) == 0)
-    return(address_stream[,setdiff(address_cols, "libpostal.street")])
+    return(address_stream[,setdiff(address_cols, "libpostal.street"), with = F])
 
-  # fill NAs with blanks because these aren't handled well in some parsers
-  setnafill(address_stream_parsed,"const",fill="",address_cols)
-  address_stream_parsed[,(address_cols) := lapply(.SD,as.character), .SDcols=address_cols]
+  # make address fields for queries
+  street_cols <- as.character(grep("street",address_cols,value=T))
+  address_street_cols <- paste0("address_",street_cols)
+  for (street_col in street_cols)
+    setunite(address_stream_parsed,paste0("address_",street_col),c(street_col,"city","state","postal_code","country"), sep = ", ", na.rm = TRUE, remove = FALSE)
 
-  global_params <- list(city = "city", state="state", postalcode = "postal_code",
-                    return_input = TRUE, full_results = TRUE)
+  # remove duplicates
+  for (i in rev(seq_along(address_street_cols[-1])))
+    address_stream_parsed[get(address_street_cols[i+1]) == get(address_street_cols[i]), (address_street_cols[i+1]) := NA ]
+
+  global_params <- list(return_input = TRUE, full_results = TRUE)
 
   # Make the list of queries to run
-  queries <- expand_grid(params = list(list(method = 'census',
+  queries <- expand_grid(params = list(list(method = "census",
                                             mode = "batch",
                                             api_options = list(census_return_type = "geographies")),
-                                       list(method = 'osm',
-                                            country = "country")),
-                         street = as.character(grep("street",address_cols,value=T))) %>%
+                                       list(method = "osm")),
+                         address = address_street_cols) %>%
     split(1:nrow(.)) %>%
     map(tidyr::unnest_wider,"params") %>%
     map(flatten)
@@ -62,7 +66,7 @@ address_geocode_all <- function(address_stream) {
                     queries = queries,
                     global_params = global_params,
                     lat = "lat", long = "lon",
-                    query_names = map_chr(queries,~paste(.$method,.$street))) %>% setDT
+                    query_names = map_chr(queries,~paste(.$method,.$address))) %>% setDT
 
   # Throw away list columns
   result <- purrr::keep(result, is.atomic)
@@ -70,14 +74,15 @@ address_geocode_all <- function(address_stream) {
   result[address_stream,
          setdiff(colnames(result),colnames(address_stream_parsed)),
          with = F,
-         on = "I"] %>% cbind(address_stream) %>% .[,I:=NULL]
+         on = "I"] %>% cbind(address_stream) %>%
+    .[,intersect(c("I","Id","id"),colnames(.)):=NULL]
 
 }
 
 #' @describeIn address_geocode geocode only uncached addresses, load others from cache
 address_geocode <- function(address_stream) {
-  # Not allowed to do geocoding from multiple threads, see Nominatim use policy
-  address_cache_chunked(address_stream, "address_geocode", address_geocode_all, parallel = FALSE)
+  # limit to 50 per batch for Bing transaction limit
+  address_cache_chunked(address_stream, "address_geocode", address_geocode_all, n = 50, parallel = F)
 }
 
 #' address_reverse_census

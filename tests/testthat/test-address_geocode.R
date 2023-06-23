@@ -57,6 +57,32 @@ test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder"
 
 })
 
+test_that("address_geocode_all doesn't retry when street info is duplicated", {
+  address_stream <- data.table(
+    street1 = "30 street",
+    street2 = "30 street",
+    city = "Brooklyn",
+    state = "NY",
+    country = "USA",
+    postal_code = "11217",
+    libpostal.house_number = "30",
+    libpostal.road = "street"
+  )
+
+  geocode_combine <- function(global_params,...) { tidygeocoder::geocode_combine(global_params = c(global_params, no_query = TRUE), ...)}
+  stub(address_geocode_all,"geocode_combine",geocode_combine)
+
+  msg <- capture.output(capture.output(address_geocode_all(address_stream),type="message"))
+
+  expect_match(paste(msg,collapse="\\n"),paste0("Census.+batch.+",
+                                                "Returning NA results.+",
+                                                "Returning NA results.+",
+                                                "openstreetmap.+30 street.+",
+                                                "Returning NA results.+",
+                                                "Returning NA results.+"))
+})
+
+
 if(do_geocoding) {
   test_that("address_geocode_all gets US and international addresses", {
 
@@ -140,6 +166,7 @@ test_that("address_geocode_all suppresses completely missing data because geocod
   expect_equal(nrow(res),2)
 
 })
+
 
 
 test_that("address_geocode_all returns one row per incoming address", {
@@ -249,6 +276,7 @@ test_that("address_reverse_census filters out non-US addresses based on lat/lon"
 
   stub(address_reverse_census,"address_reverse_census_all",address_reverse_census_all)
   stub(address_reverse_census,"address_geocode",address_geocode)
+  stub(address_reverse_census,"address_cache_chunked",function(..., parallel){address_cache_chunked(..., parallel = FALSE)})
 
   expect_message(res <- address_reverse_census(address_stream))
   expect_equal(nrow(mock_args(address_reverse_census_all)[[1]][[1]]),1)

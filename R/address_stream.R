@@ -371,7 +371,7 @@ address_cache <- function(address_stream, cache_name, .function,
 
 #' @param parallel boolean whether to run chunks in parallel, defaults to `TRUE` when `furrr` is installed.
 #' @param n integer chunk size
-#' @describeIn address_cache Parallel wrapper around address_cache using [furrr::furrr] and [progressr:progressr]
+#' @describeIn address_cache Parallel wrapper around address_cache using [furrr::furrr] and [progressr::progressr]
 address_cache_chunked <- function(address_stream, cache_name, .function,
                                    key_cols = as.character(address_cols),
                                    db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),

@@ -20,7 +20,7 @@ address_cache_chunked(
   .function,
   key_cols = as.character(address_cols),
   db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
-  parallel = system.file(package = "furrr") != "",
+  parallel = rlang::is_installed("furrr"),
   n = 100,
   ...
 )

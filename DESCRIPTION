@@ -51,6 +51,7 @@ Imports:
     tidycensus,
     tidygeocoder,
     tidyr,
+    tidyselect,
     tigris
 Remotes: 
     skysyzygy/tessilake,

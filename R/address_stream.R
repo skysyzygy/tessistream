@@ -316,7 +316,9 @@ address_cache <- function(address_stream, cache_name, .function,
     dir.create(dirname(db_name))
   }
 
-  cache_db <- DBI::dbConnect(RSQLite::SQLite(), db_name)
+  cache_db <- DBI::dbConnect(RSQLite::SQLite(), db_name,
+# Don't set synchronous pragma because this may fail for parallel writes
+                             synchronous = NULL)
   withr::defer(DBI::dbDisconnect(cache_db))
   RSQLite::sqliteSetBusyHandler(cache_db, 60000)
 

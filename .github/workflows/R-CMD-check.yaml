@@ -50,8 +50,8 @@ jobs:
           path: ${{ github.workspace }}/tests/testthat/census_*
           key: census_fixtures-${{ runner.os }}
 
-      # - name: Setup upterm session
-      #   uses: lhotari/action-upterm@v1
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
 
       - uses: r-lib/actions/check-r-package@v2
 

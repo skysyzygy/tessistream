@@ -390,19 +390,24 @@ address_cache_chunked <- function(address_stream, cache_name, .function,
     purrr::map
   }
 
-  chunks <- if(nrow(address_stream) > n) {
-    address_stream %>% split(rep(seq(1:nrow(.)), each = n, length.out = nrow(.)))
+  key_cols <- intersect(key_cols, colnames(address_stream))
+  address_stream_distinct <- unique(address_stream, by = key_cols)
+
+  chunks <- if(nrow(address_stream_distinct) > n) {
+    address_stream_distinct %>% split(rep(seq(1:nrow(.)), each = n, length.out = nrow(.)))
   } else {
-    list(address_stream)
+    list(address_stream_distinct)
   }
 
   p <- progressor(length(chunks))
   p(paste("Caching address results for",cache_name), amount = 0)
 
-  address_stream <- mapper(chunks, ~progress_expr(address_cache(address_stream = .,
+  address_stream_distinct <- mapper(chunks, ~progress_expr(address_cache(address_stream = .,
                                            cache_name = cache_name, .function = .function,
                                            key_cols = key_cols, db_name = db_name),
                                            .progress = p)) %>%
     rbindlist(fill = TRUE)
+
+  address_stream_distinct[address_stream[, ..key_cols], on = key_cols]
 
 }

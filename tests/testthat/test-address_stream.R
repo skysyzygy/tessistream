@@ -401,7 +401,8 @@ test_that("address_cache_chunked divides data.table into chunks of size n and se
 })
 
 test_that("address_cache_chunked returns the same results as address_cache for all n and parallel settings", {
-  address_processor <- mock(address_result)
+  address_stream <- rbind(address_stream, address_stream)
+  address_processor <- mock(rbind(address_result, address_result))
   future::plan("multisession")
 
   expect_equal(address_cache(address_stream, "address_cache", address_processor),

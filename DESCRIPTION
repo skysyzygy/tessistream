@@ -30,6 +30,7 @@ Imports:
     cli,
     config,
     data.table,
+    dbplyr (> 2.3.2),
     DBI,
     dplyr,
     forcats,

@@ -302,16 +302,15 @@ stream_from_audit <- function(table_name, ...) {
 #' @param remove If `TRUE`, the default, remove input columns from output data frame.
 #' @param na.rm If `TRUE`, missing values will be removed prior to uniting each value.
 #' @export
-#' @importFrom tidyselect eval_select
 setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
   . <- NULL
 
   assert_data_table(data)
 
   col <- rlang::as_name(col)
-  cols <- colnames(data)[eval_select(rlang::expr(c(...)), data)]
+  cols <- as.character(rlang::exprs(...))
 
-  united <- tidyr::unite(data[,cols,with=F], col, cols, sep = sep, remove = TRUE, na.rm = na.rm) %>%
+  united <- tidyr::unite(data[,cols,with=F], col, dplyr::all_of(cols), sep = sep, remove = TRUE, na.rm = na.rm) %>%
     setDT %>% .[,col]
 
   data[, (col) := united]

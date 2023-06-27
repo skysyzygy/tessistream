@@ -189,7 +189,7 @@ address_parse_libpostal <- function(address_stream) {
   address_stream <- address_stream[, ..address_cols]
 
   # make address string for libpostal
-  setunite(address_stream, "address", address_cols, sep = ", ", na.rm = TRUE, remove = FALSE)
+  setunite(address_stream, "address", all_of(address_cols), sep = ", ", na.rm = TRUE, remove = FALSE)
   addresses <- tolower(address_stream[!is.na(address), address])
 
   # TODO: map english numbers to numerals

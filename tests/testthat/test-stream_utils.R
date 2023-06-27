@@ -289,6 +289,13 @@ test_that("setunite combines named columns", {
   expect_equal(data, data.table(c=paste(letters, LETTERS, sep = "!")))
 })
 
+test_that("setunite combines named columns tidily", {
+  data <- data.table(a = letters, b = LETTERS)
+  col <- "b"
+  setunite(data, "c", dplyr::all_of(c("a", col)), sep = "!")
+  expect_equal(data, data.table(c=paste(letters, LETTERS, sep = "!")))
+})
+
 test_that("setunite combines named columns with NAs", {
   data <- data.table(a = letters, b = NA_character_)
   setunite(data, "c", a, b, sep = "!")
@@ -301,6 +308,7 @@ test_that("setunite combines named columns with NAs", {
 
 test_that("setunite keeps old columns around if remove = FALSE", {
   data <- data.table(a = letters, b = LETTERS)
-  setunite(data, "c", "a", b, sep = "!", remove = FALSE)
+  setunite(data, "c", a, b, sep = "!", remove = FALSE)
   expect_equal(data, data.table(a = letters, b = LETTERS, c=paste(letters, LETTERS, sep = "!")))
 })
+

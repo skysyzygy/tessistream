@@ -308,7 +308,7 @@ setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
   assert_data_table(data)
 
   col <- rlang::as_name(col)
-  cols <- as.character(rlang::exprs(...))
+  cols <- colnames(data)[tidyselect::eval_select(rlang::expr(c(...)),data)]
 
   united <- tidyr::unite(data[,cols,with=F], col, dplyr::all_of(cols), sep = sep, remove = TRUE, na.rm = na.rm) %>%
     setDT %>% .[,col]

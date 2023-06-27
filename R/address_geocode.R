@@ -43,7 +43,8 @@ address_geocode_all <- function(address_stream) {
   street_cols <- as.character(grep("street",address_cols,value=T))
   address_street_cols <- paste0("address_",street_cols)
   for (street_col in street_cols)
-    setunite(address_stream_parsed,paste0("address_",street_col),c(street_col,"city","state","postal_code","country"), sep = ", ", na.rm = TRUE, remove = FALSE)
+    setunite(address_stream_parsed,paste0("address_",street_col),
+             all_of(c(street_col,"city","state","postal_code","country")), sep = ", ", na.rm = TRUE, remove = FALSE)
   address_stream_parsed[,map(.SD,\(x) tolower(trimws(x))), .SDcols = address_street_cols]
 
   # remove duplicates

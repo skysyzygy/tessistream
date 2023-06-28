@@ -30,17 +30,23 @@ local({
     iwave <- readRDS(rprojroot::find_testthat_root_file("address_iwave.Rds"))
     stub(address_stream, "read_tessi", iwave)
 
-    suppressMessages(address_stream <- address_stream())
+    suppressMessages(address_stream <- address_stream() %>% collect)
 
+    # output is the same length as input
     expect_equal(nrow(address_stream),
-                 nrow(address_stream_original[group_customer_no >= 200 & primary_ind == "Y"]) +
-                 nrow(iwave))
+                 nrow(address_stream_original[group_customer_no >= 200 & primary_ind == "Y"]))
 
+    # the correct iwave data was appended
+    expect_equal(address_stream[!is.na(address_pro_score_level),.N],
+                 address_stream[iwave, on = "group_customer_no"][timestamp > score_dt,.N])
+
+    # has all the stream column names
     expect_true(all(colnames(address_stream) %in% c(address_cols, "lat", "lon",
                                                     "event_type", "event_subtype", "group_customer_no", "address_no",
                                                     "timestamp", "address_no") |
                     grepl("^address.+level$",colnames(address_stream))))
 
+    # has all the census data appended
     expect_equal(sum(grepl("median_income|over_65|male|african_american",colnames(address_stream))),4)
 
   })

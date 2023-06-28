@@ -46,18 +46,24 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
 
   address_stream <- cbind(address_stream, address_geocode[,-address_cols, with = F], address_census[,-address_cols, with = F])
 
-  iwave <- read_tessi("iwave") %>% collect() %>% setDT()
+  iwave <- read_tessi("iwave") %>% collect() %>% setDT() %>% .[,score_dt:=as_date(score_dt)]
 
-  address_stream <- rbind(address_stream,
-                          iwave[, .(group_customer_no, event_subtype = "iWave Score",
-        address_pro_score_level = pro_score,
-        address_capacity_level = capacity_value,
-        address_properties_level = properties_total_value,
-        address_donations_level = donations_total_value)],
-        fill = TRUE)
+  address_stream[iwave,
+                 `:=`(address_pro_score_level = pro_score,
+                       address_capacity_level = capacity_value,
+                       address_properties_level = properties_total_value,
+                       address_donations_level = donations_total_value),
+                 on = c("group_customer_no","timestamp"="score_dt"),
+                 roll = "nearest"]
 
   address_stream[,`:=`(event_type = "Address")]
   setkey(address_stream,group_customer_no,timestamp)
+  setnafill(address_stream, "locf",
+                    cols = c("address_pro_score_level",
+                             "address_capacity_level",
+                             "address_properties_level",
+                             "address_donations_level"),
+            by = "group_customer_no")
 
   address_stream_full <- copy(address_stream)
   address_stream <- address_stream[(primary_ind == "Y" | event_subtype == "iWave Score") & group_customer_no >= 200,

@@ -44,12 +44,6 @@ jobs:
           extra-packages: any::rcmdcheck, any::devtools
           needs: check
 
-      - name: cache census fixtures
-        uses: actions/cache@v3
-        with:
-          path: ${{ github.workspace }}/tests/testthat/census_*
-          key: census_fixtures-${{ runner.os }}
-
       # - name: Setup upterm session
       #   uses: lhotari/action-upterm@v1
 

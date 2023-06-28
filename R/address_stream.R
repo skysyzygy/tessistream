@@ -322,9 +322,8 @@ address_cache <- function(address_stream, cache_name, .function,
   withr::defer(DBI::dbDisconnect(cache_db))
   RSQLite::sqliteSetBusyHandler(cache_db, 60000)
 
-  key_cols <- intersect(key_cols, colnames(address_stream))
-
-  address_stream_distinct <- unique(address_stream, by = key_cols)
+  key_cols_available <- intersect(key_cols, colnames(address_stream))
+  address_stream_distinct <- unique(address_stream, by = key_cols_available)
 
   if (!DBI::dbExistsTable(cache_db, cache_name)) {
     # Cache doesn't yet exist
@@ -333,8 +332,8 @@ address_cache <- function(address_stream, cache_name, .function,
 
   } else {
     cache <- tbl(cache_db, cache_name) %>%
-      semi_join(address_stream_distinct, by = key_cols, copy = TRUE, na_matches = "na", auto_index = TRUE) %>% collect %>% setDT
-    cache_miss <- address_stream_distinct[!cache, on = as.character(key_cols)]
+      semi_join(address_stream_distinct, by = key_cols_available, copy = TRUE, na_matches = "na", auto_index = TRUE) %>% collect %>% setDT
+    cache_miss <- address_stream_distinct[!cache, on = as.character(key_cols_available)]
   }
 
   if(nrow(cache_miss) > 0) {
@@ -358,6 +357,8 @@ address_cache <- function(address_stream, cache_name, .function,
                                            "(",paste(key_cols, collapse = ", "),")"))
     },
              error = function(e){
+               if(!grepl("exists in database",e$message))
+                 warning(e$message)
                DBI::dbAppendTable(cache_db, cache_name, cache_miss)
              })
 
@@ -365,7 +366,7 @@ address_cache <- function(address_stream, cache_name, .function,
     cache <- rbind(cache, cache_miss, fill = TRUE)
   }
 
-  address_stream <- cache[address_stream[, ..key_cols], on = key_cols]
+  address_stream <- cache[address_stream[, ..key_cols_available], on = key_cols_available]
 
   return(address_stream)
 }
@@ -392,8 +393,8 @@ address_cache_chunked <- function(address_stream, cache_name, .function,
     purrr::map
   }
 
-  key_cols <- intersect(key_cols, colnames(address_stream))
-  address_stream_distinct <- unique(address_stream, by = key_cols)
+  key_cols_available <- intersect(key_cols, colnames(address_stream))
+  address_stream_distinct <- unique(address_stream, by = key_cols_available)
 
   chunks <- if(nrow(address_stream_distinct) > n) {
     address_stream_distinct %>% split(rep(seq(1:nrow(.)), each = n, length.out = nrow(.)))
@@ -410,6 +411,6 @@ address_cache_chunked <- function(address_stream, cache_name, .function,
                                            .progress = p)) %>%
     rbindlist(fill = TRUE)
 
-  address_stream_distinct[address_stream[, ..key_cols], on = key_cols]
+  address_stream_distinct[address_stream[, ..key_cols_available], on = key_cols_available]
 
 }

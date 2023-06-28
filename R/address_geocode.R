@@ -11,7 +11,7 @@
 #' @return data.table of addresses, one row per address in input, must include `address_cols`. Contains only address_cols and columns returned by `tidygeocoder`
 #' @importFrom tidygeocoder geocode_combine
 #' @importFrom purrr map flatten map_chr
-#' @importFrom tidyr expand_grid
+#' @importFrom tidyr expand_grid any_of all_of
 #' @importFrom checkmate assert_data_table assert_names
 #' @describeIn address_geocode geocode all addresses
 address_geocode_all <- function(address_stream) {

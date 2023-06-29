@@ -57,6 +57,8 @@ address_geocode_all <- function(address_stream) {
   queries <- expand_grid(params = list(list(method = "census",
                                             mode = "batch",
                                             api_options = list(census_return_type = "geographies")),
+                                       list(method = "bing",
+                                            mode = "batch"),
                                        list(method = "osm")),
                          address = address_street_cols) %>%
     split(1:nrow(.)) %>%
@@ -84,7 +86,7 @@ address_geocode_all <- function(address_stream) {
 #' @describeIn address_geocode geocode only uncached addresses, load others from cache
 address_geocode <- function(address_stream) {
   # limit to 50 per batch for Bing transaction limit
-  address_cache_chunked(address_stream, "address_geocode", address_geocode_all, n = 100, parallel = F)
+  address_cache_chunked(address_stream, "address_geocode", address_geocode_all, n = 50, parallel = F)
 }
 
 #' address_reverse_census

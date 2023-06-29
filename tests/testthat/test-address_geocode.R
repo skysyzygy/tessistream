@@ -31,7 +31,7 @@ test_that("address_geocode_all uses libpostal and non-libpostal data", {
 
 })
 
-test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder", {
+test_that("address_geocode_all runs census + bing + osm x 3 queries using tidygeocoder", {
 
   address_stream <- data.table(
     street1 = "30 street1",
@@ -51,6 +51,9 @@ test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder"
   expect_match(paste(msg,collapse="\\n"),paste0("Census.+batch.+",
                                                 "Census.+batch.+",
                                                 "Census.+batch.+",
+                                                "Bing.+batch.+",
+                                                "Bing.+batch.+",
+                                                "Bing.+batch.+",
                                                 "openstreetmap.+libpostal.+",
                                                 "openstreetmap.+street1.+",
                                                 "openstreetmap.+street2.+"))
@@ -74,7 +77,10 @@ test_that("address_geocode_all doesn't retry when street info is duplicated", {
 
   msg <- capture.output(capture.output(address_geocode_all(address_stream),type="message"))
 
-  expect_match(paste(msg,collapse="\\n"),paste0("Census.+batch.+",
+  expect_match(paste(msg,collapse="\\n"),paste0("Census batch.+",
+                                                "Returning NA results.+",
+                                                "Returning NA results.+",
+                                                "Bing batch.+",
                                                 "Returning NA results.+",
                                                 "Returning NA results.+",
                                                 "openstreetmap.+30 street.+",

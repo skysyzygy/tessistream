@@ -20,6 +20,7 @@ jobs:
       P2_API: ${{ secrets.P2_API_KEY }}
       R_KEYRING_BACKEND: "env"
       CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
+      BINGMAPS_API_KEY: ${{ secrets.BINGMAPS_API_KEY }}
     steps:
       - uses: actions/checkout@v3
 

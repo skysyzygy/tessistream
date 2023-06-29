@@ -2,7 +2,6 @@
 % Please edit documentation in R/stream_utils.R
 \name{setnafill}
 \alias{setnafill}
-\alias{setnafill_factor_character}
 \alias{setnafill_const_simple}
 \alias{setnafill_group}
 \title{setnafill}
@@ -14,8 +13,6 @@ setnafill(
   cols = seq_along(x),
   by = NA
 )
-
-setnafill_factor_character(x, type = "const", fill = NA, cols = seq_along(x))
 
 setnafill_const_simple(x, type = "const", fill = NA, cols = seq_along(x))
 
@@ -41,9 +38,6 @@ Displatches to setnafill_ functions based on column class and type of fill
 }
 \section{Functions}{
 \itemize{
-\item \code{setnafill_factor_character()}: Wrap data.table::setnafill with some logic to convert
-character and factor columns to integers and back again
-
 \item \code{setnafill_const_simple()}: Simple constant fill for factors and character
 
 \item \code{setnafill_group()}: rolling join to quickly do setnafill by groups

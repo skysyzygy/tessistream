@@ -68,21 +68,12 @@ address_geocode_all <- function(address_stream) {
     map(tidyr::unnest_wider,"params") %>%
     map(flatten)
 
-<<<<<<< HEAD
-  # RUn the queries
-  result <- geocode_combine(address_stream_parsed,
-                    queries = queries,
-                    global_params = global_params,
-                    lat = "lat", long = "lon",
-                    query_names = map_chr(queries,~paste(.$method,.$address))) %>% setDT
-=======
   # Run the queries
     result <- geocode_combine(address_stream_parsed,
                       queries = queries,
                       global_params = global_params,
                       lat = "lat", long = "lon",
                       query_names = map_chr(queries,~paste(.$method,.$address))) %>% setDT
->>>>>>> eb00468 (Add more libpostal data to geocoding, and remove blanks from address string by turning them into NAs. Don't reutrn full results because this may lead to quoting issues)
 
   # Throw away list columns
   result <- purrr::keep(result, is.atomic)

@@ -4,10 +4,10 @@
 \alias{address_create_stream}
 \title{address_create_stream}
 \usage{
-address_create_stream(freshness = as.difftime(7, units = "days"))
+address_create_stream(...)
 }
 \arguments{
-\item{freshness}{data will be at least this fresh}
+\item{...}{additional parameters passed on to stream_from_audit}
 }
 \value{
 data.table of addresses data at different points of time, no more than one

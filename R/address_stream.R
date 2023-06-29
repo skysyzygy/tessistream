@@ -39,8 +39,7 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
   . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-
     event_subtype <- timestamp <- NULL
 
-  address_stream <- address_create_stream(freshness = freshness, cols = setNames(c("street1","street2","city","state_short_desc",
-                                                                                   "postal_code","country_short_desc"),address_cols))
+  address_stream <- address_create_stream(freshness = freshness)
   address_parsed <- address_parse(address_stream)
   address_geocode <- address_geocode(address_parsed)
   address_census <- address_census(address_stream)
@@ -88,7 +87,7 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
 #'
 #' Creates address data with timestamps from TA_AUDIT_TABLE and T_ADDRESS data
 #'
-#' @param freshness data will be at least this fresh
+#' @param ... additional parameters passed on to stream_from_audit
 #'
 #' @return data.table of addresses data at different points of time, no more than one
 #' change per address per day
@@ -97,21 +96,17 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
 #' @importFrom dplyr collect transmute filter select
 #' @importFrom data.table setDT setkey
 #' @importFrom lubridate as_date
-address_create_stream <- function(freshness = as.difftime(7, units = "days")) {
+address_create_stream <- function(...) {
   . <- timestamp <- NULL
 
   p <- progressor(1)
   p("Running address_create_stream", amount = 0)
 
-<<<<<<< HEAD
-  stream_from_audit("addresses", freshness = freshness) %>%
-=======
   cols <- setNames(nm = c(address_cols,"primary_ind","inactive"))
   cols["state"] <- "state_short_desc"
   cols["country"] <- "country_short_desc"
 
   stream_from_audit("addresses", cols = cols, ...) %>%
->>>>>>> 670aa4e (Fill down primary_ind and inactive too)
     .[,timestamp := as_date(timestamp)] %>%
     stream_debounce(c("address_no","timestamp"))
 

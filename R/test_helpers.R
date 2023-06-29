@@ -55,8 +55,8 @@ address_prepare_fixtures <- function() {
     .[, N := .N, by = c("group_customer_no", "alternate_key")] %>%
     .[N > 10]
 
-  addresses <- read_tessi("addresses") %>% collect %>% setDT %>%
-    .[address_no %in% audit$alternate_key]
+  addresses <- read_tessi("addresses") %>% semi_join(audit,by=c("address_no"="alternate_key")) %>%
+    collect %>% setDT
 
   # anonymize address number
   address_map <- data.table(address_no = unique(c(audit$alternate_key, addresses$address_no)))[, I := .I]

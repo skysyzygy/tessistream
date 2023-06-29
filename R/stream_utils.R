@@ -87,49 +87,6 @@ setnafill <- function(x, type = c("const", "locf", "nocb"), fill = NA, cols = se
   x
 }
 
-#' @describeIn setnafill Wrap data.table::setnafill with some logic to convert
-#' character and factor columns to integers and back again
-setnafill_factor_character <- function(x, type = "const", fill = NA, cols = seq_along(x)) {
-  args <- as.list(match.call())[-1]
-
-  classes <- lapply(x[, cols, with = FALSE], class)
-  char_fact_cols <- cols[classes %in% c("character", "factor")]
-  char_cols <- cols[classes %in% "character"]
-
-  if (length(char_fact_cols) == 0) {
-    return(suppressWarnings(do.call(data.table::setnafill, args)))
-  }
-
-  x[, (char_fact_cols) := lapply(.SD, factor), .SDcols = char_fact_cols]
-  levels <- lapply(x[, char_fact_cols, with = FALSE], levels)
-  x[, (char_fact_cols) := lapply(.SD, as.integer), .SDcols = char_fact_cols]
-
-  if (!missing(fill)) {
-    max_length <- max(sapply(levels, length))
-    levels <- lapply(levels, function(l) {
-      l[max_length + 1] <- fill
-      l
-    })
-    fill <- max_length + 1
-    data.table::setnafill(x, type = type, fill = fill, cols = cols)
-  } else {
-    data.table::setnafill(x, type = type, cols = cols)
-  }
-
-  x[, (char_fact_cols) := lapply(seq_along(.SD), function(i) {
-    factor(.SD[[i]],
-      levels = seq_along(levels[[i]]),
-      labels = levels[[i]]
-    )
-  }), .SDcols = char_fact_cols]
-
-  if (length(char_cols) > 0) {
-    x[, (char_cols) := lapply(.SD, as.character), .SDcols = char_cols]
-  }
-
-  x
-}
-
 #' @describeIn setnafill Simple constant fill for factors and character
 setnafill_const_simple <- function(x, type = "const", fill = NA, cols = seq_along(x)) {
   if (is.integer(cols)) {

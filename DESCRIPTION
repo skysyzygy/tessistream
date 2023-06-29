@@ -1,6 +1,6 @@
 Package: tessistream
 Title: Datasets for Analytics and Machine Learning from Tessitura
-Version: 0.1.1
+Version: 0.2.0
 Authors@R: 
     person("Sky", "Syzygy", , "ssyzygy@bam.org", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
@@ -16,12 +16,13 @@ Depends:
 LazyData: true
 Suggests: 
     covr,
+    furrr,
+    future,
     mockery,
     png,
     progressr,
     rprojroot,
-    testthat (>= 3.0.0),
-    withr
+    testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Imports:
     censusxy,
@@ -29,11 +30,10 @@ Imports:
     cli,
     config,
     data.table,
+    dbplyr (> 2.3.2),
     DBI,
     dplyr,
     forcats,
-    furrr,
-    future,
     ggplot2,
     httr,
     jsonlite,
@@ -51,7 +51,10 @@ Imports:
     tidycensus,
     tidygeocoder,
     tidyr,
-    tigris
+    tigris,
+    withr,
+    tidyselect
 Remotes: 
     skysyzygy/tessilake,
-    chris-prener/censusxy
+    chris-prener/censusxy,
+    tidyverse/dbplyr

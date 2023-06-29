@@ -47,12 +47,16 @@ address_prepare_fixtures <- function() {
   tessilake:::local_cache_dirs()
 
   # only take customers with lots of changes
-  audit <- read_tessi("audit", freshness = 0) %>%
+  audit <- read_tessi("audit") %>%
     filter(table_name == "T_ADDRESS") %>%
+    dplyr::mutate(alternate_key = as.integer(alternate_key)) %>%
     collect() %>%
     setDT() %>%
     .[, N := .N, by = c("group_customer_no", "alternate_key")] %>%
     .[N > 10]
+
+  addresses <- read_tessi("addresses") %>% semi_join(audit,by=c("address_no"="alternate_key")) %>%
+    collect %>% setDT
 
   # anonymize address number
   address_map <- data.table(address_no = unique(c(audit$alternate_key, addresses$address_no)))[, I := .I]
@@ -78,6 +82,8 @@ address_prepare_fixtures <- function() {
   stream <- address_create_stream()
 
   saveRDS(stream, testthat::test_path("address_stream.Rds"))
+  saveRDS(audit, testthat::test_path("address_audit.Rds"))
+  saveRDS(addresses, testthat::test_path("addresses.Rds"))
 }
 
 

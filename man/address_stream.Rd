@@ -17,3 +17,6 @@ Create a data.table stream of addresses and timestamps, drawing from Tessitura T
 Tries each address up to six times, using \code{libpostal} parsing, \code{street1}, and \code{street2}, and the US census and openstreetmap geocoders.
 Appends census demographic and aggregate income data and iWave income data.
 }
+\note{
+Uses \link[future:future]{future::future} for parallel processing and \link[progressr:progressr]{progressr::progressr} for progress tracking
+}

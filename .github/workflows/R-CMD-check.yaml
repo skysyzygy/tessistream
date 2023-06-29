@@ -20,6 +20,7 @@ jobs:
       P2_API: ${{ secrets.P2_API_KEY }}
       R_KEYRING_BACKEND: "env"
       CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
+      BINGMAPS_API_KEY: ${{ secrets.BINGMAPS_API_KEY }}
     steps:
       - uses: actions/checkout@v3
 
@@ -43,12 +44,6 @@ jobs:
         with:
           extra-packages: any::rcmdcheck, any::devtools
           needs: check
-
-      - name: cache census fixtures
-        uses: actions/cache@v3
-        with:
-          path: ${{ github.workspace }}/tests/testthat/census_*
-          key: census_fixtures-${{ runner.os }}
 
       # - name: Setup upterm session
       #   uses: lhotari/action-upterm@v1

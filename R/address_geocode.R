@@ -3,15 +3,15 @@
 #' address_geocode
 #'
 #' Geocodes addresses using the [tidygeocoder] package.
-#' Tries each address up to six times, using `libpostal` parsing, `street1`, and `street2`, and the
-#' US census and openstreetmap geocoders.
+#' Tries each address up to six times, using `libpostal` parsing (if `libpostal.house_number` and `libpostal.road` are passed in as columnes),
+#' `street1`, and `street2`, and the US census and openstreetmap geocoders.
 #'
 #' @param address_stream data.table of addresses
 #'
 #' @return data.table of addresses, one row per address in input, must include `address_cols`. Contains only address_cols and columns returned by `tidygeocoder`
 #' @importFrom tidygeocoder geocode_combine
 #' @importFrom purrr map flatten map_chr
-#' @importFrom tidyr expand_grid
+#' @importFrom tidyr expand_grid any_of all_of
 #' @importFrom checkmate assert_data_table assert_names
 #' @describeIn address_geocode geocode all addresses
 address_geocode_all <- function(address_stream) {
@@ -20,66 +20,77 @@ address_geocode_all <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
-  address_stream_parsed <- address_parse(address_stream)
-
   # Add index columns
-  address_stream <- address_stream[,..address_cols] %>% .[,I:=.I]
-  address_stream_parsed[,I:=.I]
+  address_stream_parsed <- address_stream[,I:=.I]
+  address_stream <- address_stream[,c(address_cols,"I"),with=F]
 
   # build libpostal street name
   if(any(c("libpostal.house_number","libpostal.road") %in% colnames(address_stream_parsed))) {
      address_stream_parsed <- address_stream_parsed %>%
-      unite("libpostal.street", any_of(c("libpostal.house_number", "libpostal.road")), sep = " ", na.rm = TRUE) %>%
-      setDT
+      setunite("libpostal.street", any_of(c("libpostal.house_number", "libpostal.road", "libpostal.house")), sep = " ", na.rm = TRUE)
     address_stream_parsed[libpostal.street == "",libpostal.street := NA_character_]
     address_cols <- c("libpostal.street", address_cols)
   }
 
+  # blanks to NAs
+  for (address_col in address_cols)
+    address_stream_parsed[trimws(get(address_col)) == "",(address_col) := NA]
+
   # suppress completely missing data
   address_stream_parsed <-
     address_stream_parsed[!address_stream_parsed[,lapply(.SD,is.na),.SDcols = address_cols] %>% purrr::reduce(`&`)]
-
   if(nrow(address_stream_parsed) == 0)
-    return(address_stream[,setdiff(address_cols, "libpostal.street")])
+    return(address_stream[,setdiff(address_cols, "libpostal.street"), with = F])
 
-  # fill NAs with blanks because these aren't handled well in some parsers
-  setnafill(address_stream_parsed,"const",fill="",address_cols)
-  address_stream_parsed[,(address_cols) := lapply(.SD,as.character), .SDcols=address_cols]
+  # make address fields for queries
+  street_cols <- as.character(grep("street",address_cols,value=T))
+  address_street_cols <- paste0("address_",street_cols)
+  for (street_col in street_cols)
+    setunite(address_stream_parsed,paste0("address_",street_col),
+             all_of(c(street_col,"city","state","postal_code","country")), sep = ", ", na.rm = TRUE, remove = FALSE)
+  address_stream_parsed[,map(.SD,\(x) tolower(trimws(x))), .SDcols = address_street_cols]
 
-  global_params <- list(city = "city", state="state", postalcode = "postal_code",
-                    return_input = TRUE, full_results = TRUE)
+  # remove duplicates
+  for (i in rev(seq_along(address_street_cols)[-1]))
+    address_stream_parsed[get(address_street_cols[i]) %in% mget(address_street_cols[-i]), (address_street_cols[i]) := NA ]
+
+  global_params <- list(full_results = TRUE)
 
   # Make the list of queries to run
-  queries <- expand_grid(params = list(list(method = 'census',
+  queries <- expand_grid(params = list(list(method = "census",
                                             mode = "batch",
                                             api_options = list(census_return_type = "geographies")),
-                                       list(method = 'osm',
-                                            country = "country")),
-                         street = as.character(grep("street",address_cols,value=T))) %>%
+                                       list(method = "bing",
+                                            mode = "batch"),
+                                       list(method = "osm")),
+                         address = address_street_cols) %>%
     split(1:nrow(.)) %>%
     map(tidyr::unnest_wider,"params") %>%
     map(flatten)
 
-  # RUn the queries
-  result <- geocode_combine(address_stream_parsed,
-                    queries = queries,
-                    global_params = global_params,
-                    lat = "lat", long = "lon",
-                    query_names = map_chr(queries,~paste(.$method,.$street))) %>% setDT
+  # Run the queries
+    result <- geocode_combine(address_stream_parsed,
+                      queries = queries,
+                      global_params = global_params,
+                      lat = "lat", long = "lon",
+                      query_names = map_chr(queries,~paste(.$method,.$address))) %>% setDT
 
   # Throw away list columns
   result <- purrr::keep(result, is.atomic)
+  result[,I:=.I]
 
   result[address_stream,
          setdiff(colnames(result),colnames(address_stream_parsed)),
          with = F,
-         on = "I"] %>% cbind(address_stream) %>% .[,I:=NULL]
+         on = "I"] %>% cbind(address_stream) %>%
+    .[,intersect(c("I","Id","id"),colnames(.)):=NULL]
 
 }
 
 #' @describeIn address_geocode geocode only uncached addresses, load others from cache
 address_geocode <- function(address_stream) {
-  address_cache(address_stream, "address_geocode", address_geocode_all)
+  # limit to 50 per batch for Bing transaction limit
+  address_cache_chunked(address_stream, "address_geocode", address_geocode_all, n = 50, parallel = F)
 }
 
 #' address_reverse_census
@@ -98,14 +109,17 @@ address_reverse_census <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
-  # filter and add index columns
-  address_stream <- address_stream[,..address_cols] %>% .[,I:=.I]
-  address_stream_geocode <- address_geocode(address_stream) %>%
-    .[,c("state_fips", "county_fips", "census_tract", "census_block", "lat", "lon"), with = F] %>%
-    .[,I:=.I]
+
+  # gecode if needed and add index columns
+  address_stream[,I:=.I]
+  address_stream_geocode <- if(!all(c("state_fips", "county_fips", "census_tract", "census_block", "lat", "lon") %in% colnames(address_stream))) {
+    address_geocode(address_stream) %>% .[,.(state_fips, county_fips, census_tract, census_block, lat, lon, .I)]
+  } else {
+    address_stream
+  }
 
   # don't reverse geocode things that are already done or can't be reversed
-  to_reverse <- address_stream_geocode[is.na(census_tract) & !is.na(lat) & !is.na(lon)] %>% unique
+  to_reverse <- address_stream_geocode[is.na(census_tract) & !is.na(lat) & !is.na(lon), .(lat,lon)] %>% unique
 
   if(nrow(to_reverse) > 0) {
 
@@ -117,7 +131,7 @@ address_reverse_census <- function(address_stream) {
 
     # don't reverse things not in the US
     to_reverse <- to_reverse[as.logical(sf::st_contains(usa, points, sparse = F)), ] %>%
-      address_cache("address_reverse_census", address_reverse_census_all, key_cols = c("lat","lon"))
+      address_cache_chunked("address_reverse_census", address_reverse_census_all, key_cols = c("lat","lon"))
   }
 
   address_stream_geocode[to_reverse,
@@ -127,7 +141,7 @@ address_reverse_census <- function(address_stream) {
                               census_block=i.census_block),
                          on=c("lat","lon")]
 
-  address_stream_geocode[address_stream,on = "I"] %>% .[,I:=NULL] %>% .[]
+  address_stream_geocode[address_stream, on = "I"]
 
 }
 
@@ -150,9 +164,9 @@ address_reverse_census_all <- function(address_stream) {
 
   address_reverse <- Vectorize(cxy_geography, SIMPLIFY = FALSE)(lon = address_stream$lon,
                                                                 lat = address_stream$lat) %>%
-    purrr::modify_if(is.null,~list(NA)) %>% rbindlist(fill=T)
+    purrr::modify_if(is.null,~list(NA)) %>% rbindlist(fill = TRUE)
 
-  columns <- Vectorize(grep, "pattern")(paste0("Census\\.Blocks\\.",c("STATE","COUNTY","TRACT","BLOCK")),
+  columns <- Vectorize(grep, "pattern")(paste0("Census\\.Blocks\\.",c("STATE","COUNTY","TRACT","BLOCK"),"$"),
                                         colnames(address_reverse), value = T)
 
   address_reverse[,..columns] %>% setnames(c("state_fips","county_fips","census_tract","census_block")) %>%

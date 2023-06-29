@@ -68,7 +68,7 @@ test_that("census_get_data_all calls census_get_data once per combination of yea
 # census_features ---------------------------------------------------------
 
 .census_data <- DBI::dbReadTable(DBI::dbConnect(RSQLite::SQLite(), rprojroot::find_testthat_root_file("census_data.sqlite")), "address_census") %>% collect %>% setDT
-stub(census_data, "address_cache", .census_data)
+stub(census_data, "address_cache_chunked", .census_data)
 
 test_that("census_race_features returns all race/ethnicity data", {
   stub(census_race_features, "census_data", census_data)
@@ -222,7 +222,7 @@ test_that("address_census adds census data to address_stream", {
     timestamp = lubridate::now()
   )
 
-  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = address_cols]
   stub(address_reverse_census,"address_geocode",address_geocode)
   stub(address_census,"address_reverse_census",address_reverse_census)
   stub(address_census, "census_features", readRDS(rprojroot::find_testthat_root_file("census_features.Rds")))
@@ -237,7 +237,7 @@ test_that("address_census adds census data to address_stream", {
                  "address_native_hawaiian_and_other_pacific_islander_level", "address_other_level",  "address_white_level",
                  "address_female_level", "address_male_level",
                  "address_mean_income_level", "address_median_income_level",
-                 as.character(address_cols),"timestamp"))
+                 address_cols,"timestamp"))
 
 })
 
@@ -255,7 +255,7 @@ test_that("address_census converts demographic labels to percentages", {
     timestamp = lubridate::now()
   )
 
-  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = address_cols]
   stub(address_reverse_census,"address_geocode",address_geocode)
   stub(address_census,"address_reverse_census",address_reverse_census)
   stub(address_census, "census_features", readRDS(rprojroot::find_testthat_root_file("census_features.Rds")))
@@ -284,7 +284,7 @@ test_that("address_census replaces 0s in income columns with NA", {
     timestamp = lubridate::now()
   )
 
-  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = address_cols]
   stub(address_reverse_census,"address_geocode",address_geocode)
   stub(address_census,"address_reverse_census",address_reverse_census)
   census_features <- readRDS(rprojroot::find_testthat_root_file("census_features.Rds"))

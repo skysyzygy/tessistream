@@ -10,12 +10,12 @@
 # Sys.setenv("TAR_PROJECT"="address_stream") # nolint
 
 address_cols <- c(
-  "street1" = "street1",
-  "street2" = "street2",
-  "city" = "city",
-  "state_desc" = "state",
-  "postal_code" = "postal_code",
-  "country_desc" = "country"
+  "street1" ,
+  "street2" ,
+  "city" ,
+  "state" ,
+  "postal_code" ,
+  "country"
 )
 
 
@@ -27,6 +27,8 @@ address_cols <- c(
 #' Tries each address up to six times, using `libpostal` parsing, `street1`, and `street2`, and the US census and openstreetmap geocoders.
 #' Appends census demographic and aggregate income data and iWave income data.
 #'
+#' @note Uses [future::future] for parallel processing and [progressr::progressr] for progress tracking
+#'
 #' @param freshness data will be at least this fresh
 #'
 #' @return data.table of addresses and additional address-based features
@@ -37,22 +39,31 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
   . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-
     event_subtype <- timestamp <- NULL
 
-  address_stream <- address_create_stream(freshness = freshness) %>%
-    address_geocode(distinct(.[,..address_cols]))[., on = as.character(address_cols)] %>%
-    address_census(distinct(.[,c(address_cols,"timestamp"),with=F]))[., on = c(as.character(address_cols),"timestamp")]
+  address_stream <- address_create_stream(freshness = freshness)
+  address_parsed <- address_parse(address_stream)
+  address_geocode <- address_geocode(address_parsed)
+  address_census <- address_census(address_geocode)
 
-  i_wave <- read_tessi("iwave") %>% collect() %>% setDT()
+  address_stream <- cbind(address_stream, address_geocode[,-address_cols, with = F], address_census[,-c(address_cols, "timestamp"), with = F])
 
-  address_stream <- rbind(address_stream,
-                          i_wave[, .(group_customer_no, event_subtype = "iWave Score",
-        address_pro_score_level = pro_score,
-        address_capacity_level = capacity_value,
-        address_properties_level = properties_total_value,
-        address_donations_level = donations_total_value)],
-        fill = TRUE)
+  iwave <- read_tessi("iwave") %>% collect() %>% setDT() %>% .[,score_dt:=as_date(score_dt)]
+
+  address_stream[iwave,
+                 `:=`(address_pro_score_level = pro_score,
+                       address_capacity_level = capacity_value,
+                       address_properties_level = properties_total_value,
+                       address_donations_level = donations_total_value),
+                 on = c("group_customer_no","timestamp"="score_dt"),
+                 roll = "nearest"]
 
   address_stream[,`:=`(event_type = "Address")]
   setkey(address_stream,group_customer_no,timestamp)
+  setnafill(address_stream, "locf",
+                    cols = c("address_pro_score_level",
+                             "address_capacity_level",
+                             "address_properties_level",
+                             "address_donations_level"),
+            by = "group_customer_no")
 
   address_stream_full <- copy(address_stream)
   address_stream <- address_stream[(primary_ind == "Y" | event_subtype == "iWave Score") & group_customer_no >= 200,
@@ -76,7 +87,7 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
 #'
 #' Creates address data with timestamps from TA_AUDIT_TABLE and T_ADDRESS data
 #'
-#' @param freshness data will be at least this fresh
+#' @param ... additional parameters passed on to stream_from_audit
 #'
 #' @return data.table of addresses data at different points of time, no more than one
 #' change per address per day
@@ -85,10 +96,17 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
 #' @importFrom dplyr collect transmute filter select
 #' @importFrom data.table setDT setkey
 #' @importFrom lubridate as_date
-address_create_stream <- function(freshness = as.difftime(7, units = "days")) {
+address_create_stream <- function(...) {
   . <- timestamp <- NULL
 
-  stream_from_audit("addresses", freshness = freshness) %>%
+  p <- progressor(1)
+  p("Running address_create_stream", amount = 0)
+
+  cols <- setNames(nm = c(address_cols,"primary_ind","inactive"))
+  cols["state"] <- "state_short_desc"
+  cols["country"] <- "country_short_desc"
+
+  stream_from_audit("addresses", cols = cols, ...) %>%
     .[,timestamp := as_date(timestamp)] %>%
     stream_debounce(c("address_no","timestamp"))
 
@@ -165,7 +183,6 @@ address_exec_libpostal <- function(addresses) {
 #' @param address_stream data.table of addresses
 #'
 #' @return data.table of addresses parsed, one per row in address_stream. Contains only address_cols and libpostal columns.
-#' @importFrom tidyr unite
 #' @importFrom stringr str_detect str_match str_remove fixed
 #' @importFrom dplyr any_of distinct
 #' @importFrom checkmate assert_data_table assert_names
@@ -176,15 +193,17 @@ address_parse_libpostal <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
+  if(nrow(address_stream) == 0)
+    return(address_stream)
+
   address_stream <- address_stream[, ..address_cols]
 
   # make address string for libpostal
-  address_stream[, address := unite(.SD, "address", sep = ", ", na.rm = TRUE), .SDcols = address_cols]
+  setunite(address_stream, "address", all_of(address_cols), sep = ", ", na.rm = TRUE, remove = FALSE)
   addresses <- tolower(address_stream[!is.na(address), address])
 
   # TODO: map english numbers to numerals
   parsed <- data.table(address = addresses, address_exec_libpostal(addresses))
-  parsed <- parsed[address_stream$address, on = "address"]
   parsed[, I := .I]
 
   # add columns if they don't exist
@@ -235,8 +254,8 @@ address_parse_libpostal <- function(address_stream) {
     function(col) {
       parsed[!is.na(unit), (col) := str_remove(
         get(col),
-        # Escape the unit so that it can work as a regex
-        paste0("(^|\\W+)", str_replace_all(unit, "[^a-z0-9]", "\\$0"), "(\\W+|$)")
+        # Escape special characters in the unit so that it can work as a regex
+        paste0("(^|\\W+)", str_replace_all(unit, "[.+*?^$()\\[\\]{}|\\\\]", "\\$0"), "(\\W+|$)")
       )]
       parsed[!is.na(unit) & get(col) == "", (col) := NA_character_]
     }
@@ -244,22 +263,21 @@ address_parse_libpostal <- function(address_stream) {
 
   # Now merge everything else together
   if (any(c("unit", "level", "entrance", "staircase") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = TRUE)
+    setunite(parsed, "unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = TRUE)
   }
   if (any(c("house", "category", "near") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("house", any_of(c("house", "category", "near")), sep = " ", na.rm = TRUE)
+    setunite(parsed, "house", any_of(c("house", "category", "near")), sep = " ", na.rm = TRUE)
   }
   if (any(c("suburb", "city_district", "city", "island") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = TRUE)
+    setunite(parsed, "city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = TRUE)
   }
   if (any(c("state_district", "state") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("state", any_of(c("state_district", "state")), sep = ", ", na.rm = TRUE)
+    setunite(parsed, "state", any_of(c("state_district", "state")), sep = ", ", na.rm = TRUE)
   }
   if (any(c("country_region", "country", "world_region") %in% colnames(parsed))) {
-    parsed <- parsed %>% unite("country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = TRUE)
+    setunite(parsed, "country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = TRUE)
   }
 
-  setDT(parsed)
   # ok maybe we're finally done. Let's clean up
   parsed_cols <- intersect(colnames(parsed),c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode"))
 
@@ -282,7 +300,7 @@ address_parse_libpostal <- function(address_stream) {
 #' @return data.table of addresses parsed
 #' @importFrom dplyr collect
 address_parse <- function(address_stream) {
-  address_cache(address_stream, "address_parse", address_parse_libpostal)
+  address_cache_chunked(address_stream, "address_parse", address_parse_libpostal)
 }
 
 #' address_cache
@@ -291,45 +309,45 @@ address_parse <- function(address_stream) {
 #'
 #' @param address_stream data.table of addresses
 #' @param cache_name name of cache file
-#' @param key_cols as.character(address_cols)
+#' @param key_cols address_cols
 #' @param .function function to be called for processing, is sent `address_stream[address_cols]` and additional parameters.
 #' @param db_name path to sqlite database, defaults to `tessilake::cache_path("address_stream.sqlite","deep","stream")`
 #' @param ... additional options passed to `.function`
 #'
 #' @return data.table of addresses processed
-#' @importFrom dplyr collect tbl
+#' @importFrom dplyr collect tbl semi_join
 #' @importFrom utils head capture.output
 address_cache <- function(address_stream, cache_name, .function,
-                          key_cols = as.character(address_cols),
+                          key_cols = address_cols,
                           db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
   assert_data_table(address_stream)
-  assert_names(colnames(address_stream), must.include = key_cols)
 
   if (!dir.exists(dirname(db_name))) {
     dir.create(dirname(db_name))
   }
 
-  cache_db <- DBI::dbConnect(RSQLite::SQLite(), db_name)
+  cache_db <- DBI::dbConnect(RSQLite::SQLite(), db_name,
+# Don't set synchronous pragma because this may fail for parallel writes
+                             synchronous = NULL)
   withr::defer(DBI::dbDisconnect(cache_db))
+  RSQLite::sqliteSetBusyHandler(cache_db, 60000)
 
-  key_cols <- intersect(key_cols, colnames(address_stream))
-
-  address_stream_distinct <- address_stream[,..key_cols] %>% unique
+  key_cols_available <- intersect(key_cols, colnames(address_stream))
+  address_stream_distinct <- unique(address_stream, by = key_cols_available)
 
   if (!DBI::dbExistsTable(cache_db, cache_name)) {
     # Cache doesn't yet exist
     cache <- NULL
     cache_miss <- address_stream_distinct
-    db_function <- DBI::dbWriteTable
 
   } else {
-    cache <- DBI::dbReadTable(cache_db, cache_name) %>% setDT()
-    cache_miss <- address_stream_distinct[!cache, ..key_cols, on = as.character(key_cols)]
-    db_function <- DBI::dbAppendTable
+    cache <- tbl(cache_db, cache_name) %>%
+      semi_join(address_stream_distinct, by = key_cols_available, copy = TRUE, na_matches = "na", auto_index = TRUE) %>% collect %>% setDT
+    cache_miss <- address_stream_distinct[!cache, on = as.character(key_cols_available)]
   }
 
   if(nrow(cache_miss) > 0) {
-    cache_miss <- .function(cache_miss, ...)
+    cache_miss <- .function(cache_miss,...)
 
     if (DBI::dbExistsTable(cache_db, cache_name)) {
 
@@ -337,23 +355,72 @@ address_cache <- function(address_stream, cache_name, .function,
       input_schema <- sapply(cache_miss,typeof)
       matching_names <- intersect(names(cache_schema), names(input_schema))
 
-      if(any(cache_schema[matching_names] != input_schema[matching_names]))
-        rlang::abort(c("Identical column names used for different column types, can't cache table.",
-                      "cache schema:",
-                      capture.output(print(cache_schema[matching_names])),
-                      "input_schema:",
-                      capture.output(print(input_schema[matching_names]))))
-
       new_columns <- input_schema[setdiff(names(input_schema), names(cache_schema))]
       purrr::imap(new_columns,~DBI::dbExecute(cache_db, paste0("ALTER TABLE ",cache_name," ADD COLUMN [",.y,"] [",.x,"]")))
     }
 
-    db_function(cache_db, cache_name, cache_miss)
+    tryCatch({
+      DBI::dbWriteTable(cache_db, cache_name, cache_miss)
+      DBI::dbExecute(cache_db, paste("CREATE UNIQUE INDEX",
+                                           paste(cache_name,"index",sep="_"),
+                                           "ON",cache_name,
+                                           "(",paste(key_cols, collapse = ", "),")"))
+    },
+             error = function(e){
+               if(!grepl("exists in database",e$message))
+                 warning(e$message)
+               DBI::dbAppendTable(cache_db, cache_name, cache_miss)
+             })
+
 
     cache <- rbind(cache, cache_miss, fill = TRUE)
   }
 
-  address_stream <- cache[address_stream[, ..key_cols], on = key_cols]
+  address_stream <- cache[address_stream[, ..key_cols_available], on = key_cols_available]
 
   return(address_stream)
+}
+
+#' @param parallel boolean whether to run chunks in parallel, defaults to `TRUE` when `furrr` is installed.
+#' @param n integer chunk size
+#' @describeIn address_cache Parallel wrapper around address_cache using [furrr::furrr] and [progressr::progressr]
+address_cache_chunked <- function(address_stream, cache_name, .function,
+                                   key_cols = address_cols,
+                                   db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
+                                   parallel = rlang::is_installed("furrr"),
+                                   n = 100, ...) {
+  . <- NULL
+
+  if(nrow(address_stream) == 0)
+    return()
+
+  mapper <-
+  if(parallel) {
+    function(...) {
+      furrr::future_map(.options = furrr::furrr_options(seed = TRUE), ...)
+    }
+  } else {
+    purrr::map
+  }
+
+  key_cols_available <- intersect(key_cols, colnames(address_stream))
+  address_stream_distinct <- unique(address_stream, by = key_cols_available)
+
+  chunks <- if(nrow(address_stream_distinct) > n) {
+    address_stream_distinct %>% split(rep(seq(1:nrow(.)), each = n, length.out = nrow(.)))
+  } else {
+    list(address_stream_distinct)
+  }
+
+  p <- progressor(length(chunks))
+  p(paste("Caching address results for",cache_name), amount = 0)
+
+  address_stream_distinct <- mapper(chunks, ~progress_expr(address_cache(address_stream = .,
+                                           cache_name = cache_name, .function = .function,
+                                           key_cols = key_cols, db_name = db_name),
+                                           .progress = p)) %>%
+    rbindlist(fill = TRUE)
+
+  address_stream_distinct[address_stream[, ..key_cols_available], on = key_cols_available]
+
 }

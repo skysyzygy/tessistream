@@ -10,19 +10,10 @@
 census_variables <- function() {
   label <- concept <- name <- type <- sex <- age <- dataset <- race <- measure <- NULL
 
-  load_variables <- function(year) {
-    map(c("acs5/profile","sf1","sf3"),
-               ~try(
-                 cbind(tidycensus::load_variables(year, ., cache = TRUE),
-                       dataset = .,
-                       year = year),
-                 silent = TRUE)
-    )
-  }
+  datasets <- expand_grid(year = seq(2000,year(Sys.Date())),
+                          dataset = c("acs5/profile","sf1","sf3")) %>% setDT
 
-  variables <- map(seq(1990,year(Sys.Date())), load_variables) %>%
-    map(discard,~!is.data.frame(.)) %>%
-    flatten() %>% rbindlist(fill=T)
+  variables <- .mapply(census_variables_load, datasets, list()) %>% rbindlist
 
   variables[grepl("^(number|estimate|total)",label, ignore.case = TRUE) & (
     grepl("sex and age",label,ignore.case=T) | grepl("^sex by age( \\[49|$)",concept,ignore.case=T)) &
@@ -53,6 +44,16 @@ census_variables <- function() {
 
 }
 
+census_variables_load <- function(year, dataset) {
+  . <- NULL
+
+  tryCatch(load_variables(year, dataset, cache = TRUE) %>% setDT %>% .[,`:=`(year = year,
+                                                                             dataset = dataset)],
+           error = \(e) data.table())
+
+
+}
+
 #' census_get_data
 #'
 #' Wrapper around [tidycensus::get_decennial] and [tidycensus::get_acs]
@@ -64,6 +65,7 @@ census_variables <- function() {
 #' @return data.table of census data
 #' @importFrom tidycensus get_decennial get_acs
 #' @importFrom checkmate assert_integerish
+#' @importFrom purrr map
 census_get_data <- function(year,dataset,variables) {
   . <- NULL
 
@@ -77,7 +79,7 @@ census_get_data <- function(year,dataset,variables) {
     get_acs
   }
 
-  census_data <- furrr::future_map(tidycensus::fips_codes[,"state_code"] %>% unique,
+  census_data <- map(tidycensus::fips_codes[,"state_code"] %>% unique,
     ~try(census_getter(geography = "tract",
                   variables = variables,
                   year = year,
@@ -102,14 +104,15 @@ census_get_data <- function(year,dataset,variables) {
 #' @describeIn census_data Loads census data through cache
 census_data <- function(census_variables, ...) {
 
-  address_cache(census_variables, "address_census", census_get_data_all,
-                key_cols = c("year","dataset","variable"),
+  address_cache_chunked(census_variables, "address_census", census_get_data_all, n = 10,
+                key_cols = c("year","dataset","variable","GEOID"),
                 ...) %>%
     merge(census_variables, by=c("year","dataset","variable"))
 
 }
 
 #' @describeIn census_data Loads census data (does not cache)
+#' @importFrom data.table uniqueN
 census_get_data_all <- function(census_variables) {
   assert_data_table(census_variables)
   assert_names(colnames(census_variables), must.include = c("year","dataset","variable"))
@@ -197,7 +200,7 @@ address_census <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = c(address_cols,"timestamp"))
 
-  address_stream <- cbind(address_reverse_census(address_stream[,..address_cols,with=F]),
+  address_stream <- cbind(address_reverse_census(address_stream),
                           timestamp = address_stream$timestamp) %>%
     .[,`:=`(GEOID = paste0(state_fips,county_fips,census_tract),
             year = year(address_stream$timestamp))]

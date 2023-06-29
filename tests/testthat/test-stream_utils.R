@@ -73,13 +73,13 @@ test_that("setnafill const works with characters and factors", {
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     letters[.]
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
   setnafill(x, cols = char_cols, type = "const", fill = "z")
   setnafill(xf, cols = char_cols, type = "const", fill = "z")
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     match(., letters)
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
   expect_equal(x, data.table::setnafill(y, cols = char_cols, type = "const", fill = 26))
   expect_equal(xf, data.table::setnafill(y, cols = char_cols, type = "const", fill = 26))
 })
@@ -89,13 +89,13 @@ test_that("setnafill locf works with characters and factors", {
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     letters[.]
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
   setnafill(x, cols = cols, type = "locf")
   setnafill(xf, cols = cols, type = "locf")
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     match(., letters)
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
   expect_equal(x, data.table::setnafill(y, cols = cols, type = "locf"))
   expect_equal(xf, data.table::setnafill(y, cols = cols, type = "locf"))
 })
@@ -105,13 +105,13 @@ test_that("setnafill nocb works with characters and factors", {
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     letters[.]
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
   setnafill(x, cols = cols, type = "nocb")
   setnafill(xf, cols = cols, type = "nocb")
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     match(., letters)
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
   expect_equal(x, data.table::setnafill(y, cols = cols, type = "nocb"))
   expect_equal(xf, data.table::setnafill(y, cols = cols, type = "nocb"))
 })
@@ -230,7 +230,6 @@ test_that("stream_from_audit has creation data from base_table overwritten by au
   comparison <- merge(merge(creation_data,base_data,by=c("id","variable"),all=T,suffix=c("",".base")),
                       audit_data,by.x=c("id","variable"),by.y=c("alternate_key","column_updated"),all.x=T)
 
-
   # if there's audit data, it goes to creation row
   expect_equal(comparison[!is.na(old_value) & (old_value==value)],
                comparison[!is.na(old_value)])
@@ -279,3 +278,47 @@ test_that("stream_from_audit has all audit changes and carries them forward", {
   comparison <- audit_table[change_data,on=c("alternate_key"="id","column_updated"="variable","date"="timestamp"),roll=Inf]
   expect_equal(comparison[new_value!=value,.N],0)
 })
+
+test_that("stream_from_audit handles extra cols and renaming of cols using the `cols` argument", {
+  read_tessi <- mock(audit_table, base_table[,.(id,apple = a,bacon = b,xylophone = x)])
+  stub(stream_from_audit, "read_tessi", read_tessi)
+
+  stream <- stream_from_audit("dummy", cols = c("a"="apple","b"="bacon","x"="xylophone"))
+
+  expect_named(stream,c("id","timestamp","event_subtype","group_customer_no","customer_no","action","last_updated_by","a","b","c","d","x"),
+               ignore.order = TRUE)
+  expect_lte(stream[!is.na(c) & !is.na(d),.N], stream[!is.na(a) & !is.na(b) & !is.na(x),.N])
+})
+
+
+# setunite -------------------------------------------------------------------
+
+test_that("setunite combines named columns", {
+  data <- data.table(a = letters, b = LETTERS)
+  setunite(data, "c", a, b, sep = "!")
+  expect_equal(data, data.table(c=paste(letters, LETTERS, sep = "!")))
+})
+
+test_that("setunite combines named columns tidily", {
+  data <- data.table(a = letters, b = LETTERS)
+  col <- "b"
+  setunite(data, "c", dplyr::all_of(c("a", col)), sep = "!")
+  expect_equal(data, data.table(c=paste(letters, LETTERS, sep = "!")))
+})
+
+test_that("setunite combines named columns with NAs", {
+  data <- data.table(a = letters, b = NA_character_)
+  setunite(data, "c", a, b, sep = "!")
+  expect_equal(data, data.table(c=paste(letters, NA, sep = "!")))
+
+  data <- data.table(a = letters, b = NA_character_)
+  setunite(data, "c", a, b, sep = "!", na.rm = TRUE)
+  expect_equal(data, data.table(c=letters))
+})
+
+test_that("setunite keeps old columns around if remove = FALSE", {
+  data <- data.table(a = letters, b = LETTERS)
+  setunite(data, "c", a, b, sep = "!", remove = FALSE)
+  expect_equal(data, data.table(a = letters, b = LETTERS, c=paste(letters, LETTERS, sep = "!")))
+})
+

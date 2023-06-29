@@ -6,10 +6,7 @@ tessilake:::local_cache_dirs()
 do_geocoding <- T
 
 # address_geocode_all --------------------------------------------------
-stub(address_geocode_all,"address_parse",function(.tbl){.tbl[,..address_cols]})
-
-test_that("address_geocode_all works with and without libpostal data", {
-  stub(address_geocode_all,"address_parse",function(.tbl){cbind(.tbl,libpostal.house_number = "30", libpostal.road = "libpostal.road")})
+test_that("address_geocode_all uses libpostal and non-libpostal data", {
 
   address_stream <- data.table(
     street1 = "30 street1",
@@ -24,18 +21,17 @@ test_that("address_geocode_all works with and without libpostal data", {
   stub(address_geocode_all,"geocode_combine",geocode_combine)
 
   address_geocode_all(address_stream)
-  expect_equal(mock_args(geocode_combine)[[1]][[1]]$libpostal.street,"30 libpostal.road")
+  expect_equal(mock_args(geocode_combine)[[1]][[1]]$street1,"30 street1")
+  expect_false("libpostal.street" %in% colnames(mock_args(geocode_combine)[[1]][[1]]))
 
-  stub(address_geocode_all,"address_parse",function(.tbl){.tbl})
+  address_stream <- cbind(address_stream,libpostal.house_number = "30", libpostal.road = "libpostal.road")
 
   address_geocode_all(address_stream)
-  expect_equal(mock_args(geocode_combine)[[2]][[1]]$street1,"30 street1")
-  expect_false("libpostal.street" %in% colnames(mock_args(geocode_combine)[[2]][[1]]))
+  expect_equal(mock_args(geocode_combine)[[2]][[1]]$libpostal.street,"30 libpostal.road")
 
 })
 
-test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder", {
-  stub(address_geocode_all,"address_parse",function(.tbl){cbind(.tbl,libpostal.house_number = "30", libpostal.road = "libpostal.road")})
+test_that("address_geocode_all runs census + bing + osm x 3 queries using tidygeocoder", {
 
   address_stream <- data.table(
     street1 = "30 street1",
@@ -43,7 +39,9 @@ test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder"
     city = "Brooklyn",
     state = "NY",
     country = "USA",
-    postal_code = "11217"
+    postal_code = "11217",
+    libpostal.house_number = "30",
+    libpostal.road = "libpostal.road"
   )
 
   geocode_combine <- function(global_params,...) { tidygeocoder::geocode_combine(global_params = c(global_params, no_query = TRUE), ...)}
@@ -53,11 +51,43 @@ test_that("address_geocode_all runs census + osm x 3 queries using tidygeocoder"
   expect_match(paste(msg,collapse="\\n"),paste0("Census.+batch.+",
                                                 "Census.+batch.+",
                                                 "Census.+batch.+",
+                                                "Bing.+batch.+",
+                                                "Bing.+batch.+",
+                                                "Bing.+batch.+",
                                                 "openstreetmap.+libpostal.+",
                                                 "openstreetmap.+street1.+",
                                                 "openstreetmap.+street2.+"))
 
 })
+
+test_that("address_geocode_all doesn't retry when street info is duplicated", {
+  address_stream <- data.table(
+    street1 = "30 street",
+    street2 = "30 street",
+    city = "Brooklyn",
+    state = "NY",
+    country = "USA",
+    postal_code = "11217",
+    libpostal.house_number = "30",
+    libpostal.road = "street"
+  )
+
+  geocode_combine <- function(global_params,...) { tidygeocoder::geocode_combine(global_params = c(global_params, no_query = TRUE), ...)}
+  stub(address_geocode_all,"geocode_combine",geocode_combine)
+
+  msg <- capture.output(capture.output(address_geocode_all(address_stream),type="message"))
+
+  expect_match(paste(msg,collapse="\\n"),paste0("Census batch.+",
+                                                "Returning NA results.+",
+                                                "Returning NA results.+",
+                                                "Bing batch.+",
+                                                "Returning NA results.+",
+                                                "Returning NA results.+",
+                                                "openstreetmap.+30 street.+",
+                                                "Returning NA results.+",
+                                                "Returning NA results.+"))
+})
+
 
 if(do_geocoding) {
   test_that("address_geocode_all gets US and international addresses", {
@@ -144,6 +174,7 @@ test_that("address_geocode_all suppresses completely missing data because geocod
 })
 
 
+
 test_that("address_geocode_all returns one row per incoming address", {
   stub(address_geocode_all,"geocode_combine",function(.tbl,...) { cbind(.tbl,lat=123,lon=456)})
 
@@ -164,7 +195,7 @@ test_that("address_geocode_all returns one row per incoming address", {
   expect_equal(result[,..address_cols],address_stream[,..address_cols])
   expect_equal(result$lat,rep(123,nrow(address_stream)))
   expect_equal(result$lon,rep(456,nrow(address_stream)))
-  expect_named(result, c(as.character(address_cols),"lat","lon"), ignore.order = TRUE)
+  expect_named(result, c(address_cols,"lat","lon"), ignore.order = TRUE)
 })
 
 test_that("address_geocode_all doesn't copy input data.table", {
@@ -245,12 +276,13 @@ test_that("address_reverse_census filters out non-US addresses based on lat/lon"
     postal_code = c("11217","E14 5EU")
   )
 
-  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = address_cols]
   address_reverse_census_all <- mock(address_geocode[,.(lat,lon,state_fips,county_fips,census_tract = "address_reverse_census",census_block)])
   address_geocode$census_tract <- NA
 
   stub(address_reverse_census,"address_reverse_census_all",address_reverse_census_all)
   stub(address_reverse_census,"address_geocode",address_geocode)
+  stub(address_reverse_census,"address_cache_chunked",function(..., parallel){address_cache_chunked(..., parallel = FALSE)})
 
   expect_message(res <- address_reverse_census(address_stream))
   expect_equal(nrow(mock_args(address_reverse_census_all)[[1]][[1]]),1)
@@ -270,7 +302,7 @@ test_that("address_reverse_census combines census data from address_geocode and 
     postal_code = "11217"
   )
 
-  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = address_cols]
   address_reverse_census_all <- mock(address_geocode[2,.(lat,lon,state_fips,county_fips,census_tract = "oops",census_block)])
   address_geocode[street1 == "30 Lafayette Ave", census_tract := NA]
   address_geocode[street1 == "321 Ashland Pl", census_tract := "address_geocode"]
@@ -281,6 +313,20 @@ test_that("address_reverse_census combines census data from address_geocode and 
   expect_message(res <- address_reverse_census(address_stream))
   expect_length(mock_args(address_reverse_census_all),0)
   expect_equal(res$census_tract, c("address_reverse_census","address_geocode"))
+
+})
+
+test_that("address_reverse_census doesn't call address_geocode if it's already passed in" ,{
+
+  address_stream_already_geocoded <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
+  address_reverse_census_all <- mock(address_geocode[2,.(lat,lon,state_fips,county_fips,census_tract = "oops",census_block)])
+
+  address_geocode <- mock()
+  stub(address_reverse_census,"address_reverse_census_all",address_reverse_census_all)
+  stub(address_reverse_census,"address_geocode",address_geocode)
+
+  expect_message(res <- address_reverse_census(address_stream_already_geocoded))
+  expect_length(mock_args(address_geocode),0)
 
 })
 

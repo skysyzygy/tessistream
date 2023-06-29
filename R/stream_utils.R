@@ -87,49 +87,6 @@ setnafill <- function(x, type = c("const", "locf", "nocb"), fill = NA, cols = se
   x
 }
 
-#' @describeIn setnafill Wrap data.table::setnafill with some logic to convert
-#' character and factor columns to integers and back again
-setnafill_factor_character <- function(x, type = "const", fill = NA, cols = seq_along(x)) {
-  args <- as.list(match.call())[-1]
-
-  classes <- lapply(x[, cols, with = FALSE], class)
-  char_fact_cols <- cols[classes %in% c("character", "factor")]
-  char_cols <- cols[classes %in% "character"]
-
-  if (length(char_fact_cols) == 0) {
-    return(suppressWarnings(do.call(data.table::setnafill, args)))
-  }
-
-  x[, (char_fact_cols) := lapply(.SD, factor), .SDcols = char_fact_cols]
-  levels <- lapply(x[, char_fact_cols, with = FALSE], levels)
-  x[, (char_fact_cols) := lapply(.SD, as.integer), .SDcols = char_fact_cols]
-
-  if (!missing(fill)) {
-    max_length <- max(sapply(levels, length))
-    levels <- lapply(levels, function(l) {
-      l[max_length + 1] <- fill
-      l
-    })
-    fill <- max_length + 1
-    data.table::setnafill(x, type = type, fill = fill, cols = cols)
-  } else {
-    data.table::setnafill(x, type = type, cols = cols)
-  }
-
-  x[, (char_fact_cols) := lapply(seq_along(.SD), function(i) {
-    factor(.SD[[i]],
-      levels = seq_along(levels[[i]]),
-      labels = levels[[i]]
-    )
-  }), .SDcols = char_fact_cols]
-
-  if (length(char_cols) > 0) {
-    x[, (char_cols) := lapply(.SD, as.character), .SDcols = char_cols]
-  }
-
-  x
-}
-
 #' @describeIn setnafill Simple constant fill for factors and character
 setnafill_const_simple <- function(x, type = "const", fill = NA, cols = seq_along(x)) {
   if (is.integer(cols)) {
@@ -149,9 +106,10 @@ setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
   setkey(x, I)
   roll <- ifelse(type == "locf", Inf, -Inf)
 
+  .x <- x
   lapply(cols, function(col) {
-    i <- is.na(x[, col, with = FALSE][[1]])
-    x[i, (col) := x[!i][x[i], col, on = na.omit(c(by, "I")), roll = roll, with = FALSE]]
+    idx <- is.na(.x[, col, with = FALSE][[1]])
+    .x[idx, (col) := .x[!idx][.x[idx], col, on = na.omit(c(by, "I")), roll = roll, with = FALSE]]
   })
 
   x[, I := NULL]
@@ -186,9 +144,12 @@ stream_debounce <- function(stream, ...) {
 
 #' stream_from_audit
 #'
-#' Helper function to load data from the audit table
+#' Helper function to load data from the audit table and base table identified by `table_name`
 #'
 #' @param table_name character table name as in `tessilake::tessi_list_tables` `short_name` or `long_name`
+#' @param cols character vector of columns that will be used from the audit and base table.
+#' The names of the vector are the column names as identified in the audit table, the values are the column names as identified in the base table.
+#' *Default: column names from the audit table.*
 #' @param ... extra arguments passed on to `tessilake::read_tessi`
 #'
 #' @importFrom dplyr transmute filter coalesce
@@ -196,7 +157,7 @@ stream_debounce <- function(stream, ...) {
 #' @importFrom tessilake read_tessi tessi_list_tables
 #' @importFrom rlang sym syms
 #'
-stream_from_audit <- function(table_name, ...) {
+stream_from_audit <- function(table_name, cols = NULL, ...) {
   . <- primary_keys <- group_customer_no <- customer_no <- action <-
     new_value <- old_value <- alternate_key <- userid <- column_updated <-
     create_dt <- created_by <- last_update_dt <- last_updated_by <- event_subtype <- NULL
@@ -236,7 +197,9 @@ stream_from_audit <- function(table_name, ...) {
   setkeyv(audit,c(pk_name,"timestamp"))
 
   base_table <- read_tessi(short_name, ...)
-  cols <- unique(audit$column_updated)
+  cols <- cols %||% unique(audit$column_updated)
+  if(is.null(names(cols)))
+    names(cols) <- cols
 
   stream_creation <- base_table %>%
     transmute(group_customer_no,customer_no,
@@ -252,7 +215,7 @@ stream_from_audit <- function(table_name, ...) {
               event_subtype = "Current",
               timestamp = last_update_dt,
               !!sym(pk_name),
-              !!!syms(intersect(cols,colnames(base_table))),
+              !!!syms(cols[cols %in% colnames(base_table)]),
               last_updated_by) %>%
     collect() %>%
     setDT()
@@ -273,7 +236,7 @@ stream_from_audit <- function(table_name, ...) {
 
   # Data fill-in based on audit old_value -- all other old_values are captured within the audit table itself
   stream <- stream[audit_creation,
-                 (cols) := mget(paste0("i.",cols), ifnotfound = NA_character_),
+                 (names(cols)) := mget(paste0("i.",names(cols)), ifnotfound = NA_character_),
                  on = c(pk_name, "event_subtype")
   ]
 
@@ -282,10 +245,41 @@ stream_from_audit <- function(table_name, ...) {
 
   setkeyv(stream, c(pk_name, "event_subtype", "timestamp"))
   # Fill-down changes
-  setnafill(stream, "locf", cols = cols, by = pk_name)
+  setnafill(stream, "locf", cols = names(cols), by = pk_name)
   # And then fill back up for non-changes
-  setnafill(stream, "nocb", cols = cols, by = pk_name)
+  setnafill(stream, "nocb", cols = names(cols), by = pk_name)
 
   stream_debounce(stream,!!pk_name,"timestamp")
+
+}
+
+
+#' setunite
+#'
+#' Convenience function to paste together multiple columns into one. Thin wrapper around [tidyr::unite]
+#'
+#' @param data data.table to act on
+#' @param col The name of the new column, as a string or symbol.
+#' @param ... `<tidy-select>` Columns to unite
+#' @param sep Separator to use between values.
+#' @param remove If `TRUE`, the default, remove input columns from output data frame.
+#' @param na.rm If `TRUE`, missing values will be removed prior to uniting each value.
+#' @export
+setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
+  . <- NULL
+
+  assert_data_table(data)
+
+  col <- rlang::as_name(col)
+  cols <- colnames(data)[tidyselect::eval_select(rlang::expr(c(...)),data)]
+
+  united <- tidyr::unite(data[,cols,with=F], col, dplyr::all_of(cols), sep = sep, remove = TRUE, na.rm = na.rm) %>%
+    setDT %>% .[,col]
+
+  data[, (col) := united]
+
+  cols_to_remove <- setdiff(cols,col)
+  if(remove && length(cols_to_remove) > 0)
+    data[, (cols_to_remove) := NULL]
 
 }

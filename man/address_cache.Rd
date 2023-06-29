@@ -2,14 +2,26 @@
 % Please edit documentation in R/address_stream.R
 \name{address_cache}
 \alias{address_cache}
+\alias{address_cache_chunked}
 \title{address_cache}
 \usage{
 address_cache(
   address_stream,
   cache_name,
   .function,
-  key_cols = as.character(address_cols),
+  key_cols = address_cols,
   db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
+  ...
+)
+
+address_cache_chunked(
+  address_stream,
+  cache_name,
+  .function,
+  key_cols = address_cols,
+  db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
+  parallel = rlang::is_installed("furrr"),
+  n = 100,
   ...
 )
 }
@@ -20,11 +32,15 @@ address_cache(
 
 \item{.function}{function to be called for processing, is sent \code{address_stream[address_cols]} and additional parameters.}
 
-\item{key_cols}{as.character(address_cols)}
+\item{key_cols}{address_cols}
 
 \item{db_name}{path to sqlite database, defaults to \code{tessilake::cache_path("address_stream.sqlite","deep","stream")}}
 
 \item{...}{additional options passed to \code{.function}}
+
+\item{parallel}{boolean whether to run chunks in parallel, defaults to \code{TRUE} when \code{furrr} is installed.}
+
+\item{n}{integer chunk size}
 }
 \value{
 data.table of addresses processed
@@ -32,3 +48,8 @@ data.table of addresses processed
 \description{
 Handles caching of already-processed addresses so that they're only processed once
 }
+\section{Functions}{
+\itemize{
+\item \code{address_cache_chunked()}: Parallel wrapper around address_cache using \link[furrr:furrr-package]{furrr::furrr} and \link[progressr:progressr]{progressr::progressr}
+
+}}

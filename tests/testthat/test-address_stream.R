@@ -12,13 +12,15 @@ addresses <- readRDS(test_path("addresses.Rds"))
 local({
   tessilake:::local_cache_dirs()
 
-  test_that("address_stream combines data from address_census, address_geocode, and read_tessi and returns all rows and a subset of columns", {
+  test_that("address_stream combines data from address_parse, address_census, address_geocode, and read_tessi and returns all rows and a subset of columns", {
 
     address_stream_original <- readRDS(rprojroot::find_testthat_root_file("address_stream.Rds"))
     stub(address_stream, "address_create_stream", address_stream_original)
+    stub(address_stream, "address_parse", cbind(distinct(address_stream_original[,..address_cols]),libpostal =
+          data.table()[,c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode") := NA_character_]))
 
     address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
-    stub(address_stream, "address_geocode", address_geocode)
+    stub(address_stream, "address_geocode", address_geocode[address_stream_original,on=address_cols])
 
     stub(address_reverse_census,"address_geocode",address_geocode)
     stub(address_census,"address_reverse_census",address_reverse_census)
@@ -28,17 +30,23 @@ local({
     iwave <- readRDS(rprojroot::find_testthat_root_file("address_iwave.Rds"))
     stub(address_stream, "read_tessi", iwave)
 
-    expect_message(address_stream <- address_stream())
+    suppressMessages(address_stream <- address_stream() %>% collect)
 
+    # output is the same length as input
     expect_equal(nrow(address_stream),
-                 nrow(address_stream_original[group_customer_no >= 200 & primary_ind == "Y"]) +
-                 nrow(iwave))
+                 nrow(address_stream_original[group_customer_no >= 200 & primary_ind == "Y"]))
 
+    # the correct iwave data was appended
+    expect_equal(address_stream[!is.na(address_pro_score_level),.N],
+                 address_stream[iwave, on = "group_customer_no"][timestamp > score_dt,.N])
+
+    # has all the stream column names
     expect_true(all(colnames(address_stream) %in% c(address_cols, "lat", "lon",
                                                     "event_type", "event_subtype", "group_customer_no", "address_no",
                                                     "timestamp", "address_no") |
                     grepl("^address.+level$",colnames(address_stream))))
 
+    # has all the census data appended
     expect_equal(sum(grepl("median_income|over_65|male|african_american",colnames(address_stream))),4)
 
   })
@@ -95,13 +103,14 @@ test_that("address_create_stream fills in all data", {
   stream <- address_create_stream()
   audit[, address_no := as.integer(alternate_key)]
 
-  missing_data <- data.table::melt(stream, measure.vars = address_cols)[is.na(value)]
+  missing_data <- data.table::melt(stream, measure.vars = c(address_cols,"primary_ind","inactive"))[is.na(value)]
   # none of these data exist in the audit table
   expect_equal(audit[missing_data, , on = c("address_no", "column_updated" = "variable")] %>%
                  .[!is.na(date), .N], 0)
 
   # none of these data exist as the latest address data
-  latest_data <- data.table::melt(addresses, measure.vars = names(address_cols))[!is.na(value)]
+  latest_data <- data.table::melt(addresses, measure.vars = c("street1","street2","city",state = "state_short_desc",
+                                                              "postal_code",country = "country_short_desc"))[!is.na(value)]
   expect_equal(latest_data[missing_data, , on = c("address_no", "variable")] %>%
                  .[!is.na(create_dt), .N], 0)
 
@@ -208,7 +217,7 @@ test_that("address_parse_libpostal sends a lowercase character vector to libpost
 
 test_that("address_parse_libpostal handles unit #s hidden in postalcode, street2, and road", {
   address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(
-    street1 = 1:8,
+    street1 = paste(1:8,"Main Street"),
     street2 = c("4k", rep(NA, 7)),
     postal_code = rep("11217", 8)
   )]
@@ -228,7 +237,7 @@ test_that("address_parse_libpostal handles unit #s hidden in postalcode, street2
   expect_equal(parsed$libpostal.road, c(rep("lafayette ave", 7), "lafayette ave w"))
 })
 test_that("address_parse_libpostal cleans up duplicated unit #s", {
-  address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(street1 = 1:8)]
+  address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(street1 = paste(1:8,"Main Street"))]
 
   libpostal_return <- data.table(
     "road" = c("lafayette ave", "lafayette st e"),
@@ -260,13 +269,13 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
     as.list() %>%
     setDT() %>%
     .[rep(1, 8)]
-  address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(street1 = 1:8)]
+  address_stream <- data.table()[, (address_cols) := rep(NA, 8)][, `:=`(street1 = paste(1:8,"Main Street"))]
   stub(address_parse_libpostal, "address_exec_libpostal", libpostal_return)
 
   parsed <- address_parse_libpostal(address_stream)
 
   expect_named(parsed, c(
-    as.character(address_cols), paste0(
+    address_cols, paste0(
       "libpostal.",
       c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode")
     )
@@ -297,7 +306,12 @@ test_that("address_cache handles cache non-existence and writes a cache file con
   address_cache(address_stream[1:25], "address_cache", address_processor)
   expect_true(file.exists(sqlite_file))
   db <<- DBI::dbConnect(RSQLite::SQLite(), sqlite_file)
-  expect_named(DBI::dbReadTable(db, "address_cache"), c(as.character(address_cols), "something", "processed"), ignore.order = TRUE)
+  expect_named(DBI::dbReadTable(db, "address_cache"), c(address_cols, "something", "processed"), ignore.order = TRUE)
+})
+
+test_that("address_cache adds an index to the table", {
+  db <<- DBI::dbConnect(RSQLite::SQLite(), sqlite_file)
+  expect_equal(nrow(DBI::dbGetQuery(db, "select * from sqlite_master where type = 'index'")),1)
 })
 
 test_that("address_cache handles zero-row input gracefully", {
@@ -321,11 +335,11 @@ test_that("address_cache handles fully-cached requests gracefully", {
 
 test_that("address_cache updates the the cache file after cache misses", {
   expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 50)
-  expect_named(DBI::dbReadTable(db, "address_cache"), c(as.character(address_cols), "something", "processed"), ignore.order = TRUE)
+  expect_named(DBI::dbReadTable(db, "address_cache"), c(address_cols, "something", "processed"), ignore.order = TRUE)
 })
 
 test_that("address_cache incremental runs match address_cache full runs", {
-  address_processor <- function(.) { address_result[.,on=as.character(address_cols)]}
+  address_processor <- function(.) { address_result[.[,..address_cols],on=address_cols]}
 
   incremental <- DBI::dbReadTable(db, "address_cache") %>%
     collect() %>%
@@ -340,20 +354,20 @@ test_that("address_cache updates the the cache file when there are new columns t
   address_cache(address_stream, "address_cache", address_processor)
   expect_equal(nrow(mock_args(address_processor)[[1]][[1]]), 50)
   expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 100)
-  expect_named(DBI::dbReadTable(db, "address_cache"), c(as.character(address_cols), "something", "processed", "new_int_feature", "new_char_feature"), ignore.order = TRUE)
+  expect_named(DBI::dbReadTable(db, "address_cache"), c(address_cols, "something", "processed", "new_int_feature", "new_char_feature"), ignore.order = TRUE)
   expect_equal(DBI::dbReadTable(db, "address_cache")$new_int_feature, c(rep(NA,50),rep(1000,50)))
   expect_equal(DBI::dbReadTable(db, "address_cache")$new_char_feature, c(rep(NA,50),rep("coolness",50)))
 })
 
 test_that("address_cache saves only unique addresses", {
-  address_processor <- function(.) { address_result[.,on=as.character(address_cols)]}
+  address_processor <- function(.) { address_result[.,on=address_cols]}
   address_stream <- data.table(street1 = paste(c(5000,5000), "example lane"), something = "extra") %>% rbind(address_stream[0], fill = TRUE)
   address_cache(address_stream, "address_cache", address_processor)
   expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 101)
 })
 
 test_that("address_cache returns data appended to input", {
-  address_processor <- function(.) { address_result[.,on=as.character(address_cols)]}
+  address_processor <- function(.) { address_result[.,on=address_cols]}
   address_stream <- data.table(street1 = paste(c(1,5,1,5), "example lane"), something = "extra") %>% rbind(address_stream[0], fill = TRUE)
   res <- address_cache(address_stream, "address_cache", address_processor) %>% select(street1,processed)
   expect_equal(nrow(DBI::dbReadTable(db, "address_cache")), 101)
@@ -375,6 +389,46 @@ test_that("address_cache works with other key columns", {
   expect_equal(address_cache(data_stream[100:1], "data_stream", data_processor, key_cols = "a"),data_result[100:1])
   expect_length(mock_args(data_processor),1)
 })
+
+
+# address_cache_chunked ---------------------------------------------------
+
+test_that("address_cache_chunked divides data.table into chunks of size n and sends to address_cache", {
+  address_cache <- mock(address_stream, cycle = TRUE)
+  stub(address_cache_chunked,"address_cache",address_cache)
+  address_cache_chunked(address_stream, "address_cache", .function = force, n = 1, parallel = FALSE)
+  address_cache_chunked(address_stream, "address_cache", .function = force, n = 10, parallel = FALSE)
+  address_cache_chunked(address_stream, "address_cache", .function = force, n = 100, parallel = FALSE)
+
+  expect_length(mock_args(address_cache),111)
+  expect_equal(nrow(mock_args(address_cache)[[1]][[1]]),1)
+  expect_equal(nrow(mock_args(address_cache)[[101]][[1]]),10)
+  expect_equal(nrow(mock_args(address_cache)[[111]][[1]]),100)
+
+})
+
+test_that("address_cache_chunked returns the same results as address_cache for all n and parallel settings", {
+  address_stream <- rbind(address_stream, address_stream)
+  address_processor <- mock(rbind(address_result, address_result))
+  future::plan("multisession")
+
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 1, parallel = FALSE))
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 10, parallel = FALSE))
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 100, parallel = FALSE))
+
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 1, parallel = TRUE))
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 10, parallel = TRUE))
+  expect_equal(address_cache(address_stream, "address_cache", address_processor),
+               address_cache_chunked(address_stream, "address_cache", address_processor, n = 100, parallel = TRUE))
+
+  future::plan("sequential")
+})
+
 
 # address_parse -----------------------------------------------------------
 address_stream_parsed <- data.table(

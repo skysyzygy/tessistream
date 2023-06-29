@@ -27,15 +27,18 @@ address_geocode_all <- function(address_stream) {
   # build libpostal street name
   if(any(c("libpostal.house_number","libpostal.road") %in% colnames(address_stream_parsed))) {
      address_stream_parsed <- address_stream_parsed %>%
-      setunite("libpostal.street", any_of(c("libpostal.house_number", "libpostal.road")), sep = " ", na.rm = TRUE)
+      setunite("libpostal.street", any_of(c("libpostal.house_number", "libpostal.road", "libpostal.house")), sep = " ", na.rm = TRUE)
     address_stream_parsed[libpostal.street == "",libpostal.street := NA_character_]
     address_cols <- c("libpostal.street", address_cols)
   }
 
+  # blanks to NAs
+  for (address_col in address_cols)
+    address_stream_parsed[trimws(get(address_col)) == "",(address_col) := NA]
+
   # suppress completely missing data
   address_stream_parsed <-
     address_stream_parsed[!address_stream_parsed[,lapply(.SD,is.na),.SDcols = address_cols] %>% purrr::reduce(`&`)]
-
   if(nrow(address_stream_parsed) == 0)
     return(address_stream[,setdiff(address_cols, "libpostal.street"), with = F])
 
@@ -51,7 +54,7 @@ address_geocode_all <- function(address_stream) {
   for (i in rev(seq_along(address_street_cols)[-1]))
     address_stream_parsed[get(address_street_cols[i]) %in% mget(address_street_cols[-i]), (address_street_cols[i]) := NA ]
 
-  global_params <- list(return_input = TRUE, full_results = TRUE)
+  global_params <- list(full_results = TRUE)
 
   # Make the list of queries to run
   queries <- expand_grid(params = list(list(method = "census",
@@ -65,15 +68,25 @@ address_geocode_all <- function(address_stream) {
     map(tidyr::unnest_wider,"params") %>%
     map(flatten)
 
+<<<<<<< HEAD
   # RUn the queries
   result <- geocode_combine(address_stream_parsed,
                     queries = queries,
                     global_params = global_params,
                     lat = "lat", long = "lon",
                     query_names = map_chr(queries,~paste(.$method,.$address))) %>% setDT
+=======
+  # Run the queries
+    result <- geocode_combine(address_stream_parsed,
+                      queries = queries,
+                      global_params = global_params,
+                      lat = "lat", long = "lon",
+                      query_names = map_chr(queries,~paste(.$method,.$address))) %>% setDT
+>>>>>>> eb00468 (Add more libpostal data to geocoding, and remove blanks from address string by turning them into NAs. Don't reutrn full results because this may lead to quoting issues)
 
   # Throw away list columns
   result <- purrr::keep(result, is.atomic)
+  result[,I:=.I]
 
   result[address_stream,
          setdiff(colnames(result),colnames(address_stream_parsed)),

@@ -142,7 +142,7 @@ p2_execute_api <- function(url, object = list(), success_codes = c(200,201,202),
   }
 
   fun <- eval(parse(text = paste0("httr::",method)))
-  response <- fun(url = url, api_headers, body = object, encode = "json")
+  response <- fun(url = url, api_headers, body = object, encode = "json", httr::timeout(300))
 
   if (!response$status_code %in% success_codes) {
     warn(c("!" = paste(method, "to", url, "failed! Status code", response$status_code)), response = response)

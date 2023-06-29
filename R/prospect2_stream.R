@@ -16,7 +16,7 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) 
   api_headers <- add_headers("Api-Token" = api_key)
 
   first <- modify_url(url, query = list("limit" = 1)) %>%
-    GET(api_headers) %>%
+    GET(api_headers, httr::timeout(300)) %>%
     content()
   if (is.null(first$meta)) {
     total <- map_int(first, length) %>% max()
@@ -42,7 +42,7 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) 
   }
 
   mapper(jobs$off, jobs$len, ~ {
-    res <- GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers) %>%
+    res <- GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers, httr::timeout(300)) %>%
       content() %>%
       map(p2_json_to_datatable)
     p(amount = .y)

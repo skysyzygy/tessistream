@@ -19,6 +19,7 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
       P2_API: ${{ secrets.P2_API_KEY }}
       R_KEYRING_BACKEND: "env"
+      CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
     steps:
       - uses: actions/checkout@v3
 
@@ -43,9 +44,11 @@ jobs:
           extra-packages: any::rcmdcheck, any::devtools
           needs: check
 
-      # - name: Install miniconda
-      #   run: reticulate::install_miniconda()
-      #   shell: Rscript {0}
+      - name: cache census fixtures
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/tests/testthat/census_*
+          key: census_fixtures-${{ runner.os }}
 
       # - name: Setup upterm session
       #   uses: lhotari/action-upterm@v1

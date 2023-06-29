@@ -205,10 +205,10 @@ stream_from_audit <- function(table_name, ...) {
 
   if (table_name %in% tessi_tables$short_name) {
     short_name <- table_name
-    long_name <- tessi_tables[short_name == table_name,long_name]
+    base_table <- tessi_tables[short_name == table_name,base_table]
     pk_name <- tessi_tables[short_name == table_name,primary_keys]
-  } else if (table_name %in% tessi_tables$long_name){
-    long_name <- table_name
+  } else if (table_name %in% tessi_tables$base_table){
+    base_table <- table_name
     short_name <- tessi_tables[short_name == table_name,short_name]
     pk_name <- tessi_tables[short_name == table_name,primary_keys]
   } else {
@@ -219,7 +219,7 @@ stream_from_audit <- function(table_name, ...) {
     rlang::abort(c("Don't know how to work with a table with multiple primary keys!"))
 
   audit <- read_tessi("audit", ...) %>%
-    filter(table_name == !!long_name) %>%
+    filter(table_name == !!base_table) %>%
     transmute(group_customer_no,
               customer_no,
               action,

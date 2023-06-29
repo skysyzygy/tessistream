@@ -10,7 +10,7 @@ Description: |
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.1
+RoxygenNote: 7.2.3
 Depends: 
     R (>= 2.10),
 LazyData: true
@@ -24,6 +24,7 @@ Suggests:
     withr
 Config/testthat/edition: 3
 Imports:
+    censusxy,
     checkmate,
     cli,
     config,
@@ -44,6 +45,13 @@ Imports:
     purrr,
     rlang,
     RSQLite,
-    tessilake
+    sf,
+    stringr,
+    tessilake,
+    tidycensus,
+    tidygeocoder,
+    tidyr,
+    tigris
 Remotes: 
-    skysyzygy/tessilake
+    skysyzygy/tessilake,
+    chris-prener/censusxy

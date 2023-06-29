@@ -73,13 +73,13 @@ test_that("setnafill const works with characters and factors", {
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     letters[.]
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
   setnafill(x, cols = char_cols, type = "const", fill = "z")
   setnafill(xf, cols = char_cols, type = "const", fill = "z")
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     match(., letters)
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
   expect_equal(x, data.table::setnafill(y, cols = char_cols, type = "const", fill = 26))
   expect_equal(xf, data.table::setnafill(y, cols = char_cols, type = "const", fill = 26))
 })
@@ -89,13 +89,13 @@ test_that("setnafill locf works with characters and factors", {
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     letters[.]
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
   setnafill(x, cols = cols, type = "locf")
   setnafill(xf, cols = cols, type = "locf")
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     match(., letters)
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
   expect_equal(x, data.table::setnafill(y, cols = cols, type = "locf"))
   expect_equal(xf, data.table::setnafill(y, cols = cols, type = "locf"))
 })
@@ -105,13 +105,13 @@ test_that("setnafill nocb works with characters and factors", {
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     letters[.]
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, factor), .SDcols = char_cols]
   setnafill(x, cols = cols, type = "nocb")
   setnafill(xf, cols = cols, type = "nocb")
   x <- x[, (char_cols) := lapply(.SD, function(.) {
     match(., letters)
   }), .SDcols = char_cols]
-  xf <- x[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
+  xf <- data.table::copy(x)[, (char_cols) := lapply(.SD, as.integer), .SDcols = char_cols]
   expect_equal(x, data.table::setnafill(y, cols = cols, type = "nocb"))
   expect_equal(xf, data.table::setnafill(y, cols = cols, type = "nocb"))
 })

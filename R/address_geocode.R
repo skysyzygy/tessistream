@@ -103,14 +103,17 @@ address_reverse_census <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
-  # filter and add index columns
-  address_stream <- address_stream[,..address_cols] %>% .[,I:=.I]
-  address_stream_geocode <- address_geocode(address_stream) %>%
-    .[,c("state_fips", "county_fips", "census_tract", "census_block", "lat", "lon"), with = F] %>%
-    .[,I:=.I]
+
+  # gecode if needed and add index columns
+  address_stream[,I:=.I]
+  address_stream_geocode <- if(!all(c("state_fips", "county_fips", "census_tract", "census_block", "lat", "lon") %in% colnames(address_stream))) {
+    address_geocode(address_stream) %>% .[,.(state_fips, county_fips, census_tract, census_block, lat, lon, .I)]
+  } else {
+    address_stream
+  }
 
   # don't reverse geocode things that are already done or can't be reversed
-  to_reverse <- address_stream_geocode[is.na(census_tract) & !is.na(lat) & !is.na(lon)] %>% unique
+  to_reverse <- address_stream_geocode[is.na(census_tract) & !is.na(lat) & !is.na(lon), .(lat,lon)] %>% unique
 
   if(nrow(to_reverse) > 0) {
 
@@ -132,7 +135,7 @@ address_reverse_census <- function(address_stream) {
                               census_block=i.census_block),
                          on=c("lat","lon")]
 
-  address_stream_geocode[address_stream,on = "I"] %>% .[,I:=NULL] %>% .[]
+  address_stream_geocode[address_stream, on = "I"]
 
 }
 

@@ -310,3 +310,17 @@ test_that("address_reverse_census combines census data from address_geocode and 
 
 })
 
+test_that("address_reverse_census doesn't call address_geocode if it's already passed in" ,{
+
+  address_stream_already_geocoded <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
+  address_reverse_census_all <- mock(address_geocode[2,.(lat,lon,state_fips,county_fips,census_tract = "oops",census_block)])
+
+  address_geocode <- mock()
+  stub(address_reverse_census,"address_reverse_census_all",address_reverse_census_all)
+  stub(address_reverse_census,"address_geocode",address_geocode)
+
+  expect_message(res <- address_reverse_census(address_stream_already_geocoded))
+  expect_length(mock_args(address_geocode),0)
+
+})
+

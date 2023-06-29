@@ -186,9 +186,12 @@ stream_debounce <- function(stream, ...) {
 
 #' stream_from_audit
 #'
-#' Helper function to load data from the audit table
+#' Helper function to load data from the audit table and base table identified by `table_name`
 #'
 #' @param table_name character table name as in `tessilake::tessi_list_tables` `short_name` or `long_name`
+#' @param cols character vector of columns that will be used from the audit and base table.
+#' The names of the vector are the column names as identified in the audit table, the values are the column names as identified in the base table.
+#' *Default: column names from the audit table.*
 #' @param ... extra arguments passed on to `tessilake::read_tessi`
 #'
 #' @importFrom dplyr transmute filter coalesce
@@ -196,7 +199,7 @@ stream_debounce <- function(stream, ...) {
 #' @importFrom tessilake read_tessi tessi_list_tables
 #' @importFrom rlang sym syms
 #'
-stream_from_audit <- function(table_name, ...) {
+stream_from_audit <- function(table_name, cols = NULL, ...) {
   . <- primary_keys <- group_customer_no <- customer_no <- action <-
     new_value <- old_value <- alternate_key <- userid <- column_updated <-
     create_dt <- created_by <- last_update_dt <- last_updated_by <- event_subtype <- NULL
@@ -236,7 +239,9 @@ stream_from_audit <- function(table_name, ...) {
   setkeyv(audit,c(pk_name,"timestamp"))
 
   base_table <- read_tessi(short_name, ...)
-  cols <- unique(audit$column_updated)
+  cols <- cols %||% unique(audit$column_updated)
+  if(is.null(names(cols)))
+    names(cols) <- cols
 
   stream_creation <- base_table %>%
     transmute(group_customer_no,customer_no,
@@ -252,7 +257,7 @@ stream_from_audit <- function(table_name, ...) {
               event_subtype = "Current",
               timestamp = last_update_dt,
               !!sym(pk_name),
-              !!!syms(intersect(cols,colnames(base_table))),
+              !!!syms(cols[cols %in% colnames(base_table)]),
               last_updated_by) %>%
     collect() %>%
     setDT()
@@ -273,7 +278,7 @@ stream_from_audit <- function(table_name, ...) {
 
   # Data fill-in based on audit old_value -- all other old_values are captured within the audit table itself
   stream <- stream[audit_creation,
-                 (cols) := mget(paste0("i.",cols), ifnotfound = NA_character_),
+                 (names(cols)) := mget(paste0("i.",names(cols)), ifnotfound = NA_character_),
                  on = c(pk_name, "event_subtype")
   ]
 
@@ -282,9 +287,9 @@ stream_from_audit <- function(table_name, ...) {
 
   setkeyv(stream, c(pk_name, "event_subtype", "timestamp"))
   # Fill-down changes
-  setnafill(stream, "locf", cols = cols, by = pk_name)
+  setnafill(stream, "locf", cols = names(cols), by = pk_name)
   # And then fill back up for non-changes
-  setnafill(stream, "nocb", cols = cols, by = pk_name)
+  setnafill(stream, "nocb", cols = names(cols), by = pk_name)
 
   stream_debounce(stream,!!pk_name,"timestamp")
 

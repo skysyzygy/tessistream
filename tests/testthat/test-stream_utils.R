@@ -230,7 +230,6 @@ test_that("stream_from_audit has creation data from base_table overwritten by au
   comparison <- merge(merge(creation_data,base_data,by=c("id","variable"),all=T,suffix=c("",".base")),
                       audit_data,by.x=c("id","variable"),by.y=c("alternate_key","column_updated"),all.x=T)
 
-
   # if there's audit data, it goes to creation row
   expect_equal(comparison[!is.na(old_value) & (old_value==value)],
                comparison[!is.na(old_value)])
@@ -278,6 +277,17 @@ test_that("stream_from_audit has all audit changes and carries them forward", {
 
   comparison <- audit_table[change_data,on=c("alternate_key"="id","column_updated"="variable","date"="timestamp"),roll=Inf]
   expect_equal(comparison[new_value!=value,.N],0)
+})
+
+test_that("stream_from_audit handles extra cols and renaming of cols using the `cols` argument", {
+  read_tessi <- mock(audit_table, base_table[,.(id,apple = a,bacon = b,xylophone = x)])
+  stub(stream_from_audit, "read_tessi", read_tessi)
+
+  stream <- stream_from_audit("dummy", cols = c("a"="apple","b"="bacon","x"="xylophone"))
+
+  expect_named(stream,c("id","timestamp","event_subtype","group_customer_no","customer_no","action","last_updated_by","a","b","c","d","x"),
+               ignore.order = TRUE)
+  expect_lte(stream[!is.na(c) & !is.na(d),.N], stream[!is.na(a) & !is.na(b) & !is.na(x),.N])
 })
 
 

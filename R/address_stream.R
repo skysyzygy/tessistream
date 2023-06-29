@@ -10,12 +10,12 @@
 # Sys.setenv("TAR_PROJECT"="address_stream") # nolint
 
 address_cols <- c(
-  "street1" = "street1",
-  "street2" = "street2",
-  "city" = "city",
-  "state_desc" = "state",
-  "postal_code" = "postal_code",
-  "country_desc" = "country"
+  "street1" ,
+  "street2" ,
+  "city" ,
+  "state" ,
+  "postal_code" ,
+  "country"
 )
 
 
@@ -39,12 +39,13 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
   . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-
     event_subtype <- timestamp <- NULL
 
-  address_stream <- address_create_stream(freshness = freshness)
+  address_stream <- address_create_stream(freshness = freshness, cols = setNames(c("street1","street2","city","state_short_desc",
+                                                                                   "postal_code","country_short_desc"),address_cols))
   address_parsed <- address_parse(address_stream)
   address_geocode <- address_geocode(address_parsed)
   address_census <- address_census(address_stream)
 
-  address_stream <- cbind(address_stream, address_geocode[,-address_cols, with = F], address_census[,-address_cols, with = F])
+  address_stream <- cbind(address_stream, address_geocode[,-address_cols, with = F], address_census[,-c(address_cols, "timestamp"), with = F])
 
   iwave <- read_tessi("iwave") %>% collect() %>% setDT() %>% .[,score_dt:=as_date(score_dt)]
 
@@ -102,7 +103,15 @@ address_create_stream <- function(freshness = as.difftime(7, units = "days")) {
   p <- progressor(1)
   p("Running address_create_stream", amount = 0)
 
+<<<<<<< HEAD
   stream_from_audit("addresses", freshness = freshness) %>%
+=======
+  cols <- setNames(nm = c(address_cols,"primary_ind","inactive"))
+  cols["state"] <- "state_short_desc"
+  cols["country"] <- "country_short_desc"
+
+  stream_from_audit("addresses", cols = cols, ...) %>%
+>>>>>>> 670aa4e (Fill down primary_ind and inactive too)
     .[,timestamp := as_date(timestamp)] %>%
     stream_debounce(c("address_no","timestamp"))
 
@@ -305,7 +314,7 @@ address_parse <- function(address_stream) {
 #'
 #' @param address_stream data.table of addresses
 #' @param cache_name name of cache file
-#' @param key_cols as.character(address_cols)
+#' @param key_cols address_cols
 #' @param .function function to be called for processing, is sent `address_stream[address_cols]` and additional parameters.
 #' @param db_name path to sqlite database, defaults to `tessilake::cache_path("address_stream.sqlite","deep","stream")`
 #' @param ... additional options passed to `.function`
@@ -314,7 +323,7 @@ address_parse <- function(address_stream) {
 #' @importFrom dplyr collect tbl semi_join
 #' @importFrom utils head capture.output
 address_cache <- function(address_stream, cache_name, .function,
-                          key_cols = as.character(address_cols),
+                          key_cols = address_cols,
                           db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
   assert_data_table(address_stream)
 
@@ -381,7 +390,7 @@ address_cache <- function(address_stream, cache_name, .function,
 #' @param n integer chunk size
 #' @describeIn address_cache Parallel wrapper around address_cache using [furrr::furrr] and [progressr::progressr]
 address_cache_chunked <- function(address_stream, cache_name, .function,
-                                   key_cols = as.character(address_cols),
+                                   key_cols = address_cols,
                                    db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
                                    parallel = rlang::is_installed("furrr"),
                                    n = 100, ...) {

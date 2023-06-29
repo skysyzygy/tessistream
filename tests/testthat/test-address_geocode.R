@@ -189,7 +189,7 @@ test_that("address_geocode_all returns one row per incoming address", {
   expect_equal(result[,..address_cols],address_stream[,..address_cols])
   expect_equal(result$lat,rep(123,nrow(address_stream)))
   expect_equal(result$lon,rep(456,nrow(address_stream)))
-  expect_named(result, c(as.character(address_cols),"lat","lon"), ignore.order = TRUE)
+  expect_named(result, c(address_cols,"lat","lon"), ignore.order = TRUE)
 })
 
 test_that("address_geocode_all doesn't copy input data.table", {
@@ -270,7 +270,7 @@ test_that("address_reverse_census filters out non-US addresses based on lat/lon"
     postal_code = c("11217","E14 5EU")
   )
 
-  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = address_cols]
   address_reverse_census_all <- mock(address_geocode[,.(lat,lon,state_fips,county_fips,census_tract = "address_reverse_census",census_block)])
   address_geocode$census_tract <- NA
 
@@ -296,7 +296,7 @@ test_that("address_reverse_census combines census data from address_geocode and 
     postal_code = "11217"
   )
 
-  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = as.character(address_cols)]
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))[address_stream,on = address_cols]
   address_reverse_census_all <- mock(address_geocode[2,.(lat,lon,state_fips,county_fips,census_tract = "oops",census_block)])
   address_geocode[street1 == "30 Lafayette Ave", census_tract := NA]
   address_geocode[street1 == "321 Ashland Pl", census_tract := "address_geocode"]

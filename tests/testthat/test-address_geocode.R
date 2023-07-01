@@ -109,7 +109,7 @@ if(do_geocoding) {
     expect_false(any(is.na(res[,.(lat,lon)])))
     # And those geocodes are for the right addresses
     expect_match(res[1,matched_address],"30 LAFAYETTE AVE")
-    expect_match(res[2,display_name],"30.+Churchill Pl")
+    expect_match(res[2,GeocodeResponse.Address.FormattedAddress],"30.+Churchill Pl")
     # And we get census tract data when available
     expect_false(is.na(res[1,census_tract]))
 
@@ -133,13 +133,13 @@ if(do_geocoding) {
     # All get geocode
     expect_false(any(is.na(res[1:6,.(lat,lon)])))
     # And those geocodes are for the right addresses
-    expect_match(res[1,display_name],"30.+Lafayette Ave")
-    expect_match(res[2,display_name],"321.+Ashland Pl")
-    expect_match(res[3,display_name],"Brooklyn")
-    expect_match(res[4,display_name],"New York")
-    expect_match(res[5,display_name],"United States")
-    expect_match(res[6,display_name],"11217")
-    expect_equal(res[7,display_name],NA_character_)
+    expect_match(res[1,GeocodeResponse.Address.FormattedAddress],"30.+Lafayette Ave")
+    expect_match(res[2,GeocodeResponse.Address.FormattedAddress],"321.+Ashland Pl")
+    expect_match(res[3,GeocodeResponse.Address.FormattedAddress],"Brooklyn")
+    expect_match(res[4,GeocodeResponse.Address.FormattedAddress],"New York")
+    expect_match(res[5,GeocodeResponse.Address.FormattedAddress],"United States")
+    expect_match(res[6,GeocodeResponse.Address.FormattedAddress],"11217")
+    expect_equal(res[7,GeocodeResponse.Address.FormattedAddress],NA_character_)
   })
 }
 

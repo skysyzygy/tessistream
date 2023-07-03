@@ -51,9 +51,9 @@ test_that("address_geocode_all runs census + bing + osm x 3 queries using tidyge
   expect_match(paste(msg,collapse="\\n"),paste0("Census.+batch.+",
                                                 "Census.+batch.+",
                                                 "Census.+batch.+",
-                                                "Bing.+batch.+",
-                                                "Bing.+batch.+",
-                                                "Bing.+batch.+",
+                                                "Google.+libpostal.+",
+                                                "Google.+street1.+",
+                                                "Google.+street2.+",
                                                 "openstreetmap.+libpostal.+",
                                                 "openstreetmap.+street1.+",
                                                 "openstreetmap.+street2.+"))
@@ -80,7 +80,7 @@ test_that("address_geocode_all doesn't retry when street info is duplicated", {
   expect_match(paste(msg,collapse="\\n"),paste0("Census batch.+",
                                                 "Returning NA results.+",
                                                 "Returning NA results.+",
-                                                "Bing batch.+",
+                                                "Google.+30 street.+",
                                                 "Returning NA results.+",
                                                 "Returning NA results.+",
                                                 "openstreetmap.+30 street.+",
@@ -109,7 +109,7 @@ if(do_geocoding) {
     expect_false(any(is.na(res[,.(lat,lon)])))
     # And those geocodes are for the right addresses
     expect_match(res[1,matched_address],"30 LAFAYETTE AVE")
-    expect_match(res[2,GeocodeResponse.Address.FormattedAddress],"30.+Churchill Pl")
+    expect_match(res[2,formatted_address],"30.+Churchill Pl")
     # And we get census tract data when available
     expect_false(is.na(res[1,census_tract]))
 
@@ -133,13 +133,13 @@ if(do_geocoding) {
     # All get geocode
     expect_false(any(is.na(res[1:6,.(lat,lon)])))
     # And those geocodes are for the right addresses
-    expect_match(res[1,GeocodeResponse.Address.FormattedAddress],"30.+Lafayette Ave")
-    expect_match(res[2,GeocodeResponse.Address.FormattedAddress],"321.+Ashland Pl")
-    expect_match(res[3,GeocodeResponse.Address.FormattedAddress],"Brooklyn")
-    expect_match(res[4,GeocodeResponse.Address.FormattedAddress],"New York")
-    expect_match(res[5,GeocodeResponse.Address.FormattedAddress],"United States")
-    expect_match(res[6,GeocodeResponse.Address.FormattedAddress],"11217")
-    expect_equal(res[7,GeocodeResponse.Address.FormattedAddress],NA_character_)
+    expect_match(res[1,formatted_address],"30.+Lafayette Ave")
+    expect_match(res[2,formatted_address],"321.+Ashland Pl")
+    expect_match(res[3,formatted_address],"Brooklyn")
+    expect_match(res[4,formatted_address],"New York")
+    expect_match(res[5,formatted_address],"United States")
+    expect_match(res[6,formatted_address],"11217")
+    expect_equal(res[7,formatted_address],NA_character_)
   })
 }
 

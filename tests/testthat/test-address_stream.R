@@ -13,14 +13,13 @@ local({
   tessilake:::local_cache_dirs()
 
   test_that("address_stream combines data from address_parse, address_census, address_geocode, and read_tessi and returns all rows and a subset of columns", {
-
     address_stream_original <- readRDS(rprojroot::find_testthat_root_file("address_stream.Rds"))
     stub(address_stream, "address_create_stream", address_stream_original)
     stub(address_stream, "address_parse", cbind(distinct(address_stream_original[,..address_cols]),libpostal =
           data.table()[,c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode") := NA_character_]))
 
     address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
-    stub(address_stream, "address_geocode", address_geocode[address_stream_original,on=address_cols])
+    stub(address_stream, "address_geocode", address_geocode[address_stream_original[,..address_cols],on=address_cols])
 
     stub(address_reverse_census,"address_geocode",address_geocode)
     stub(address_census,"address_reverse_census",address_reverse_census)
@@ -52,8 +51,8 @@ local({
   })
 
   test_that("address_stream writes a full file containing additional data", {
-    address_stream <- tessilake:::cache_read("address_stream", "deep", "stream")
-    address_stream_full <- tessilake:::cache_read("address_stream_full", "deep", "stream")
+    address_stream <- tessilake:::cache_read("address_stream", "deep", "stream", num_tries = 1)
+    address_stream_full <- tessilake:::cache_read("address_stream_full", "deep", "stream", num_tries = 1)
 
     expect_gt(nrow(address_stream_full), nrow(address_stream))
     expect_gt(ncol(address_stream_full), ncol(address_stream))

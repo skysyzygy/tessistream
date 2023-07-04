@@ -109,7 +109,8 @@ if(do_geocoding) {
     expect_false(any(is.na(res[,.(lat,lon)])))
     # And those geocodes are for the right addresses
     expect_match(res[1,matched_address],"30 LAFAYETTE AVE")
-    expect_match(res[2,formatted_address],"30.+Churchill Pl")
+    column_name <- intersect(c("formatted_address","display_name"),colnames(res))
+    expect_match(res[2,..column_name],"30.+Churchill Pl")
     # And we get census tract data when available
     expect_false(is.na(res[1,census_tract]))
 
@@ -129,17 +130,17 @@ if(do_geocoding) {
     )
 
     capture.output(res <- address_geocode_all(address_stream), type = "message")
-
+    column_name <- intersect(c("formatted_address","display_name"),colnames(res))
     # All get geocode
     expect_false(any(is.na(res[1:6,.(lat,lon)])))
     # And those geocodes are for the right addresses
-    expect_match(res[1,formatted_address],"30.+Lafayette Ave")
-    expect_match(res[2,formatted_address],"321.+Ashland Pl")
-    expect_match(res[3,formatted_address],"Brooklyn")
-    expect_match(res[4,formatted_address],"New York")
-    expect_match(res[5,formatted_address],"United States")
-    expect_match(res[6,formatted_address],"11217")
-    expect_equal(res[7,formatted_address],NA_character_)
+    expect_match(res[1,..column_name],"30.+Lafayette Ave")
+    expect_match(res[2,..column_name],"321.+Ashland Pl")
+    expect_match(res[3,..column_name],"Brooklyn")
+    expect_match(res[4,..column_name],"New York")
+    expect_match(res[5,..column_name],"United States")
+    expect_match(res[6,..column_name],"11217")
+    expect_equal(res[7,..column_name],NA_character_)
   })
 }
 

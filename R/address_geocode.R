@@ -69,21 +69,24 @@ address_geocode_all <- function(address_stream) {
     map(flatten)
 
   # Run the queries
-    result <- geocode_combine(address_stream_parsed,
-                      queries = queries,
-                      global_params = global_params,
-                      lat = "lat", long = "lon",
-                      query_names = map_chr(queries,~paste(.$method,.$address))) %>% setDT
+  result <- geocode_combine(address_stream_parsed,
+                    queries = queries,
+                    global_params = global_params,
+                    return_list = TRUE,
+                    lat = "lat", long = "lon",
+                    query_names = map_chr(queries,~paste(.$method,.$address)))
+
+  if(!is.data.frame(result))
+     result <- rbindlist(result, fill = TRUE, idcol = "query")
 
   # Throw away list columns
   result <- purrr::keep(result, is.atomic)
-  result[,I:=.I]
 
   result[address_stream,
          setdiff(colnames(result),colnames(address_stream_parsed)),
          with = F,
          on = "I"] %>% cbind(address_stream) %>%
-    .[,intersect(c("I","Id","id"),colnames(.)):=NULL]
+    .[,I:=NULL]
 
 }
 

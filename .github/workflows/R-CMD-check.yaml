@@ -2,8 +2,12 @@
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
 on:
   push:
+    branches: [main, master]
   pull_request:
     branches: [main, master]
+  schedule:
+    # Every Monday at 1PM UTC (9AM EST)
+    - cron: "0 13 * * 1"
 
 name: R-CMD-check
 
@@ -15,22 +19,15 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
       P2_API: ${{ secrets.P2_API_KEY }}
       R_KEYRING_BACKEND: "env"
+      CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
+      BINGMAPS_API_KEY: ${{ secrets.BINGMAPS_API_KEY }}
+      GOOGLEGEOCODE_API_KEY: ${{ secrets.GOOGLEGEOCODE_API_KEY }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: r-lib/actions/setup-r@v2
         with:
           use-public-rspm: true
-
-      # - name: Setup upterm session
-      #   uses: lhotari/action-upterm@v1
-
-      - name: install ffbase
-        run: |
-          cd ..
-          Rscript -e 'install.packages("remotes")
-          remotes::install_github("ffbase=edwindj/ffbase/pkg")'
-        shell: bash
 
       - name: cache libpostal
         uses: actions/cache@v3
@@ -46,15 +43,20 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::rcmdcheck
+          extra-packages: any::rcmdcheck, any::devtools
           needs: check
 
-      # - name: Install miniconda
-      #   run: reticulate::install_miniconda()
-      #   shell: Rscript {0}
+      # - name: Setup upterm session
+      #   uses: lhotari/action-upterm@v1
 
       - uses: r-lib/actions/check-r-package@v2
 
       - name: Test coverage
-        run: covr::codecov( token = "${{ secrets.CODECOV_TOKEN }}" )
+        run: |
+          covr::codecov(
+              quiet = FALSE,
+              clean = FALSE,
+              token = "${{ secrets.CODECOV_TOKEN }}",
+              install_path = file.path(Sys.getenv("RUNNER_TEMP"), "package")
+            )
         shell: Rscript {0}

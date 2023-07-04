@@ -1,2 +1,4 @@
 default:
   tessilake.deep: !expr file.path(tempdir(),"deep")
+  tessilake.shallow: !expr file.path(tempdir(),"shallow")
+  tessilake.tessitura: "tessitura"

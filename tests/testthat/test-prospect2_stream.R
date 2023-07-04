@@ -1,5 +1,7 @@
 withr::local_package("mockery")
 withr::defer(p2_db_close())
+withr::local_envvar(R_CONFIG_FILE = "tessistream-config.yml")
+future::plan(future::sequential)
 
 test_that("p2_query_api successfully connects to p2", {
   stub(p2_query_api,"content",function(.){rlang::abort("content",result=.)})
@@ -31,6 +33,41 @@ test_that("p2_query_api handles missing meta by querying once", {
 
   expect_match(mock_args(GET)[[1]][[1]], "limit=1")
   expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=1234")
+})
+
+test_that("p2_query_api uses offset to change the data loaded", {
+  GET <- mock(list(test = seq(1234)), cycle = T)
+  stub(p2_query_api, "GET", GET)
+  stub(p2_query_api, "content", I)
+  stub(p2_query_api, "p2_combine_jsons", I)
+  p2_query_api("test", offset = 1232)
+
+  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
+  expect_match(mock_args(GET)[[2]][[1]], "limit=2")
+  expect_match(mock_args(GET)[[2]][[1]], "offset=1232")
+
+  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "GET", GET)
+  p2_query_api("test", offset = 1233)
+  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
+  expect_match(mock_args(GET)[[2]][[1]], "limit=1")
+  expect_match(mock_args(GET)[[2]][[1]], "offset=1233")
+})
+
+test_that("p2_query_api returns NULL when offset is larger than available data", {
+  GET <- mock(list(test = seq(1234)), cycle = T)
+  stub(p2_query_api, "GET", GET)
+  stub(p2_query_api, "content", I)
+  stub(p2_query_api, "p2_combine_jsons", I)
+  expect_equal(p2_query_api("test", offset = 1234),NULL)
+  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
+  expect_length(mock_args(GET),1)
+
+  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "GET", GET)
+  expect_equal(p2_query_api("test", offset = 1235),NULL)
+  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
+  expect_length(mock_args(GET),1)
 })
 
 test_that("p2_query_api queries url in groups of 100", {
@@ -141,6 +178,14 @@ test_that("p2_db_update does an upsert", {
   expect_equal(dplyr::tbl(tessistream$p2_db, "test_upsert") %>% as.data.table(), df)
 })
 
+test_that("p2_db_update overwrites when overwrite = TRUE", {
+  df <- data.table(id = seq(50, 199), a = runif(150))
+
+  p2_db_update(df, "test_upsert", overwrite = TRUE)
+
+  expect_equal(dplyr::tbl(tessistream$p2_db, "test_upsert") %>% as.data.table(), df)
+})
+
 test_that("p2_db_close closes the database connection", {
   p2_db_close()
   expect_equal(tessistream$p2_db, NULL)
@@ -234,7 +279,7 @@ test_that("p2_load dispatches arguments to p2_query_api", {
 })
 
 test_that("p2_load dispatches writes to p2_db_update", {
-  data <- data.table(a = seq(100))
+  data <- data.table(id = seq(100))
   obj <- list(test = data)
 
   p2_query_api <- mock(obj)
@@ -243,8 +288,26 @@ test_that("p2_load dispatches writes to p2_db_update", {
   stub(p2_load, "p2_db_update", p2_db_update)
 
   p2_load("test")
-  expect_equal(mock_args(p2_db_update)[[1]][[1]], data.table(a = seq(100)))
+
+  expect_equal(mock_args(p2_db_update)[[1]][[1]], data.table(id = seq(100)))
   expect_equal(mock_args(p2_db_update)[[1]][[2]], "test")
+})
+
+test_that("p2_load passes overwrite on to p2_db_update", {
+  data <- data.table(id = seq(100))
+  obj <- list(test = data)
+
+  p2_query_api <- mock(obj, cycle = TRUE)
+  p2_db_update <- mock(cycle = TRUE)
+  stub(p2_load, "p2_query_api", p2_query_api)
+  stub(p2_load, "p2_db_update", p2_db_update)
+
+  p2_load("test", overwrite = T)
+  p2_load("test")
+
+  expect_equal(mock_args(p2_db_update)[[1]][["overwrite"]], T)
+  expect_equal(mock_args(p2_db_update)[[2]][["overwrite"]], F)
+
 })
 
 # p2_update ---------------------------------------------------------------

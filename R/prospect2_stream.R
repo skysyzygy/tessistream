@@ -10,13 +10,13 @@ api_url <- "https://brooklynacademyofmusic.api-us1.com"
 #'
 #' @return JSON object as a list
 #' @importFrom httr modify_url GET content add_headers
-#' @importFrom future availableWorkers
 p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) {
+  len <- off <- NULL
+
   api_headers <- add_headers("Api-Token" = api_key)
-  curl_options <- httr::config(http_version=2)
 
   first <- modify_url(url, query = list("limit" = 1)) %>%
-    GET(api_headers,curl_options) %>%
+    GET(api_headers, httr::timeout(300)) %>%
     content()
   if (is.null(first$meta)) {
     total <- map_int(first, length) %>% max()
@@ -26,14 +26,23 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) 
     by <- 100
   }
 
+  if (offset >= total)
+    return(invisible())
+
   jobs <- data.table(off = seq(offset, total, by = by))
   jobs <- jobs[, len := c(off[-1], total) - off][len > 0]
 
   p <- progressor(sum(jobs$len) + 1)
   p(paste("Querying", url))
 
-  furrr::future_map2(jobs$off, jobs$len, ~ {
-    res <- GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers, curl_options) %>%
+  mapper <- if(rlang::is_installed("furrr")) {
+    furrr::future_map2
+  } else {
+    purrr::map2
+  }
+
+  mapper(jobs$off, jobs$len, ~ {
+    res <- GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers, httr::timeout(300)) %>%
       content() %>%
       map(p2_json_to_datatable)
     p(amount = .y)
@@ -119,12 +128,13 @@ p2_db_close <- function() {
 #'
 #' @param data data.frame of data to write to the database
 #' @param table table name
+#' @param overwrite logical whether to delete and overwrite the existing table
 #'
 #' @return invisible
 #' @importFrom checkmate assert_names assert_data_frame
 #' @importFrom purrr walk
 #' @importFrom dplyr distinct
-p2_db_update <- function(data, table) {
+p2_db_update <- function(data, table, overwrite = FALSE) {
   p2_db_open()
   if (is.null(data)) {
     return(invisible())
@@ -140,10 +150,10 @@ p2_db_update <- function(data, table) {
 
   data <- distinct(data)
 
-  if (table %in% DBI::dbListTables(tessistream$p2_db)) {
+  if (table %in% DBI::dbListTables(tessistream$p2_db) & !overwrite) {
     sqlite_upsert(tessistream$p2_db, table, data)
   } else {
-    dplyr::copy_to(tessistream$p2_db, data, table, unique_indexes = list("id"), temporary = FALSE)
+    dplyr::copy_to(tessistream$p2_db, data, table, unique_indexes = list("id"), temporary = FALSE, overwrite = overwrite)
   }
 
   invisible()
@@ -165,6 +175,8 @@ p2_db_update <- function(data, table) {
 #'
 #' @return unnested data.table, modified in place (unless the column needs to be unnested longer)
 p2_unnest <- function(data, colname) {
+  . <- NULL
+
   assert_data_table(data)
   assert_choice(colname, colnames(data))
 
@@ -209,7 +221,9 @@ p2_unnest <- function(data, colname) {
 #' @importFrom dplyr tbl summarize collect filter
 #' @importFrom lubridate today dmonths
 #' @importFrom dplyr select
+#' @export
 p2_update <- function() {
+  updated_timestamp <- id <- linkclicks <- NULL
 
   # not immutable or filterable, just reload the whole thing
   p2_load("campaigns")
@@ -217,7 +231,7 @@ p2_update <- function() {
   p2_load("links")
   p2_load("lists")
   p2_load("bounceLogs")
-  p2_load("contactLists")
+  p2_load("contactLists", overwrite = TRUE)
   p2_load("fieldValues", path = "api/3/fieldValues", query = list("filters[fieldid]" = 1))
 
   # has a date filter
@@ -265,10 +279,13 @@ p2_update <- function() {
 #'
 #' @param table character, table to update
 #' @param offset integer number of rows to offset from beginning of query
+#' @param overwrite logical, whether to overwrite the table in the database
 #' @param ... additional parameters to pass on to modify_url
 #'
 #' @importFrom rlang list2 `%||%` call2
-p2_load <- function(table, offset = 0, ...) {
+p2_load <- function(table, offset = 0, overwrite = FALSE, ...) {
+  . <- NULL
+
   # fresh load of everything
   args <- list2(...)
   args$path <- args$path %||% paste0("api/3/", table)
@@ -276,7 +293,7 @@ p2_load <- function(table, offset = 0, ...) {
 
   p2_query_api(eval(call2("modify_url", !!!args)), offset = offset) %>%
     {
-      p2_db_update(.[[table]], table)
+      p2_db_update(.[[table]], table, overwrite = overwrite)
     }
 }
 
@@ -287,7 +304,10 @@ p2_load <- function(table, offset = 0, ...) {
 #' @return data.table of a mapping between email addresses and customer numbers
 #' @export
 #' @importFrom dplyr distinct select transmute
+#' @importFrom data.table setDT
 p2_email_map <- function() {
+
+  primary_ind <- address <- customer_no <- . <- email <- id <- value <- contact <- i.customer_no <- group_customer_no <- i.group_customer_no <- NULL
 
   p2_db_open()
 
@@ -347,7 +367,16 @@ p2_email_map <- function() {
   distinct(email_map)
 }
 
+#' p2_stream_build
+#'
+#' @return p2_stream as data.table
+#'
+#' @importFrom data.table setDT
+#'
 p2_stream_build <- function() {
+
+  unixepoch <- tstamp <- subscriberid <- campaignid <- messageid <- link <- isread <- times <- ip <- ua <-
+    uasrc <- referer <- email <- status <- updated_timestamp <- contact <- campaign <- event_subtype <- timestamp <- NULL
 
   # group_customer_no
   # timestamp : date of email event
@@ -427,8 +456,12 @@ p2_stream_build <- function() {
 #'
 #' @param p2_stream stream data.table from p2_stream_build
 #' @importFrom tessilake setleftjoin
+#' @importFrom data.table setDT
 #' @return stream data.table with added descriptive columns
 p2_stream_enrich <- function(p2_stream) {
+  name <- screenshot <- id <- send_amt <- total_amt <- opens <- uniqueopens <- linkclicks <- uniquelinkclicks <-
+    subscriberclicks <- forwards <- uniqueforwards <- hardbounces <- softbounces <- unsubscribes <- . <- subject <-
+    preheader_text <- link <- NULL
 
   campaigns <- tbl(tessistream$p2_db, "campaigns") %>% select(campaign_name=name,screenshot,
                                                               id,send_amt,total_amt,opens,uniqueopens,linkclicks,uniquelinkclicks,
@@ -457,11 +490,10 @@ p2_stream_enrich <- function(p2_stream) {
 #' @export
 p2_stream <- function() {
 
-  withr::defer(future::plan(future::sequential()))
-  future::plan(future::multisession)
-  withr::local_envvar("R_CONFIG_FILE" = "config.yml")
-
-  p2_update()
+  if(rlang::is_installed("future")) {
+    withr::defer(future::plan("sequential"))
+    future::plan("multisession")
+  }
 
   p2_stream <- p2_stream_build()
   tessilake:::cache_write(p2_stream,"p2_stream","deep","stream",overwrite = T)
@@ -469,34 +501,5 @@ p2_stream <- function() {
   tessilake:::cache_write(p2_stream,"p2_stream_enriched","deep","stream",overwrite = T)
 
   p2_stream
-}
 
-if (FALSE) {
-
-  emails <- read_tessi("emails") %>%
-    dplyr::collect() %>%
-    setDT()
-  inactive_emails <- emails[primary_ind == "N"][!emails[primary_ind == "Y"], on = "address"]
-
-  p2_emails <- purrr::map_chr(contacts, "email") %>% unique()
-  p2_orphan <- p2_emails[!trimws(tolower(p2_emails)) %in% emails[primary_ind == "Y", trimws(tolower(address))]]
-
-  # Add "Orphan account" tag and zero out membership data
-  p2_import <- data.frame(
-    Email = p2_orphan,
-    Tags = "Orphan Account",
-    MEMBER_LEVEL = NA,
-    RECOGNITION_AMOUNT = NA,
-    INITIATION_DATE = NA,
-    EXPIRATION_DATE = NA,
-    CONSTITUENCY_STRING_WITH_AFFILIATES = NA,
-    BENEFIT_PROVIDER = NA,
-    CURRENT_STATUS = NA,
-    CUSTOMER_LAST_GIFT_DT = NA,
-    CUSTOMER_LAST_TICKET_DT = NA
-  )
-
-  write.csv(p2_import, "p2_import.csv", row.names = F, na = "")
-
-  save.image()
 }

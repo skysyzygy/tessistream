@@ -60,7 +60,8 @@ address_geocode_all <- function(address_stream) {
                                             mode = "batch",
                                             api_options = list(census_return_type = "geographies")),
                                        list(method = "google"),
-                                       list(method = "osm")),
+                                       list(method = "osm",
+                                            min_time = 1.5)),
                          address = address_street_cols) %>%
     split(1:nrow(.)) %>%
     map(tidyr::unnest_wider,"params") %>%

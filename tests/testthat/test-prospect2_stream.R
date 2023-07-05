@@ -3,6 +3,15 @@ withr::defer(p2_db_close())
 withr::local_envvar(R_CONFIG_FILE = "tessistream-config.yml")
 future::plan(future::sequential)
 
+test_that("p2_query_api successfully connects to p2", {
+  stub(p2_query_api,"content",function(.){rlang::abort("content",result=.)})
+
+  result <- tryCatch(p2_query_api(file.path(api_url,"api/3/contacts?limit=1")),error=function(e){e$result})
+
+  expect_length(content(result),3)
+  expect_length(content(result)$contacts,1)
+})
+
 test_that("p2_query_api queries url to get total", {
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
   stub(p2_query_api, "GET", GET)

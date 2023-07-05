@@ -42,9 +42,14 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) 
   }
 
   mapper(jobs$off, jobs$len, ~ {
-    res <- GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers, httr::timeout(300)) %>%
-      content() %>%
-      map(p2_json_to_datatable)
+    tries <- 0
+    while(!exists("res") & tries<10) {
+      Sys.sleep(tries)
+      try(res <- GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers, httr::timeout(300)) %>%
+            content() %>%
+            map(p2_json_to_datatable),silent = TRUE)
+      tries <- tries + 1
+    }
     p(amount = .y)
     res
   }) %>% p2_combine_jsons()

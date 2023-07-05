@@ -48,8 +48,6 @@ address_geocode_all <- function(address_stream) {
   for (street_col in street_cols)
     setunite(address_stream_parsed,paste0("address_",street_col),
              all_of(c(street_col,"city","state","postal_code","country")), sep = ", ", na.rm = TRUE, remove = FALSE)
-  ## remove quotes from address fields because they cause issues with bing
-  address_stream_parsed[,map(.SD,\(x) tolower(trimws(gsub("\"'","",x)))), .SDcols = address_street_cols]
 
   # remove duplicates
   for (i in rev(seq_along(address_street_cols)[-1]))
@@ -62,7 +60,8 @@ address_geocode_all <- function(address_stream) {
                                             mode = "batch",
                                             api_options = list(census_return_type = "geographies")),
                                        list(method = "google"),
-                                       list(method = "osm")),
+                                       list(method = "osm",
+                                            min_time = 1.5)),
                          address = address_street_cols) %>%
     split(1:nrow(.)) %>%
     map(tidyr::unnest_wider,"params") %>%
@@ -92,7 +91,7 @@ address_geocode_all <- function(address_stream) {
 
 #' @describeIn address_geocode geocode only uncached addresses, load others from cache
 address_geocode <- function(address_stream) {
-  address_cache_chunked(address_stream, "address_geocode", address_geocode_all, n = 100, parallel = F)
+  address_cache_chunked(address_stream, "address_geocode", address_geocode_all, n = 1000, parallel = F)
 }
 
 #' address_reverse_census

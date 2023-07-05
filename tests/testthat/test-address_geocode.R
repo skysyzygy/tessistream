@@ -104,7 +104,7 @@ if(do_geocoding) {
     )
 
     capture.output(res <- address_geocode_all(address_stream), type = "message")
-    browser()
+
     # All get geocode
     expect_false(any(is.na(res[,.(lat,lon)])))
     # And those geocodes are for the right addresses

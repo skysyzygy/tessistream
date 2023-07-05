@@ -45,9 +45,9 @@ jobs:
         with:
           extra-packages: any::rcmdcheck, any::devtools
           needs: check
-      
-      - name: Setup upterm session
-        uses: lhotari/action-upterm@v1
+
+      # - name: Setup upterm session
+      #   uses: lhotari/action-upterm@v1
 
       - uses: r-lib/actions/check-r-package@v2
 

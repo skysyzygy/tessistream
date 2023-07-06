@@ -129,11 +129,17 @@ if(do_geocoding) {
      fill = TRUE
     )
 
-    capture.output(res <- address_geocode_all(address_stream), type = "message")
-    column_name <- intersect(c("formatted_address","display_name"),colnames(res))
+    n <- 0
+    while(!exists("res") || any(is.na(res[1:6,.(lat,lon)])) && n < 10) {
+      capture.output(res <- address_geocode_all(address_stream), type = "message")
+      Sys.sleep(10)
+      n <- n + 1
+    }
+
     # All get geocode
     expect_false(any(is.na(res[1:6,.(lat,lon)])))
     # And those geocodes are for the right addresses
+    column_name <- intersect(c("formatted_address","display_name"),colnames(res))
     expect_match(res[1,..column_name][[1]],"30.+Lafayette Ave")
     expect_match(res[2,..column_name][[1]],"321.+Ashland Pl")
     expect_match(res[3,..column_name][[1]],"Brooklyn")

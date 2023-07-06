@@ -51,8 +51,8 @@ local({
   })
 
   test_that("address_stream writes a full file containing additional data", {
-    address_stream <- tessilake:::cache_read("address_stream", "deep", "stream", num_tries = 1)
-    address_stream_full <- tessilake:::cache_read("address_stream_full", "deep", "stream", num_tries = 1)
+    address_stream <- read_cache("address_stream", "deep", "stream", num_tries = 1)
+    address_stream_full <- read_cache("address_stream_full", "deep", "stream", num_tries = 1)
 
     expect_gt(nrow(address_stream_full), nrow(address_stream))
     expect_gt(ncol(address_stream_full), ncol(address_stream))

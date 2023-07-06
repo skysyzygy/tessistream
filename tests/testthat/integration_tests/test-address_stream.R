@@ -7,8 +7,8 @@ future::plan("multisession")
 handlers("cli")
 mockery::stub(address_stream, "address_create_stream", readRDS(rprojroot::find_testthat_root_file("address_stream.Rds")))
 with_progress(address_stream()) %>% collect %>% setDT
-address_stream <- tessilake:::cache_read("address_stream","deep","stream") %>% collect %>% setDT
-address_stream_full <- tessilake:::cache_read("address_stream_full","deep","stream") %>% collect %>% setDT
+address_stream <- read_cache("address_stream","deep","stream") %>% collect %>% setDT
+address_stream_full <- read_cache("address_stream_full","deep","stream") %>% collect %>% setDT
 
 
 test_that("99.9% of customers have a primary address", {

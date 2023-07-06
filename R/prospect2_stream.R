@@ -501,9 +501,9 @@ p2_stream <- function() {
   }
 
   p2_stream <- p2_stream_build()
-  tessilake:::cache_write(p2_stream,"p2_stream","deep","stream",overwrite = T)
+  write_cache(p2_stream,"p2_stream","deep","stream",overwrite = T)
   p2_stream_enriched <- p2_stream_enrich(p2_stream)
-  tessilake:::cache_write(p2_stream,"p2_stream_enriched","deep","stream",overwrite = T)
+  write_cache(p2_stream,"p2_stream_enriched","deep","stream",overwrite = T)
 
   p2_stream
 

@@ -33,7 +33,7 @@ address_cols <- c(
 #'
 #' @return data.table of addresses and additional address-based features
 #' @export
-#' @importFrom tessilake read_tessi
+#' @importFrom tessilake read_tessi read_cache write_cache
 #' @importFrom data.table copy
 address_stream <- function(freshness = as.difftime(7, units = "days")) {
   . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-
@@ -71,12 +71,12 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
                                      "event_type", "event_subtype", "address_no", "lat", "lon",
                                      grep("^address.+level$",colnames(address_stream), value = T)), with = F]
 
-  tessilake:::cache_write(address_stream_full, "address_stream_full", "deep", "stream",
+  write_cache(address_stream_full, "address_stream_full", "deep", "stream",
                           primary_keys = c("address_no", "timestamp"), partition = FALSE, overwrite = TRUE)
-  tessilake:::cache_write(address_stream, "address_stream", "deep", "stream",
+  write_cache(address_stream, "address_stream", "deep", "stream",
                           primary_keys = c("address_no", "timestamp"), partition = FALSE, overwrite = TRUE)
 
-  tessilake:::cache_read("address_stream", "deep", "stream")
+  read_cache("address_stream", "deep", "stream")
   #address_stream <- address_stream %>% mutate_all(fix_vmode) %>% as.ffdf
 
   #pack.ffdf(file.path(streamDir, "addressStream.gz"), addressStream)

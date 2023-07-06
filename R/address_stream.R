@@ -37,7 +37,7 @@ address_cols <- c(
 #' @importFrom data.table copy
 address_stream <- function(freshness = as.difftime(7, units = "days")) {
   . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-
-    event_subtype <- timestamp <- NULL
+    event_subtype <- timestamp <- score_dt <- NULL
 
   address_stream <- address_create_stream(freshness = freshness)
   address_parsed <- address_parse(address_stream)
@@ -196,7 +196,7 @@ address_parse_libpostal <- function(address_stream) {
   if(nrow(address_stream) == 0)
     return(address_stream)
 
-  address_stream <- address_stream[, ..address_cols]
+  address_stream <- address_stream[, address_cols, with = FALSE]
 
   # make address string for libpostal
   setunite(address_stream, "address", all_of(address_cols), sep = ", ", na.rm = TRUE, remove = FALSE)
@@ -288,7 +288,8 @@ address_parse_libpostal <- function(address_stream) {
     }
   )
 
-  address_stream <- cbind(address_stream[, ..address_cols], libpostal = parsed[, ..parsed_cols])
+  address_stream <- cbind(address_stream[, address_cols, with = FALSE],
+                          libpostal = parsed[, parsed_cols, with = FALSE])
 }
 
 #' address_parse
@@ -376,7 +377,7 @@ address_cache <- function(address_stream, cache_name, .function,
     cache <- rbind(cache, cache_miss, fill = TRUE)
   }
 
-  address_stream <- cache[address_stream[, ..key_cols_available], on = key_cols_available]
+  address_stream <- cache[address_stream[, key_cols_available, with = FALSE], on = key_cols_available]
 
   return(address_stream)
 }
@@ -421,6 +422,6 @@ address_cache_chunked <- function(address_stream, cache_name, .function,
                                            .progress = p)) %>%
     rbindlist(fill = TRUE)
 
-  address_stream_distinct[address_stream[, ..key_cols_available], on = key_cols_available]
+  address_stream_distinct[address_stream[, key_cols_available, with = FALSE], on = key_cols_available]
 
 }

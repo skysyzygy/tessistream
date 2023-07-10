@@ -23,7 +23,7 @@ write_xlsx <- function(data, xlsx_file) {
 
   setColWidths(wb,1,seq_along(data),pmax(
     map_int(data,
-      ~max(nchar(as.character(.)),na.rm=T)),
+      ~max(nchar(as.character(.),keepNA = F),na.rm=T)),
     nchar(colnames(data))
   ) + 3)
 

@@ -316,7 +316,7 @@ address_parse <- function(address_stream) {
 #' @param ... additional options passed to `.function`
 #'
 #' @return data.table of addresses processed
-#' @importFrom dplyr collect tbl semi_join
+#' @importFrom dplyr collect tbl inner_join
 #' @importFrom utils head capture.output
 address_cache <- function(address_stream, cache_name, .function,
                           key_cols = address_cols,
@@ -343,7 +343,8 @@ address_cache <- function(address_stream, cache_name, .function,
 
   } else {
     cache <- tbl(cache_db, cache_name) %>%
-      semi_join(address_stream_distinct, by = key_cols_available, copy = TRUE, na_matches = "na", auto_index = TRUE) %>% collect %>% setDT
+      inner_join(address_stream_distinct[,key_cols_available,with=F],
+                 by = key_cols_available, copy = TRUE, na_matches = "na", auto_index = TRUE) %>% collect %>% setDT
     cache_miss <- address_stream_distinct[!cache, on = as.character(key_cols_available)]
   }
 

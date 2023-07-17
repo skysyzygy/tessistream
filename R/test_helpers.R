@@ -55,7 +55,7 @@ address_prepare_fixtures <- function() {
     .[, N := .N, by = c("group_customer_no", "alternate_key")] %>%
     .[N > 10]
 
-  addresses <- read_tessi("addresses") %>% semi_join(audit,by=c("address_no"="alternate_key")) %>%
+  addresses <- read_tessi("addresses") %>% dplyr::semi_join(audit,by=c("address_no"="alternate_key")) %>%
     collect %>% setDT
 
   # anonymize address number

@@ -10,5 +10,5 @@ p2_email_map()
 data.table of a mapping between email addresses and customer numbers
 }
 \description{
-Constructs a one-to-many mapping between email addresses / P2 subscriber ids and Tessi customer numbers
+Constructs a many-to-many mapping between email addresses / P2 subscriber ids and Tessi customer numbers
 }

@@ -304,7 +304,7 @@ p2_load <- function(table, offset = 0, overwrite = FALSE, ...) {
 
 #' p2_email_map
 #'
-#' Constructs a one-to-many mapping between email addresses / P2 subscriber ids and Tessi customer numbers
+#' Constructs a many-to-many mapping between email addresses / P2 subscriber ids and Tessi customer numbers
 #'
 #' @return data.table of a mapping between email addresses and customer numbers
 #' @export
@@ -366,7 +366,7 @@ p2_email_map <- function() {
   # map customer_no -> group_customer_no
   email_map[tessilake::tessi_customer_no_map() %>%
               collect() %>%
-              setDT(), group_customer_no := i.group_customer_no, on = c("customer_no" = "group_customer_no")]
+              setDT(), group_customer_no := i.group_customer_no, on = "customer_no"]
 
 
   distinct(email_map)

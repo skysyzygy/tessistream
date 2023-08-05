@@ -145,8 +145,7 @@ set_contribution_membership_match <- function(contributions, memberships) {
 
   match_data <- memberships[unmatched_contributions,  .(group_customer_no,
                                                         cust_memb_no,ref_no = i.ref_no,
-                                                        start_amt,
-                                                        memb_amt,AVC_amt,cont_amt,recog_amt,i.cont_amt,
+                                                        start_amt,memb_amt,AVC_amt,cont_amt,recog_amt,i.cont_amt,
                                                         campaign_category_desc,i.campaign_category_desc,
                                                         create_dt,i.create_dt,
                                                         init_dt,cont_dt),
@@ -171,15 +170,15 @@ set_contribution_membership_match <- function(contributions, memberships) {
 #' `memb_amt + AVC_amt, recog_amt, start_amt` and the `cont_amt` of the contribution. Expected to fix 90% of
 #' unmatched contributions.
 #'
-#' @param contributions data.table of contributions, must include columns `group_customer_no, campaign_category_desc, cont_amt, create_dt, cont_dt`
-#' @param memberships data.table of memberships, must include columns `group_customer_no, campaign_category_desc, memb_amt, AVC_amt, recog_amt, start_amt, create_dt, init_dt`
+#' @param contributions data.table of contributions, must include columns `group_customer_no, ref_no, cust_memb_no, campaign_category_desc, cont_amt, create_dt, cont_dt`
+#' @param memberships data.table of memberships, must include columns `group_customer_no, cust_memb_no, campaign_category_desc, memb_amt, AVC_amt, recog_amt, start_amt, create_dt, init_dt`
 #'
 #' @return matched data.table of contributions
 #' @importFrom data.table copy
 #' @importFrom checkmate assert_named
 contribution_membership_match <- function(contributions,memberships) {
-  assert_names(colnames(contributions), must.include = c("group_customer_no", "campaign_category_desc", "cont_amt", "create_dt", "cont_dt"))
-  assert_names(colnames(memberships), must.include = c("group_customer_no", "campaign_category_desc", "memb_amt", "AVC_amt", "recog_amt", "start_amt", "create_dt", "init_dt"))
+  assert_names(colnames(contributions), must.include = c("group_customer_no", "ref_no", "cust_memb_no", "campaign_category_desc", "cont_amt", "create_dt", "cont_dt"))
+  assert_names(colnames(memberships), must.include = c("group_customer_no", "cust_memb_no", "campaign_category_desc", "memb_amt", "AVC_amt", "recog_amt", "start_amt", "create_dt", "init_dt"))
 
   contributions <- copy(contributions)
 

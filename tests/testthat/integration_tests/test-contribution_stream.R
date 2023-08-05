@@ -17,10 +17,10 @@ campaigns <- read_tessi("campaigns", select = c("campaign_no", "fyear", "categor
 levels <- read_sql_table("T_MEMB_LEVEL")
 memberships <- read_tessi("memberships") %>% filter(!current_status_desc %in% c("Cancelled","Deactivated")) %>% collect %>% setDT
 memberships <- merge(memberships,campaigns,by="campaign_no",suffixes = c("",".campaign")) %>%
-  merge(levels, by = c("memb_level_no","memb_org_no"), suffixes = c("",".level"))
+  merge(levels, by = c("memb_level_no","memb_org_no"), suffixes = c("",".level")) %>%
+  setnames("category_desc","campaign_category_desc")
 
-
-contributions_matched <- contribution_membership_match(contributions = data.table::copy(contributions),memberships = data.table::copy(memberships))
+contributions_matched <- contribution_membership_match(contributions, memberships)
 
 test_that("contribution_membership_match returns a table with the same ref_no as the contributions dataset and cust_memb_no as the memberships dataset", {
   expect_equal(contributions_matched$ref_no,contributions$ref_no)

@@ -10,9 +10,9 @@ set_contribution_membership_match(contributions, memberships)
 contribution_membership_match(contributions, memberships)
 }
 \arguments{
-\item{contributions}{data.table of contributions, must include columns \verb{group_customer_no, campaign_category_desc, cont_amt, create_dt, cont_dt}}
+\item{contributions}{data.table of contributions, must include columns \verb{group_customer_no, ref_no, cust_memb_no, campaign_category_desc, cont_amt, create_dt, cont_dt}}
 
-\item{memberships}{data.table of memberships, must include columns \verb{group_customer_no, campaign_category_desc, memb_amt, AVC_amt, recog_amt, start_amt, create_dt, init_dt}}
+\item{memberships}{data.table of memberships, must include columns \verb{group_customer_no, cust_memb_no, campaign_category_desc, memb_amt, AVC_amt, recog_amt, start_amt, create_dt, init_dt}}
 }
 \value{
 matched data.table of contributions

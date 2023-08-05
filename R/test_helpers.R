@@ -86,6 +86,53 @@ address_prepare_fixtures <- function() {
   saveRDS(addresses, testthat::test_path("addresses.Rds"))
 }
 
+contributions_stream_prepare_fixtures <- function() {
+  # simulate some memberships
+  n_memberships <- 1000
+  memberships <- data.table(group_customer_no = sample(seq(100),n_memberships,replace = T),
+                            start_amt = sample(seq(0,10000,1000),n_memberships,replace = T),
+                            campaign_category_desc = sample(paste("Campaign",LETTERS),n_memberships,replace = T),
+                            cust_memb_no = seq(n_memberships),
+                            AVC_amt = sample(seq(0,500,100),n_memberships,replace = T)) %>%
+    .[,memb_amt := start_amt*sample(c(1/2,1,2),.N,replace=T)] %>%
+    .[,recog_amt := memb_amt + AVC_amt] %>%
+    .[,end_amt := start_amt + 999.99] %>%
+    .[,`:=`(create_dt = today() + lubridate::dyears(seq(.N)) + lubridate::ddays(runif(.N,-365, 30)),
+            init_dt = today() + lubridate::dyears(seq(.N))), by = "group_customer_no"]
+
+  contributions <- memberships[,.(group_customer_no,
+                                  cust_memb_no = NA_integer_,
+                                  cust_memb_no_real = cust_memb_no,
+                                  ref_no = seq(.N),
+                                  type = sample(c(1,2,3),.N,replace = T),
+                                  create_dt = create_dt + lubridate::ddays(runif(.N, -365, 30)),
+                                  cont_dt = init_dt + lubridate::ddays(runif(.N, -90, 180)),
+                                  campaign_category_desc)] %>%
+    .[,cont_amt := case_when(type == 1 ~ memberships[,memb_amt+AVC_amt],
+                             type == 2 ~ memberships[,recog_amt],
+                             type == 3 ~ memberships[,start_amt+AVC_amt])]
+
+  # split up some contributions
+  contributions[1:50, cont_amt:=cont_amt/2]
+  contributions <- rbind(contributions,contributions[1:50]) %>%
+    .[n_memberships + 1:50, `:=`(create_dt = create_dt + 90,
+                                 cont_dt = cont_dt + 90)]
+
+  # add extra dummy contributions
+  contributions <- rbind(contributions, data.table(group_customer_no = sample(seq(100),n_memberships,replace = T),
+                                                   cust_memb_no = NA_integer_,
+                                                   cust_memb_no_real = NA_integer_,
+                                                   ref_no = seq(n_memberships)+1050,
+                                                   type = 4,
+                                                   create_dt = today() + lubridate::ddays(runif(n_memberships, -365, 30)),
+                                                   cont_dt = today() + lubridate::ddays(runif(n_memberships, -90, 180)),
+                                                   campaign_category_desc = sample(paste("Campaign",LETTERS),n_memberships,replace = T),
+                                                   cont_amt = sample(seq(0,500,100),n_memberships,replace = T)))
+
+  saveRDS(contributions,"tests/testthat/contribution_stream-contributions.Rds")
+  saveRDS(memberships,"tests/testthat/contribution_stream-memberships.Rds")
+}
+
 
 p2_prepare_fixtures <- function() {
   stub <- mutate <- across <- any_of <- NULL

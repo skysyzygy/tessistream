@@ -2,25 +2,12 @@
 withr::local_envvar(R_CONFIG_FILE="")
 
 # contribution_membership_match -------------------------------------------
-# Load data from Tessi
-contributions <- read_tessi("contributions") %>%
-  # Needed because the BI table filters out some contribution references
-  left_join(read_sql_table("TX_CONT_MEMB"),
-            by = c("ref_no" = "cont_ref_no"), all.x = T, suffix = c(".old","")) %>%
-  left_join(read_tessi("creditees", select = c("ref_no", "creditee_no")),
-            by = "ref_no", all.x = T, suffix = c("",".creditee")) %>%
-  collect %>% setDT
-# Add creditee info
-contributions[!is.na(group_creditee_no),`:=`(group_customer_no=group_creditee_no, customer_no=creditee_no)]
 
-campaigns <- read_tessi("campaigns", select = c("campaign_no", "fyear", "category_desc")) %>% collect %>% setDT
-levels <- read_sql_table("T_MEMB_LEVEL")
-memberships <- read_tessi("memberships") %>% filter(!current_status_desc %in% c("Cancelled","Deactivated")) %>% collect %>% setDT
-memberships <- merge(memberships,campaigns,by="campaign_no",suffixes = c("",".campaign")) %>%
-  merge(levels, by = c("memb_level_no","memb_org_no"), suffixes = c("",".level")) %>%
-  setnames("category_desc","campaign_category_desc")
+data <- contribution_stream_load()
+contributions <- data$contributions
+memberships <- data$memberships
 
-contributions_matched <- contribution_membership_match(contributions, memberships)
+contributions_matched <- contribution_membership_match(data$contributions, data$memberships)
 
 test_that("contribution_membership_match returns a table with the same ref_no as the contributions dataset and cust_memb_no as the memberships dataset", {
   expect_equal(contributions_matched$ref_no,contributions$ref_no)

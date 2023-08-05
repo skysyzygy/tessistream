@@ -2,16 +2,17 @@
 % Please edit documentation in R/contribution_stream.R
 \name{contribution_stream}
 \alias{contribution_stream}
+\alias{contribution_stream_load}
 \title{contribution_stream}
 \usage{
 contribution_stream(depth = "deep", type = "stream", ...)
 }
 \arguments{
+\item{...}{additional arguments passed on to \link[tessilake:read_tessi]{tessilake::read_tessi} and friends.}
+
 \item{depth}{string, e.g. "deep" or "shallow", where to save the cache, passed to \link[tessilake:write_cache]{tessilake::write_cache}}
 
 \item{type}{string, e.g. "tessi" or "stream", where to save the cache, passed to \link[tessilake:write_cache]{tessilake::write_cache}}
-
-\item{...}{additional arguments passed on to \link[tessilake:read_tessi]{tessilake::read_tessi}}
 }
 \description{
 Creates timestamped dataset of all contributions and caches it.
@@ -37,3 +38,10 @@ Output Features are:
 \item contribution_max
 }
 }
+\section{Functions}{
+\itemize{
+\item \code{contribution_stream_load()}: load data for contribution_stream
+
+\item \code{contribution_stream()}: create the contribution_stream dataset
+
+}}

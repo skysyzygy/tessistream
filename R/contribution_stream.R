@@ -20,13 +20,18 @@
 #' *  contribution_amt
 #' *  contribution_max
 #'
+#' @name contribution_stream
 #' @param depth string, e.g. "deep" or "shallow", where to save the cache, passed to [tessilake::write_cache]
-#' @param ... additional arguments passed on to [tessilake::read_tessi]
+#' @param ... additional arguments passed on to [tessilake::read_tessi] and friends.
 #' @param type string, e.g. "tessi" or "stream", where to save the cache, passed to [tessilake::write_cache]
 #' @export
 #' @importFrom lubridate floor_date ddays
-#' @importFrom dplyr collect filter left_join
-contribution_stream <- function(depth = "deep", type = "stream", ...) {
+#' @importFrom dplyr collect filter left_join rename
+NULL
+
+#' @describeIn contribution_stream load data for contribution_stream
+#' @usage NULL
+contribution_stream_load <- function(...) {
   # Load data from Tessi
   contributions = read_tessi("contributions", ...) %>%
   # Needed because the BI table filterse out some contribution references
@@ -38,12 +43,20 @@ contribution_stream <- function(depth = "deep", type = "stream", ...) {
   # Add creditee info
   contributions[!is.na(group_creditee_no),`:=`(group_customer_no=group_creditee_no, customer_no=creditee_no)]
 
-  campaigns <- read_tessi("campaigns", select = c("campaign_no", "fyear", "category_desc"), ...) %>% collect %>% setDT
-  levels <- read_sql_table("T_MEMB_LEVEL")
-  memberships <- read_tessi("memberships", ...) %>% filter(!current_status_desc %in% c("Cancelled","Deactivated")) %>% collect %>% setDT
-  memberships <- merge(memberships,campaigns,by="campaign_no",suffixes = c("",".campaign")) %>%
-    merge(levels, by = c("memb_level_no","memb_org_no"), suffixes = c("",".level")) %>%
-    setnames("category_desc","campaign_category_desc")
+  memberships <- read_tessi("memberships", ...) %>% filter(!current_status_desc %in% c("Cancelled","Deactivated")) %>%
+    left_join(read_tessi("campaigns", select = c("campaign_no", "fyear", "category_desc"), ...),
+              by = "campaign_no", suffix = c("",".campaign")) %>%
+    left_join(read_sql_table("T_MEMB_LEVEL"),
+              by = c("memb_level_no","memb_org_no"), suffix = c("",".level")) %>%
+    rename(campaign_category_desc = category_desc) %>%
+    collect %>% setDT
+
+  return(list(contributions = contributions,
+              memberships = memberships))
+}
+
+#' @describeIn contribution_stream create the contribution_stream dataset
+contribution_stream <- function(depth = "deep", type = "stream", ...) {
 
   # TODO: should we be working with transaction data? The timing might be more accurate?
 

@@ -101,6 +101,7 @@ contributions_stream_prepare_fixtures <- function() {
             init_dt = today() + lubridate::dyears(seq(.N))), by = "group_customer_no"]
 
   contributions <- memberships[,.(group_customer_no,
+                                  campaign_no = sample(10, .N, replace = TRUE),
                                   cust_memb_no = NA_integer_,
                                   cust_memb_no_real = cust_memb_no,
                                   ref_no = seq(.N),
@@ -114,15 +115,18 @@ contributions_stream_prepare_fixtures <- function() {
 
   # split up some contributions
   contributions[1:50, cont_amt:=cont_amt/2]
-  contributions <- rbind(contributions,contributions[1:50]) %>%
-    .[n_memberships + 1:50, `:=`(create_dt = create_dt + 90,
-                                 cont_dt = cont_dt + 90)]
+  contributions <- rbind(contributions,contributions[1:50] %>%
+    .[, `:=`(create_dt = create_dt + 90,
+             cont_dt = cont_dt + 90,
+             ref_no = nrow(contributions) + 1:50,
+             type = 5)])
 
   # add extra dummy contributions
   contributions <- rbind(contributions, data.table(group_customer_no = sample(seq(100),n_memberships,replace = T),
+                                                   campaign_no = sample(10, n_memberships, replace = TRUE),
                                                    cust_memb_no = NA_integer_,
                                                    cust_memb_no_real = NA_integer_,
-                                                   ref_no = seq(n_memberships)+1050,
+                                                   ref_no = seq(n_memberships)+nrow(contributions),
                                                    type = 4,
                                                    create_dt = today() + lubridate::ddays(runif(n_memberships, -365, 30)),
                                                    cont_dt = today() + lubridate::ddays(runif(n_memberships, -90, 180)),

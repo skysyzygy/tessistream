@@ -5,19 +5,26 @@
 \alias{contribution_stream_load}
 \title{contribution_stream}
 \usage{
-contribution_stream(depth = "deep", type = "stream", ...)
+contribution_stream(
+  depth = "deep",
+  type = "stream",
+  event_subtypes = list(TRUE ~ campaign_category_desc),
+  ...
+)
 }
 \arguments{
-\item{...}{additional arguments passed on to \link[tessilake:read_tessi]{tessilake::read_tessi} and friends.}
-
 \item{depth}{string, e.g. "deep" or "shallow", where to save the cache, passed to \link[tessilake:write_cache]{tessilake::write_cache}}
 
 \item{type}{string, e.g. "tessi" or "stream", where to save the cache, passed to \link[tessilake:write_cache]{tessilake::write_cache}}
+
+\item{event_subtypes}{list of formulas to be used for coding, as for \link[dplyr:case_when]{dplyr::case_when}. Can refer to any columns in the \code{contributions} table. See \strong{Note} below}
+
+\item{...}{additional arguments passed on to \link[tessilake:read_tessi]{tessilake::read_tessi} and friends.}
 }
 \description{
 Creates timestamped dataset of all contributions and caches it.
-Adds creditee information, categorizes memberships based on campaign and NRR status, and associates with
-memberships.
+Adds creditee information, categorizes contributions based on campaign and NRR status, and associates with
+memberships, using \link{contribution_membership_match}.
 }
 \details{
 Output Features are:
@@ -25,7 +32,7 @@ Output Features are:
 \item group_customer_no (donor or creditee)
 \item timestamp : date of contribution
 \item event_type : Contribution
-\item event_subtype : Major Gifts|Patron|Member|Other
+\item event_subtype : Membership|Gala|Other
 \item event_subtype2 : New|Renew|Reinstate|Upgrade
 \item cont_amt
 \item campaign_no (foreign key for campaign)
@@ -33,6 +40,7 @@ Output Features are:
 \item cust_memb_no (foreign key for memberships)
 \item contribution_timestamp_min
 \item contribution_timestamp_max
+\item contribution_timestamp_last
 \item contribution_SUBTYPE_count
 \item contribution_amt
 \item contribution_max
@@ -42,6 +50,23 @@ Output Features are:
 \itemize{
 \item \code{contribution_stream_load()}: load data for contribution_stream
 
-\item \code{contribution_stream()}: create the contribution_stream dataset
-
 }}
+\note{
+\itemize{
+\item \strong{event_subtypes} This value for event_subtypes:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{list(
+   !is.na(cust_memb_no) ~ "Membership",
+   grepl("BENE",campaign_desc) ~ "Gala",
+   TRUE ~ campaign_category_desc
+   )
+}\if{html}{\out{</div>}}
+
+Assigns
+\itemize{
+\item everything with a \code{cust_memb_no} to "Membership"
+\item everything else with "BENE" in \code{campaign_desc} as "Gala", and
+\item everything else to the value of \code{campaign_category_desc}
+}
+}
+}

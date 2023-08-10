@@ -4,7 +4,7 @@ withr::local_package("dplyr")
 audit <- readRDS(test_path("address_audit.Rds"))
 addresses <- readRDS(test_path("addresses.Rds"))
 # Use this to turn off libpostal execution
-stub(address_exec_libpostal,"Sys.which","")
+# stub(address_exec_libpostal,"Sys.which","")
 
 
 # address_stream ----------------------------------------------------------

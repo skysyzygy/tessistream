@@ -2,12 +2,15 @@
 % Please edit documentation in R/address_stream.R
 \name{address_stream}
 \alias{address_stream}
+\alias{address_stream_build}
 \title{address_stream}
 \usage{
-address_stream(freshness = as.difftime(7, units = "days"))
+address_stream(...)
+
+address_stream_build(...)
 }
 \arguments{
-\item{freshness}{data will be at least this fresh}
+\item{...}{parameters passed on to \link{address_stream_create}}
 }
 \value{
 data.table of addresses and additional address-based features
@@ -17,6 +20,12 @@ Create a data.table stream of addresses and timestamps, drawing from Tessitura T
 Tries each address up to six times, using \code{libpostal} parsing, \code{street1}, and \code{street2}, and the US census and openstreetmap geocoders.
 Appends census demographic and aggregate income data and iWave income data.
 }
+\section{Functions}{
+\itemize{
+\item \code{address_stream_build()}: build the address_stream by combining data from \link{address_stream_create},
+\link{address_parse}, \link{address_geocode}, \link{address_census}, and iWave data from \link[tessilake:read_tessi]{tessilake::read_tessi}
+
+}}
 \note{
 Uses \link[future:future]{future::future} for parallel processing and \link[progressr:progressr]{progressr::progressr} for progress tracking
 }

@@ -4,62 +4,85 @@ withr::local_package("dplyr")
 audit <- readRDS(test_path("address_audit.Rds"))
 addresses <- readRDS(test_path("addresses.Rds"))
 # Use this to turn off libpostal execution
-# stub(address_exec_libpostal,"Sys.which","")
+stub(address_exec_libpostal,"Sys.which","")
 
 
 # address_stream ----------------------------------------------------------
 
-local({
+test_that("address_stream_build combines data from address_parse, address_census, address_geocode, and read_tessi and returns all rows and a subset of columns", {
   tessilake:::local_cache_dirs()
 
-  test_that("address_stream combines data from address_parse, address_census, address_geocode, and read_tessi and returns all rows and a subset of columns", {
-    address_stream_original <- readRDS(rprojroot::find_testthat_root_file("address_stream.Rds"))
-    stub(address_stream, "address_create_stream", address_stream_original)
-    stub(address_stream, "address_parse", cbind(distinct(address_stream_original[,..address_cols]),libpostal =
-          data.table()[,c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode") := NA_character_]))
+  address_stream_original <- readRDS(rprojroot::find_testthat_root_file("address_stream.Rds"))
+  stub(address_stream_build, "address_create_stream", address_stream_original)
+  stub(address_stream_build, "address_parse", cbind(distinct(address_stream_original[,..address_cols]),libpostal =
+        data.table()[,c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode") := NA_character_]))
 
-    address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
-    stub(address_stream, "address_geocode", address_geocode[address_stream_original[,..address_cols],on=address_cols])
+  address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
+  stub(address_stream_build, "address_geocode", address_geocode[address_stream_original[,..address_cols],on=address_cols])
 
-    stub(address_reverse_census,"address_geocode",address_geocode)
-    stub(address_census,"address_reverse_census",address_reverse_census)
-    stub(address_census, "census_features", readRDS(rprojroot::find_testthat_root_file("census_features.Rds")))
-    stub(address_stream, "address_census", address_census)
+  stub(address_reverse_census,"address_geocode",address_geocode)
+  stub(address_census,"address_reverse_census",address_reverse_census)
+  stub(address_census, "census_features", readRDS(rprojroot::find_testthat_root_file("census_features.Rds")))
+  stub(address_stream_build, "address_census", address_census)
 
-    iwave <- readRDS(rprojroot::find_testthat_root_file("address_iwave.Rds"))
-    stub(address_stream, "read_tessi", iwave)
+  iwave <- readRDS(rprojroot::find_testthat_root_file("address_iwave.Rds"))
+  stub(address_stream_build, "read_tessi", iwave)
 
-    suppressMessages(address_stream <- address_stream() %>% collect)
+  suppressMessages(address_stream <- address_stream_build() %>% collect)
 
-    # output is the same length as input
-    expect_equal(nrow(address_stream),
-                 nrow(address_stream_original[group_customer_no >= 200 & primary_ind == "Y"]))
+  # output is the same length as input
+  expect_equal(nrow(address_stream),
+               nrow(address_stream_original))
 
-    # the correct iwave data was appended
-    expect_equal(address_stream[!is.na(address_pro_score_level),.N],
-                 address_stream[iwave, on = "group_customer_no"][timestamp > score_dt,.N])
+  # the correct iwave data was appended
+  expect_equal(address_stream[!is.na(address_pro_score_level),.N],
+               address_stream[iwave, on = "group_customer_no"][timestamp > score_dt,.N])
 
-    # has all the stream column names
-    expect_true(all(colnames(address_stream) %in% c(address_cols, "lat", "lon",
-                                                    "event_type", "event_subtype", "group_customer_no", "address_no",
-                                                    "timestamp", "address_no") |
-                    grepl("^address.+level$",colnames(address_stream))))
+  # has all the stream column names
+  checkmate::expect_names(colnames(address_stream), must.include = c(address_cols, "lat", "lon", "address_no",
+                                                  "event_type", "event_subtype", "group_customer_no", "timestamp"))
 
-    # has all the census data appended
-    expect_equal(sum(grepl("median_income|over_65|male|african_american",colnames(address_stream))),4)
 
-  })
+  # has all the census data appended
+  expect_equal(sum(grepl("median_income|over_65|male|african_american",colnames(address_stream))),4)
 
-  test_that("address_stream writes a full file containing additional data", {
-    address_stream <- read_cache("address_stream", "deep", "stream", num_tries = 1)
-    address_stream_full <- read_cache("address_stream_full", "deep", "stream", num_tries = 1)
+  .address_stream <<- address_stream
+})
 
-    expect_gt(nrow(address_stream_full), nrow(address_stream))
-    expect_gt(ncol(address_stream_full), ncol(address_stream))
+test_that("address_stream writes a full file containing additional data", {
+  tessilake:::local_cache_dirs()
+  stub(address_stream, "address_stream_build", .address_stream)
 
-  })
+  address_stream()
+
+  address_stream <- read_cache("address_stream", "deep", "stream", num_tries = 1)
+  address_stream_full <- read_cache("address_stream_full", "deep", "stream", num_tries = 1)
+
+  expect_gt(nrow(address_stream_full), nrow(address_stream))
+  expect_gt(ncol(address_stream_full), ncol(address_stream))
+  expect_true(all(colnames(address_stream) %in% c(address_cols, "lat", "lon",
+                                                  "event_type", "event_subtype", "group_customer_no", "address_no",
+                                                  "timestamp", "address_no") |
+                  grepl("^address.+level$",colnames(address_stream))))
 
 })
+
+test_that("address_stream copies the address database", {
+  tessilake:::local_cache_dirs()
+
+  withr::local_package("checkmate")
+  stub(address_stream, "address_stream_build", .address_stream)
+
+  # create an empty database
+  dir.create(tessilake::cache_path("","shallow","stream"))
+  file.create(tessilake::cache_path("address_stream.sqlite","shallow","stream"))
+
+  address_stream()
+
+  expect_file_exists(tessilake::cache_path("address_stream.sqlite","deep","stream"))
+  expect_file_exists(tessilake::cache_path("address_stream.sqlite","shallow","stream"))
+})
+.address_stream <<- NULL
 
 # address_create_stream ---------------------------------------------------
 
@@ -296,7 +319,7 @@ address_stream <- data.table(street1 = paste(1:100, "example lane"), something =
                                                                                                     fill = TRUE)
 address_result <- data.table::copy(address_stream)[, processed := strsplit(street1, " ") %>% purrr::map_chr(1)]
 
-sqlite_file <- tessilake::cache_path("address_stream.sqlite", "deep", "stream")
+sqlite_file <- tessilake::cache_path("address_stream.sqlite", "shallow", "stream")
 db <- NULL
 
 test_that("address_cache handles cache non-existence and writes a cache file containing only address_processed cols", {
@@ -443,7 +466,7 @@ address_stream_parsed <- data.table(
 )
 
 DBI::dbDisconnect(db)
-file.remove(tessilake::cache_path("address_stream.sqlite", "deep", "stream"))
+file.remove(tessilake::cache_path("address_stream.sqlite", "shallow", "stream"))
 
 test_that("address_parse handles cache non-existence and writes a cache file containing only address_cols and libpostal cols", {
   address_stream <- data.table(

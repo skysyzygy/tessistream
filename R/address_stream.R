@@ -29,17 +29,43 @@ address_cols <- c(
 #'
 #' @note Uses [future::future] for parallel processing and [progressr::progressr] for progress tracking
 #'
-#' @param freshness data will be at least this fresh
+#' @param ... parameters passed on to [address_stream_create]
 #'
 #' @return data.table of addresses and additional address-based features
 #' @export
 #' @importFrom tessilake read_tessi read_cache write_cache
 #' @importFrom data.table copy
-address_stream <- function(freshness = as.difftime(7, units = "days")) {
+address_stream  <- function(...) {
   . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-
     event_subtype <- timestamp <- score_dt <- NULL
 
-  address_stream <- address_create_stream(freshness = freshness)
+  address_stream <- address_stream_build(...)
+
+  address_stream_full <- copy(address_stream)
+  address_stream <- address_stream[(primary_ind == "Y" | event_subtype == "iWave Score") & group_customer_no >= 200,
+                                   c(address_cols, "group_customer_no", "timestamp",
+                                     "event_type", "event_subtype", "address_no", "lat", "lon",
+                                     grep("^address.+level$",colnames(address_stream), value = T)), with = F]
+
+  write_cache(address_stream_full, "address_stream_full", "deep", "stream",
+              primary_keys = c("address_no", "timestamp"), partition = FALSE, overwrite = TRUE)
+  write_cache(address_stream, "address_stream", "deep", "stream",
+              primary_keys = c("address_no", "timestamp"), partition = FALSE, overwrite = TRUE)
+
+  file.copy(tessilake::cache_path("address_stream.sqlite", "shallow", "stream"),
+            tessilake::cache_path("address_stream.sqlite", "deep", "stream"))
+
+  address_stream
+
+}
+
+#' @describeIn address_stream build the address_stream by combining data from [address_stream_create],
+#' [address_parse], [address_geocode], [address_census], and iWave data from [tessilake::read_tessi]
+address_stream_build <- function(...) {
+  . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-
+    event_subtype <- timestamp <- score_dt <- NULL
+
+  address_stream <- address_create_stream(...)
   address_parsed <- address_parse(address_stream)
   address_geocode <- address_geocode(address_parsed)
   address_census <- address_census(cbind(address_geocode,timestamp = address_stream$timestamp))
@@ -65,22 +91,10 @@ address_stream <- function(freshness = as.difftime(7, units = "days")) {
                              "address_donations_level"),
             by = "group_customer_no")
 
-  address_stream_full <- copy(address_stream)
-  address_stream <- address_stream[(primary_ind == "Y" | event_subtype == "iWave Score") & group_customer_no >= 200,
-                                   c(address_cols, "group_customer_no", "timestamp",
-                                     "event_type", "event_subtype", "address_no", "lat", "lon",
-                                     grep("^address.+level$",colnames(address_stream), value = T)), with = F]
-
-  write_cache(address_stream_full, "address_stream_full", "deep", "stream",
-                          primary_keys = c("address_no", "timestamp"), partition = FALSE, overwrite = TRUE)
-  write_cache(address_stream, "address_stream", "deep", "stream",
-                          primary_keys = c("address_no", "timestamp"), partition = FALSE, overwrite = TRUE)
-
-  read_cache("address_stream", "deep", "stream")
-  #address_stream <- address_stream %>% mutate_all(fix_vmode) %>% as.ffdf
-
-  #pack.ffdf(file.path(streamDir, "addressStream.gz"), addressStream)
+  address_stream
 }
+
+
 
 
 #' address_create_stream
@@ -320,7 +334,7 @@ address_parse <- function(address_stream) {
 #' @importFrom utils head capture.output
 address_cache <- function(address_stream, cache_name, .function,
                           key_cols = address_cols,
-                          db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"), ...) {
+                          db_name = tessilake::cache_path("address_stream.sqlite", "shallow", "stream"), ...) {
   assert_data_table(address_stream)
 
   if (!dir.exists(dirname(db_name))) {
@@ -388,7 +402,7 @@ address_cache <- function(address_stream, cache_name, .function,
 #' @describeIn address_cache Parallel wrapper around address_cache using [furrr::furrr] and [progressr::progressr]
 address_cache_chunked <- function(address_stream, cache_name, .function,
                                    key_cols = address_cols,
-                                   db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
+                                   db_name = tessilake::cache_path("address_stream.sqlite", "shallow", "stream"),
                                    parallel = rlang::is_installed("furrr"),
                                    n = 100, ...) {
   . <- NULL

@@ -10,7 +10,7 @@ address_cache(
   cache_name,
   .function,
   key_cols = address_cols,
-  db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
+  db_name = tessilake::cache_path("address_stream.sqlite", "shallow", "stream"),
   ...
 )
 
@@ -19,7 +19,7 @@ address_cache_chunked(
   cache_name,
   .function,
   key_cols = address_cols,
-  db_name = tessilake::cache_path("address_stream.sqlite", "deep", "stream"),
+  db_name = tessilake::cache_path("address_stream.sqlite", "shallow", "stream"),
   parallel = rlang::is_installed("furrr"),
   n = 100,
   ...

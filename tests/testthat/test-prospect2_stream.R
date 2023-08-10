@@ -450,3 +450,24 @@ test_that("p2_stream_enrich doesn't grow the file but adds new columns",{
   expect_true(all(c("campaign_name","message_name","link_name","list_name") %in% names(p2_stream_enriched)))
 })
 
+# p2_stream ---------------------------------------------------------------
+
+test_that("p2_stream writes out two cache files and copies the database", {
+  withr::local_package("checkmate")
+  expect_file_exists(tessilake::cache_path("p2.sqlite", "shallow", "stream"))
+  expect_false(file.exists(tessilake::cache_path("p2.sqlite", "deep", "stream")))
+  expect_false(file.exists(tessilake::cache_path("p2_stream.parquet", "deep", "stream")))
+  expect_false(file.exists(tessilake::cache_path("p2_stream_enriched.parquet", "deep", "stream")))
+
+  p2_db_open("p2.sqlite")
+  stub(p2_stream_build,"p2_email_map",data.table(id=seq(100),customer_no=seq(100),email=paste0(seq(100),"@gmail.com")))
+  stub(p2_stream,"p2_stream_build",p2_stream_build)
+  p2_stream <- p2_stream()
+
+  expect_file_exists(tessilake::cache_path("p2.sqlite", "shallow", "stream"))
+  expect_file_exists(tessilake::cache_path("p2.sqlite", "deep", "stream"))
+  expect_file_exists(tessilake::cache_path("p2_stream.parquet", "deep", "stream"))
+  expect_file_exists(tessilake::cache_path("p2_stream_enriched.parquet", "deep", "stream"))
+
+})
+

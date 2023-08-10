@@ -99,9 +99,9 @@ address_stream_build <- function(...) {
 
 #' address_create_stream
 #'
-#' Creates address data with timestamps from TA_AUDIT_TABLE and T_ADDRESS data
+#' Creates address data with timestamps from `TA_AUDIT_TABLE` and `T_ADDRESS` data
 #'
-#' @param ... additional parameters passed on to stream_from_audit
+#' @param ... additional parameters passed on to [stream_from_audit]
 #'
 #' @return data.table of addresses data at different points of time, no more than one
 #' change per address per day
@@ -161,7 +161,7 @@ address_clean <- function(address_stream) {
 #'
 #' @param addresses character vector of addresses
 #'
-#' @return data.frame of parsed addresses, one row per vector i
+#' @return data.frame of parsed addresses, one row per vector element
 #'
 #' @importFrom checkmate assert_directory_exists assert_character
 #' @importFrom jsonlite fromJSON

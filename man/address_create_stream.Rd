@@ -7,12 +7,12 @@
 address_create_stream(...)
 }
 \arguments{
-\item{...}{additional parameters passed on to stream_from_audit}
+\item{...}{additional parameters passed on to \link{stream_from_audit}}
 }
 \value{
 data.table of addresses data at different points of time, no more than one
 change per address per day
 }
 \description{
-Creates address data with timestamps from TA_AUDIT_TABLE and T_ADDRESS data
+Creates address data with timestamps from \code{TA_AUDIT_TABLE} and \code{T_ADDRESS} data
 }

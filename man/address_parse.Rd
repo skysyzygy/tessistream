@@ -18,7 +18,7 @@ address_parse(address_stream)
 \item{address_stream}{data.table of addresses}
 }
 \value{
-data.frame of parsed addresses, one row per vector i
+data.frame of parsed addresses, one row per vector element
 
 data.table of addresses parsed, one per row in address_stream. Contains only address_cols and libpostal columns.
 

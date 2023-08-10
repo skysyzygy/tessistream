@@ -1,6 +1,6 @@
 #' setnafill
 #'
-#' Wrapper for data.table's setnafill for fast filling by group and non-numeric columns.
+#' Wrapper for [data.table::setnafill] for fast filling by group and non-numeric columns.
 #' Displatches to setnafill_ functions based on column class and type of fill
 #'
 #' @param x data.table

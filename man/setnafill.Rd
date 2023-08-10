@@ -33,7 +33,7 @@ setnafill_group(x, type = "locf", cols = seq_along(x), by = NA)
 data.table, filled in-place
 }
 \description{
-Wrapper for data.table's setnafill for fast filling by group and non-numeric columns.
+Wrapper for \link[data.table:nafill]{data.table::setnafill} for fast filling by group and non-numeric columns.
 Displatches to setnafill_ functions based on column class and type of fill
 }
 \section{Functions}{

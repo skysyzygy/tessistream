@@ -6,3 +6,6 @@
 ^codecov\.yml$
 ^libpostal$
 ^scripts$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$

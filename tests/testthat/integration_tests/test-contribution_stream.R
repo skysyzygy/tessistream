@@ -35,3 +35,31 @@ test_that("contribution_membership_match does not overmatch any membership", {
   membership_contributions <- contributions_matched[,.(cont_amt = sum(cont_amt)),by="cust_memb_no"]
   expect_equal(memberships[membership_contributions,on="cust_memb_no"][cont_amt > pmax(end_amt,memb_amt+AVC_amt,recog_amt),.N],0)
 })
+
+# contribution_stream -----------------------------------------------------
+
+# TEST: all contributions made it through
+testit::assert(
+  full_join(
+    contribution_stream %>% group_by(year=year(timestamp)) %>% summarise(cont_amt=sum(cont_amt)),
+    c %>% group_by(year=year(cont_dt)) %>% summarise(cont_amt=sum(cont_amt)),
+    by="year") %>%
+    filter(cont_amt.x!=cont_amt.y | is.na(cont_amt.x) | is.na(cont_amt.y)) %>% nrow == 0
+)
+
+# TEST: NAs are less than .1% of each column (except for columns where we expect it...)
+testit::assert(all(sapply(contribution_stream[,-c("cust_memb_no","contributionTimestampLast")],function(.){sum(is.na(.))<.001*length(.)})))
+
+# TEST: one and only one new membership per customer in 99.9% of cases
+testit::assert(contribution_stream[event_subtype %in% c("Member","Patron","Major Gifts"),
+                                   sum(event_subtype2=="New"),by="group_customer_no"][V1>1,.N] <
+                 .002*contribution_stream[event_subtype %in% c("Member","Patron","Major Gifts"),.N,by="group_customer_no"][,.N])
+
+# TEST: renewal rate is in a sensible range
+testit::assert(
+  between(contribution_stream[event_subtype2 %in% c("Renew","Reinstate","Upgrade"),.N]/
+            contribution_stream[,.N],
+          .7,.9))
+
+# TEST: no data leak in contributionTimestampLast
+testit::assert(contribution_stream[contributionTimestampLast==contributionTimestampMax | contributionTimestampLast==timestamp,.N]==0)

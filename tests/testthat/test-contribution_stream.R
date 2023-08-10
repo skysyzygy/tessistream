@@ -38,8 +38,10 @@ test_that("contribution_membership_match does not overmatch any membership", {
 
 stub(contribution_stream, "contribution_stream_load", list(contributions = contributions, memberships = memberships))
 stub(contribution_stream, "contribution_stream_match", contributions_matched)
+stub(contribution_stream, "write_cache", NULL)
+.contribution_stream <- contribution_stream
 
-contribution_stream <- contribution_stream()
+contribution_stream <- .contribution_stream()
 
 test_that("contribution_stream has a row for each contribution and references (almost) all memberships", {
   expect_equal(contribution_stream[, .N, by="ref_no"][N>1,.N], 0)
@@ -80,7 +82,34 @@ test_that("contribution_stream calculates all of the numeric and date columns ac
 })
 
 test_that("contribution_stream sets event_subtype for all contributions, based on the input logic", {
-  #' *  event_subtype : Membership|Gala|Other
+
+  # simple case, reference data already in the table
+  contribution_stream <- .contribution_stream(event_subtypes = list(cont_amt>1000 ~ "Big",
+                                                                    cont_amt>100 ~ "Small",
+                                                                    TRUE ~ "Tiny"))
+
+  expect_equal(sort(contribution_stream[,unique(event_subtype)]),c("Big","Small","Tiny"))
+
+  expect_equal(contributions[cont_amt>1000,sort(ref_no)],
+               contribution_stream[event_subtype == "Big",sort(ref_no)])
+  expect_equal(contributions[cont_amt>100 & cont_amt<=1000,sort(ref_no)],
+               contribution_stream[event_subtype == "Small",sort(ref_no)])
+  expect_equal(contributions[cont_amt > 0 & cont_amt<=100,sort(ref_no)],
+               contribution_stream[event_subtype == "Tiny",sort(ref_no)])
+
+  # more complicated, reference data from outside by baking it into the expression
+  contribution_stream <- eval(rlang::expr(.contribution_stream(event_subtypes = list(cust_memb_no %in% !!memberships[memb_amt > 1000,cust_memb_no] ~ "Big",
+                                                                                     cust_memb_no %in% !!memberships[memb_amt > 0,cust_memb_no] ~ "Small",
+                                                                                     TRUE ~ "Nothing"))))
+
+  expect_equal(sort(contribution_stream[,unique(event_subtype)]),c("Big","Nothing","Small"))
+
+  expect_equal(contributions_matched[cust_memb_no %in% memberships[memb_amt>1000,cust_memb_no],sort(ref_no)],
+               contribution_stream[event_subtype == "Big",sort(ref_no)])
+  expect_equal(contributions_matched[cust_memb_no %in% memberships[memb_amt>0 & memb_amt<=1000,cust_memb_no],sort(ref_no)],
+               contribution_stream[event_subtype == "Small",sort(ref_no)])
+  expect_equal(contributions_matched[cust_memb_no %in% c(memberships[memb_amt==0,cust_memb_no],NA) & cont_amt>0,sort(ref_no)],
+               contribution_stream[event_subtype == "Nothing",sort(ref_no)])
 
 })
 

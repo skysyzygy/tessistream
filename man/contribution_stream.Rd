@@ -9,6 +9,9 @@ contribution_stream(
   depth = "deep",
   type = "stream",
   event_subtypes = list(TRUE ~ campaign_category_desc),
+  event_subtypes2 = list(seq(.N) == 1 ~ "New", !is.na(cust_memb_no) &
+    duplicated(cust_memb_no) | is.na(cust_memb_no) & duplicated(campaign_no) ~ "Upgrade",
+    timestamp - lag(timestamp) <= ddays(365) ~ "Renew", TRUE ~ "Reinstate"),
   ...
 )
 }
@@ -17,7 +20,9 @@ contribution_stream(
 
 \item{type}{string, e.g. "tessi" or "stream", where to save the cache, passed to \link[tessilake:write_cache]{tessilake::write_cache}}
 
-\item{event_subtypes}{list of formulas to be used for coding, as for \link[dplyr:case_when]{dplyr::case_when}. Can refer to any columns in the \code{contributions} table. See \strong{Note} below}
+\item{event_subtypes}{list of formulas to be used for coding \code{event_subtype}, as for \link[dplyr:case_when]{dplyr::case_when}. Can refer to any columns in the \code{contributions} table. See \strong{Note} below}
+
+\item{event_subtypes2}{list of formulas to be used for coding \code{event_subtype2}, as for \link[dplyr:case_when]{dplyr::case_when}. Can refer to any columns in the \code{contributions} table. See \strong{Note} below}
 
 \item{...}{additional arguments passed on to \link[tessilake:read_tessi]{tessilake::read_tessi} and friends.}
 }
@@ -53,7 +58,7 @@ Output Features are:
 }}
 \note{
 \itemize{
-\item \strong{event_subtypes} This value for event_subtypes:
+\item This value for \strong{event_subtypes}:
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{list(
    !is.na(cust_memb_no) ~ "Membership",
@@ -62,11 +67,28 @@ Output Features are:
    )
 }\if{html}{\out{</div>}}
 
-Assigns
+Assigns event_subtype to
 \itemize{
-\item everything with a \code{cust_memb_no} to "Membership"
-\item everything else with "BENE" in \code{campaign_desc} as "Gala", and
-\item everything else to the value of \code{campaign_category_desc}
+\item "Membership" for everything with a \code{cust_memb_no}
+\item "Gala" for everything else with "BENE" in \code{campaign_desc} and
+\item the value of \code{campaign_category_desc} for everything else
+}
+\item This value for \strong{event_subtypes2}, which is also the default:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{list(
+   1:.N == 1 ~ "New",
+   !is.na(cust_memb_no) & duplicated(cust_memb_no) |
+     is.na(cust_memb_no) & duplicated(campaign_no) ~ "Upgrade",
+   timestamp - lag(timestamp) <= ddays(365) ~ "Renew",
+   TRUE ~ "Reinstate")
+}\if{html}{\out{</div>}}
+
+Assigns event_subtype2 by group of \code{group_customer_no} / \code{event_subtype} to
+\itemize{
+\item "New" for the first contribution per group
+\item "Upgrade" for the second contribution per \code{cust_memb_no} or \code{campaign_no}
+\item "Renew" for a contribution that is within 365 days of the previous in the same group
+\item "Reinstate" for everything else
 }
 }
 }

@@ -24,6 +24,7 @@ unmatched contributions.
 }
 \section{Functions}{
 \itemize{
-\item \code{set_contribution_membership_match()}: updates \code{contributions$cust_memb_no} for up to one contribution per membership, intended to be called iteratively from within \link{contribution_membership_match}
+\item \code{set_contribution_membership_match()}: updates \code{contributions$cust_memb_no} for up to
+one contribution per membership, intended to be called iteratively from within \link{contribution_membership_match}
 
 }}

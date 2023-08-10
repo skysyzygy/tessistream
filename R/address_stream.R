@@ -1,12 +1,3 @@
-# load_addresses_audit
-# load_addresses
-# build_address_stream
-# libpostal_clean
-# census_geocode
-# google_geocode
-# census_reverse_geocode
-# census_append
-# iwave_append
 # Sys.setenv("TAR_PROJECT"="address_stream") # nolint
 
 address_cols <- c(

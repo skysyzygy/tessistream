@@ -20,7 +20,7 @@ address_cols <- c(
 #'
 #' @note Uses [future::future] for parallel processing and [progressr::progressr] for progress tracking
 #'
-#' @param ... parameters passed on to [address_stream_create]
+#' @param ... parameters passed on to [address_create_stream]
 #'
 #' @return data.table of addresses and additional address-based features
 #' @export
@@ -50,7 +50,7 @@ address_stream  <- function(...) {
 
 }
 
-#' @describeIn address_stream build the address_stream by combining data from [address_stream_create],
+#' @describeIn address_stream build the address_stream by combining data from [address_create_stream],
 #' [address_parse], [address_geocode], [address_census], and iWave data from [tessilake::read_tessi]
 address_stream_build <- function(...) {
   . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-

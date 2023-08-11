@@ -10,7 +10,7 @@ address_stream(...)
 address_stream_build(...)
 }
 \arguments{
-\item{...}{parameters passed on to \link{address_stream_create}}
+\item{...}{parameters passed on to \link{address_create_stream}}
 }
 \value{
 data.table of addresses and additional address-based features
@@ -22,7 +22,7 @@ Appends census demographic and aggregate income data and iWave income data.
 }
 \section{Functions}{
 \itemize{
-\item \code{address_stream_build()}: build the address_stream by combining data from \link{address_stream_create},
+\item \code{address_stream_build()}: build the address_stream by combining data from \link{address_create_stream},
 \link{address_parse}, \link{address_geocode}, \link{address_census}, and iWave data from \link[tessilake:read_tessi]{tessilake::read_tessi}
 
 }}

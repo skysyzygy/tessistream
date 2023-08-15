@@ -24,7 +24,7 @@ address_cols <- c(
 #'
 #' @return data.table of addresses and additional address-based features
 #' @export
-#' @importFrom tessilake read_tessi read_cache write_cache
+#' @importFrom tessilake read_tessi read_cache write_cache sync_cache
 #' @importFrom data.table copy
 address_stream  <- function(...) {
   . <- group_customer_no <- capacity_value <- donations_total_value <- pro_score <- properties_total_value <- primary_ind <-
@@ -38,13 +38,12 @@ address_stream  <- function(...) {
                                      "event_type", "event_subtype", "address_no", "lat", "lon",
                                      grep("^address.+level$",colnames(address_stream), value = T)), with = F]
 
-  write_cache(address_stream_full, "address_stream_full", "deep", "stream",
+  write_cache(address_stream_full, "address_stream_full", "stream",
               primary_keys = c("address_no", "timestamp"), partition = FALSE, overwrite = TRUE)
-  write_cache(address_stream, "address_stream", "deep", "stream",
+  write_cache(address_stream, "address_stream", "stream",
               primary_keys = c("address_no", "timestamp"), partition = FALSE, overwrite = TRUE)
 
-  file.copy(tessilake::cache_path("address_stream.sqlite", "shallow", "stream"),
-            tessilake::cache_path("address_stream.sqlite", "deep", "stream"))
+  sync_cache("address_stream.sqlite", "stream")
 
   address_stream
 
@@ -317,7 +316,7 @@ address_parse <- function(address_stream) {
 #' @param cache_name name of cache file
 #' @param key_cols address_cols
 #' @param .function function to be called for processing, is sent `address_stream[address_cols]` and additional parameters.
-#' @param db_name path to sqlite database, defaults to `tessilake::cache_path("address_stream.sqlite","deep","stream")`
+#' @param db_name path to sqlite database, defaults to `tessilake::cache_primary_path("address_stream.sqlite","stream")`
 #' @param ... additional options passed to `.function`
 #'
 #' @return data.table of addresses processed
@@ -325,7 +324,7 @@ address_parse <- function(address_stream) {
 #' @importFrom utils head capture.output
 address_cache <- function(address_stream, cache_name, .function,
                           key_cols = address_cols,
-                          db_name = tessilake::cache_path("address_stream.sqlite", "shallow", "stream"), ...) {
+                          db_name = tessilake::cache_primary_path("address_stream.sqlite", "stream"), ...) {
   assert_data_table(address_stream)
 
   if (!dir.exists(dirname(db_name))) {
@@ -393,7 +392,7 @@ address_cache <- function(address_stream, cache_name, .function,
 #' @describeIn address_cache Parallel wrapper around address_cache using [furrr::furrr] and [progressr::progressr]
 address_cache_chunked <- function(address_stream, cache_name, .function,
                                    key_cols = address_cols,
-                                   db_name = tessilake::cache_path("address_stream.sqlite", "shallow", "stream"),
+                                   db_name = tessilake::cache_primary_path("address_stream.sqlite", "stream"),
                                    parallel = rlang::is_installed("furrr"),
                                    n = 100, ...) {
   . <- NULL

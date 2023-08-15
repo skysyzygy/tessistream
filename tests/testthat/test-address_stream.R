@@ -55,8 +55,8 @@ test_that("address_stream writes a full file containing additional data", {
 
   address_stream()
 
-  address_stream <- read_cache("address_stream", "deep", "stream", num_tries = 1)
-  address_stream_full <- read_cache("address_stream_full", "deep", "stream", num_tries = 1)
+  address_stream <- read_cache("address_stream", "stream", num_tries = 1)
+  address_stream_full <- read_cache("address_stream_full", "stream", num_tries = 1)
 
   expect_gt(nrow(address_stream_full), nrow(address_stream))
   expect_gt(ncol(address_stream_full), ncol(address_stream))
@@ -74,8 +74,8 @@ test_that("address_stream copies the address database", {
   stub(address_stream, "address_stream_build", .address_stream)
 
   # create an empty database
-  dir.create(tessilake::cache_path("","shallow","stream"))
-  file.create(tessilake::cache_path("address_stream.sqlite","shallow","stream"))
+  dir.create(tessilake::cache_primary_path("","stream"))
+  file.create(tessilake::cache_primary_path("address_stream.sqlite","stream"))
 
   address_stream()
 
@@ -319,7 +319,7 @@ address_stream <- data.table(street1 = paste(1:100, "example lane"), something =
                                                                                                     fill = TRUE)
 address_result <- data.table::copy(address_stream)[, processed := strsplit(street1, " ") %>% purrr::map_chr(1)]
 
-sqlite_file <- tessilake::cache_path("address_stream.sqlite", "shallow", "stream")
+sqlite_file <- tessilake::cache_primary_path("address_stream.sqlite", "stream")
 db <- NULL
 
 test_that("address_cache handles cache non-existence and writes a cache file containing only address_processed cols", {
@@ -466,7 +466,7 @@ address_stream_parsed <- data.table(
 )
 
 DBI::dbDisconnect(db)
-file.remove(tessilake::cache_path("address_stream.sqlite", "shallow", "stream"))
+file.remove(tessilake::cache_primary_path("address_stream.sqlite", "stream"))
 
 test_that("address_parse handles cache non-existence and writes a cache file containing only address_cols and libpostal cols", {
   address_stream <- data.table(

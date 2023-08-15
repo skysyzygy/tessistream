@@ -455,7 +455,6 @@ test_that("p2_stream_enrich doesn't grow the file but adds new columns",{
 test_that("p2_stream writes out two cache files and copies the database", {
   withr::local_package("checkmate")
   expect_file_exists(tessilake::cache_path("p2.sqlite", "shallow", "stream"))
-  expect_false(file.exists(tessilake::cache_path("p2.sqlite", "deep", "stream")))
   expect_false(file.exists(tessilake::cache_path("p2_stream.parquet", "deep", "stream")))
   expect_false(file.exists(tessilake::cache_path("p2_stream_enriched.parquet", "deep", "stream")))
 

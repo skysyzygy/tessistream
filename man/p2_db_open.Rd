@@ -5,7 +5,7 @@
 \alias{p2_db_close}
 \title{p2_db_open}
 \usage{
-p2_db_open(db_path = tessilake::cache_path("p2.sqlite", "shallow", "stream"))
+p2_db_open(db_path = tessilake::cache_primary_path("p2.sqlite", "stream"))
 
 p2_db_close()
 }

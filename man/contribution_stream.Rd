@@ -6,7 +6,6 @@
 \title{contribution_stream}
 \usage{
 contribution_stream(
-  depth = "deep",
   type = "stream",
   event_subtypes = list(TRUE ~ campaign_category_desc),
   event_subtypes2 = list(seq(.N) == 1 ~ "New", !is.na(cust_memb_no) &
@@ -16,8 +15,6 @@ contribution_stream(
 )
 }
 \arguments{
-\item{depth}{string, e.g. "deep" or "shallow", where to save the cache, passed to \link[tessilake:write_cache]{tessilake::write_cache}}
-
 \item{type}{string, e.g. "tessi" or "stream", where to save the cache, passed to \link[tessilake:write_cache]{tessilake::write_cache}}
 
 \item{event_subtypes}{list of formulas to be used for coding \code{event_subtype}, as for \link[dplyr:case_when]{dplyr::case_when}. Can refer to any columns in the \code{contributions} table. See \strong{Note} below}

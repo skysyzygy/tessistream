@@ -21,7 +21,6 @@
 #' *  contribution_amt
 #' *  contribution_max
 #'
-#' @param depth string, e.g. "deep" or "shallow", where to save the cache, passed to [tessilake::write_cache]
 #' @param ... additional arguments passed on to [tessilake::read_tessi] and friends.
 #' @param type string, e.g. "tessi" or "stream", where to save the cache, passed to [tessilake::write_cache]
 #' @param event_subtypes list of formulas to be used for coding `event_subtype`, as for [dplyr::case_when]. Can refer to any columns in the `contributions` table. See **Note** below
@@ -57,7 +56,7 @@
 #' @importFrom lubridate floor_date ddays
 #' @importFrom dplyr case_when
 #' @importFrom tessilake write_cache
-contribution_stream <- function(depth = "deep", type = "stream",
+contribution_stream <- function(type = "stream",
                                 event_subtypes = list(TRUE ~ campaign_category_desc),
                                 event_subtypes2 = list(
                                   seq(.N) == 1 ~ "New",
@@ -109,7 +108,7 @@ contribution_stream <- function(depth = "deep", type = "stream",
   ]
 
 
-  write_cache(contribution_stream, "contribution_stream", depth = depth, type = type)
+  write_cache(contribution_stream, "contribution_stream", type = type)
 
   contribution_stream
 }

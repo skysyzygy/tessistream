@@ -1,5 +1,5 @@
 # Runs a test of cache performance using the fixture created by address_prepare_fixtures() as a small address_stream
-# Requires an existing sqlite file in the deep stream directory already filled with address_parse data.
+# Requires an existing sqlite file in the primary stream cache already filled with address_parse data.
 
 withr::local_envvar(R_CONFIG_FILE="")
 withr::local_package("progressr")

@@ -1,5 +1,5 @@
 # Runs a full test using the fixture created by address_prepare_fixtures() as a small address_stream
-# Requires access to Tessi and saves/accesses the sqlite file in the deep stream directory
+# Requires access to Tessi and an existing sqlite file in the primary stream cache already filled with address_parse data.
 
 withr::local_envvar(R_CONFIG_FILE="")
 withr::local_package("progressr")
@@ -7,8 +7,8 @@ future::plan("multisession")
 handlers("cli")
 mockery::stub(address_stream, "address_create_stream", readRDS(rprojroot::find_testthat_root_file("address_stream.Rds")))
 with_progress(address_stream()) %>% collect %>% setDT
-address_stream <- read_cache("address_stream","deep","stream") %>% collect %>% setDT
-address_stream_full <- read_cache("address_stream_full","deep","stream") %>% collect %>% setDT
+address_stream <- read_cache("address_stream","stream") %>% collect %>% setDT
+address_stream_full <- read_cache("address_stream_full","stream") %>% collect %>% setDT
 
 
 test_that("99.9% of customers have a primary address", {

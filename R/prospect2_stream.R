@@ -102,7 +102,7 @@ p2_json_to_datatable <- function(json) {
 #'
 #' @return invisible
 #'
-p2_db_open <- function(db_path = tessilake::cache_path("p2.sqlite", "shallow", "stream")) {
+p2_db_open <- function(db_path = tessilake::cache_primary_path("p2.sqlite", "stream")) {
 
   if (is.null(tessistream$p2_db)) {
     if (!dir.exists(dirname(db_path))) {
@@ -492,6 +492,7 @@ p2_stream_enrich <- function(p2_stream) {
 #' Update and build the p2 parquet files
 #'
 #' @return stream as a data.table
+#' @importFrom tessilake write_cache sync_cache
 #' @export
 p2_stream <- function() {
 
@@ -501,12 +502,11 @@ p2_stream <- function() {
   }
 
   p2_stream <- p2_stream_build()
-  write_cache(p2_stream,"p2_stream","deep","stream",overwrite = T)
+  write_cache(p2_stream,"p2_stream","stream",overwrite = T)
   p2_stream_enriched <- p2_stream_enrich(p2_stream)
-  write_cache(p2_stream,"p2_stream_enriched","deep","stream",overwrite = T)
+  write_cache(p2_stream,"p2_stream_enriched","stream",overwrite = T)
 
-  file.copy(tessilake::cache_path("p2.sqlite", "shallow", "stream"),
-            tessilake::cache_path("p2.sqlite", "deep", "stream"))
+  sync_cache("p2.sqlite", "stream")
 
   p2_stream
 

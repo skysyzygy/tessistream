@@ -361,13 +361,22 @@ test_that("p2_orphans gets all the current subscribers from p2 database",{
 
 
 test_that("p2_orphans returns all orphans",{
-  stub(p2_orphans,"read_tessi",data.table(address=paste(letters,letters),
-                                          primary_ind=c("Y","N"),
-                                          customer_no=seq(26)))
+  emails <- contacts[1:26,.(address=email,
+                            primary_ind=c("Y","N"),
+                            customer_no=id+1000)]
+  stub(p2_orphans,"read_tessi",emails)
   stub(p2_orphans,"p2_db_open",NULL)
 
   expect_mapequal(p2_orphans() %>% setkey(id),
-                  p2_contacts[!address %in% c("a a", "c c")])
+                  p2_contacts[!address %in% contacts[1:26,email]])
+
+  # matching emails but mismatching customer_nos are orphans
+
+  emails[1,customer_no:=0]
+
+  expect_mapequal(p2_orphans() %>% setkey(id),
+                  p2_contacts[!address %in% contacts[2:26,email]])
+
 
 })
 

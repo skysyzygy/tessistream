@@ -268,7 +268,7 @@ p2_orphans <- function(freshness = 0) {
     filter(primary_ind=="Y") %>% collect %>% setDT() %>%
     .[,address := trimws(tolower(address))]
 
-  p2_orphans <- p2_emails[!tessi_emails, on = "address"][!is.na(customer_no)]
+  p2_orphans <- p2_emails[!tessi_emails, on = c("address", "customer_no")][!is.na(customer_no)]
 
 }
 

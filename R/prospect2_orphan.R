@@ -319,7 +319,7 @@ p2_orphans_report <- function(freshness = 0) {
   print(p)
   dev.off()
 
-  memberships <- read_tessi("memberships", c("expr_dt","memb_level","group_customer_no")) %>%
+  memberships <- read_tessi("memberships", c("expr_dt","memb_level")) %>%
     collect() %>% setDT() %>% .[,.SD[.N], by="group_customer_no"]
 
   p2_orphan_events <- merge(p2_orphan_events,memberships,all.x=T,by="group_customer_no",suffixes=c("",".memberships"))

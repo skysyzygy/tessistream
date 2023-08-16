@@ -260,8 +260,8 @@ p2_orphans <- function(freshness = 0) {
                       suffix=c("",".fieldValue")) %>%
     transmute(
       address = trimws(tolower(email)),
-      customer_no = value,
-      id
+      customer_no = as.integer(value),
+      id = as.integer(id)
     ) %>% distinct %>% setDT
 
   tessi_emails <- read_tessi("emails", c("address", "customer_no", "primary_ind"),freshness = freshness) %>%

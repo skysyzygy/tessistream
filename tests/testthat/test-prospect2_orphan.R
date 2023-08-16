@@ -338,13 +338,17 @@ contactLists <- data.table(id=seq(200)+1000,
                            contact=rep(seq(100),2),
                            status=rep(c(1,2),length.out=200))
 
+contacts[,(colnames(contacts)) := lapply(.SD,as.character)]
+fieldValues[,(colnames(fieldValues)) := lapply(.SD,as.character)]
+contactLists[,(colnames(contactLists)) := lapply(.SD,as.character)]
+
 copy_to(tessistream$p2_db,contacts,"contacts")
 copy_to(tessistream$p2_db,fieldValues,"fieldValues")
 copy_to(tessistream$p2_db,contactLists,"contactLists")
 
 p2_contacts <-  dplyr::inner_join(contacts,fieldValues,by=c("id"="contact")) %>%
   dplyr::inner_join(contactLists[status==1],by=c("id"="contact")) %>%
-  select(id,address=email,customer_no=value) %>%
+  transmute(id = as.integer(id), address=email, customer_no = as.integer(value)) %>%
   distinct %>% dplyr::arrange(id)
 
 test_that("p2_orphans gets all the current subscribers from p2 database",{
@@ -363,7 +367,7 @@ test_that("p2_orphans gets all the current subscribers from p2 database",{
 test_that("p2_orphans returns all orphans",{
   emails <- contacts[1:26,.(address=email,
                             primary_ind=c("Y","N"),
-                            customer_no=id+1000)]
+                            customer_no=as.integer(id)+1000L)]
   stub(p2_orphans,"read_tessi",emails)
   stub(p2_orphans,"p2_db_open",NULL)
 

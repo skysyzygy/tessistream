@@ -69,24 +69,28 @@ p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_ru
   customer_no_string <- paste0(customer_no, collapse = ", ")
   inform(paste("Updating", from, "to", to, "for customer #", customer_no_string))
 
-  p2_contact_from <- p2_query_api(modify_url(
+  p2_contact_from <- if(is.character(from) && !is.na(from) && nchar(from) > 0) p2_query_api(modify_url(
     api_url, path = "api/3/contacts",
     query = list(
       email = from,
       include = "fieldValues,contactAutomations"
     )))
+  else
+    list()
 
-  p2_contact_to <- p2_query_api(modify_url(
+  p2_contact_to <- if(is.character(to) && !is.na(to) && nchar(to) > 0) p2_query_api(modify_url(
     api_url, path = "api/3/contacts",
     query = list(
       email = to,
       include = "fieldValues"
     )))
+  else
+    list()
 
   tests <-
 
     c("From email is in P2" = !is.null(p2_contact_from$contacts) && tolower(unlist(p2_contact_from$contacts$email)) == from,
-      "To email is not in P2" = is.null(p2_contact_to$contacts),
+      "To email is not in P2" = length(p2_contact_to) > 0 && is.null(p2_contact_to$contacts),
       "Customer # matches" = !is.null(p2_contact_from$fieldValues) && !is.null(p2_contact_from$fieldValues$field) &&
         unlist(p2_contact_from$fieldValues[field == 1, as.integer(value)]) %in% customer_no
     )
@@ -209,7 +213,7 @@ p2_add_tag <- function(contact, tag, dry_run = FALSE) {
 #'
 #' @param freshness datediff, passed on to `tessilake` functions, defaults to 0 (refresh all data)
 #' @param since datetime, passed on to `tessi_changed_emails`, defaults to the last two hours.
-#' @param test_emails character, if set then all updates are dry_runs except for emails matching `test_emails`
+#' @param test_emails character, if set then all updates are dry runs except for emails matching `test_emails`
 #' @importFrom tessilake tessi_customer_no_map
 #' @export
 p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_emails = NULL) {
@@ -283,6 +287,7 @@ p2_orphans <- function(freshness = 0) {
 #' @importFrom dplyr case_when
 #' @importFrom lubridate ddays
 #' @importFrom grDevices dev.off png
+#' @importFrom tessilake tessi_customer_no_map
 #' @export
 p2_orphans_report <- function(freshness = 0) {
   . <- type <- timestamp <- id <- from <- to <- customer_no.x <- expr_dt <- memb_level <-
@@ -290,9 +295,12 @@ p2_orphans_report <- function(freshness = 0) {
 
   p2_orphans <- p2_orphans()
   tessi_emails <- tessi_changed_emails(since = 0, freshness = freshness)
+  customer_no_map <- tessi_customer_no_map(freshness = freshness)
 
   # last change from `from`
-  p2_orphan_events <- tessi_emails[p2_orphans,on=c("from"="address")]
+  p2_orphan_events <- tessi_emails[p2_orphans,on=c("from"="address")] %>%
+    .[,customer_no := coalesce(customer_no, i.customer_no)] %>%
+    merge(customer_no_map, by = "customer_no", suffixes = c(".tessi_emails",""))
 
   p2_orphan_events[,type:=case_when(trimws(last_updated_by) %in% c("popmulti","addage") ~ "web",
                                     trimws(last_updated_by) %in% c("sqladmin","sa") ~ "merge",
@@ -309,22 +317,20 @@ p2_orphans_report <- function(freshness = 0) {
 
 
   print(p)
-
   dev.off()
 
-  memberships <- read_tessi("memberships", c("expr_dt","memb_level",
-                                             "customer_no")) %>%
-    collect() %>% setDT() %>% .[,.SD[.N], by="customer_no"]
+  memberships <- read_tessi("memberships", c("expr_dt","memb_level","group_customer_no")) %>%
+    collect() %>% setDT() %>% .[,.SD[.N], by="group_customer_no"]
 
-  p2_orphan_events <- merge(p2_orphan_events,memberships,all.x=T,by="group_customer_no")
+  p2_orphan_events <- merge(p2_orphan_events,memberships,all.x=T,by="group_customer_no",suffixes=c("",".memberships"))
 
-  can_be_updated <- split(p2_orphan_events,1:nrow(p2_orphan_events)) %>%
-    map(~p2_resolve_orphan(.$from, .$to, .$i.customer_no, dry_run = TRUE))
+  can_be_updated <- p2_orphan_events %>% split(1:nrow(.)) %>%
+    map(~p2_resolve_orphan(.$from, .$to, customer_no = .$customer_no, dry_run = TRUE))
 
 
   xlsx_file <- write_xlsx(p2_orphan_events[,.(
     timestamp = as.Date(timestamp),
-    "customer_#" = customer_no.x,
+    "customer_#" = customer_no,
     p2_id = id,
     from_email = from,
     to_email = to,

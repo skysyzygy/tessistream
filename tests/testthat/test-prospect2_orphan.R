@@ -123,10 +123,10 @@ expect_message_n <- function(n,...) {
 test_that("p2_resolve_orphan updates the email iff it passes three tests", {
   p2_update_email <- mock()
   stub(p2_resolve_orphan, "p2_update_email", p2_update_email)
-  p2_query_api <- mock(NULL,NULL,
-                       NULL,contact_response,
-                       contact_response,NULL,
-                       contact_response,NULL)
+  p2_query_api <- mock(list(meta = NULL),list(meta = NULL),
+                       list(meta = NULL),contact_response,
+                       contact_response,list(meta = NULL),
+                       contact_response,list(meta = NULL))
 
   stub(p2_resolve_orphan, "p2_query_api", p2_query_api)
   contact_response <- list(contacts = data.table(email = "a", id = "99"),
@@ -156,6 +156,39 @@ test_that("p2_resolve_orphan adds a tag iff it passes two tests", {
   expect_length(mock_args(p2_add_tag),1)
 })
 
+test_that("p2_resolve_orphan does nothing if `from` or `customer_no` is empty, and gracefully handles empty `to`", {
+  p2_update_email <- mock()
+  p2_add_tag <- mock()
+  stub(p2_resolve_orphan, "p2_update_email", p2_update_email)
+  stub(p2_resolve_orphan, "p2_add_tag", p2_add_tag)
+  p2_query_api <- mock(contact_response, cycle = T)
+
+  stub(p2_resolve_orphan, "p2_query_api", p2_query_api)
+  contact_response <- list(contacts = data.table(email = "a", id = "99"),
+                           fieldValues = data.table(field = "1", value = "1"))
+
+  # from is empty
+  expect_message_n(2,p2_resolve_orphan("","to",1))
+  expect_message_n(2,p2_resolve_orphan(NULL,"to",1))
+  expect_message_n(2,p2_resolve_orphan(NA,"to",1))
+  expect_length(mock_args(p2_update_email),0)
+  expect_length(mock_args(p2_add_tag),0)
+
+  # customer_no is empty
+  expect_message_n(2,p2_resolve_orphan("from","a",""))
+  expect_message_n(2,p2_resolve_orphan("from","a",NULL))
+  expect_message_n(2,p2_resolve_orphan("from","a",NA))
+  expect_length(mock_args(p2_update_email),0)
+  expect_length(mock_args(p2_add_tag),0)
+
+  # to is empty
+  expect_message_n(2,p2_resolve_orphan("a","",1))
+  expect_message_n(2,p2_resolve_orphan("a",NULL,1))
+  expect_message_n(2,p2_resolve_orphan("a",NA,1))
+  expect_length(mock_args(p2_update_email),0)
+  expect_length(mock_args(p2_add_tag),3)
+
+})
 
 
 # p2_execute_api ----------------------------------------------------------
@@ -394,31 +427,49 @@ tempfile <- mock(png,xlsx,html)
 p2_resolve_orphan <- mock(T,F,cycle=T)
 send_email <- mock()
 
-stub(p2_orphans_report, "p2_orphans", data.table(address=letters,
-                                                 customer_no=1,
-                                                 id=1))
-stub(p2_orphans_report, "tessi_changed_emails", data.table(from=letters,
+stub(p2_orphans_report, "p2_orphans", p2_orphans <- data.table(address=c(letters,seq(26)),
+                                                 customer_no=seq(52),
+                                                 id=seq(52)))
+stub(p2_orphans_report, "tessi_changed_emails", tessi_changed_emails <- data.table(from=letters,
                                                            to=LETTERS,
                                                            last_updated_by=rep(c("popmulti","sqladmin","me"),length.out=26),
                                                            timestamp = lubridate::ymd_hms("2023-01-01 00:00:00") + ddays(seq(26)),
-                                                           customer_no=1,
-                                                           group_customer_no=1))
+                                                           customer_no=seq(26),
+                                                           group_customer_no=100+seq(26)))
 stub(p2_orphans_report, "read_tessi", data.table(customer_no=1,
-                                                 group_customer_no=1,
+                                                 group_customer_no=c(101,152),
                                                  memb_level="L01",
-                                                 expr_dt=now()))
+                                                 expr_dt=lubridate::ymd_hms("2023-01-01 00:00:00")))
 stub(p2_orphans_report, "tempfile", tempfile)
 stub(p2_orphans_report, "p2_resolve_orphan", p2_resolve_orphan)
 stub(p2_orphans_report, "send_email", send_email)
+stub(p2_orphans_report, "tessi_customer_no_map", data.table(customer_no=seq(100),
+                                                            group_customer_no=seq(100)+100))
 
 p2_orphans_report()
 
-test_that("p2_orphans_report creates a chart and a spreadsheet of orphans analysis",{
+test_that("p2_orphans_report creates a chart of orphans analysis",{
 
   expect_length(png::readPNG(png),480*480*3)
   # test ink converage > 50%
   expect_gte(length(which(png::readPNG(png)<1)),480*480*3/2)
-  expect_equal(nrow(openxlsx::read.xlsx(xlsx)),26)
+
+})
+
+test_that("p2_orphans_report creates a spreadsheet with one row per orphan and all relevant info",{
+
+  report <- openxlsx::read.xlsx(xlsx, colNames = T, detectDates = TRUE) %>% setDT %>% setkeyv("P2.Id")
+
+  expect_equal(nrow(report),nrow(p2_orphans))
+  expect_equal(report[1:26,Timestamp], as.Date(tessi_changed_emails$timestamp))
+  expect_equal(report[,`Customer.#`], p2_orphans$customer_no)
+  expect_equal(report[,`P2.Id`], p2_orphans$id)
+  expect_equal(report[,`From.Email`], p2_orphans$address)
+  expect_equal(report[1:26,`To.Email`], tessi_changed_emails$to)
+  expect_equal(report[,`Member.Level`], c("L01",rep(NA,nrow(p2_orphans)-2),"L01"))
+  expect_equal(report[,`Expiration.Date`], c(lubridate::ymd("2023-01-01"),rep(NA,nrow(p2_orphans)-2),lubridate::ymd("2023-01-01")))
+  expect_equal(report[1:26,`Change.Type`], rep(c("web","merge","client"),length.out = 26))
+  expect_equal(report[1:26,`Last.Updated.by`], tessi_changed_emails$last_updated_by)
 
 })
 
@@ -431,9 +482,9 @@ test_that("p2_orphans_report sends an email with the spreadsheet and an inline i
 
 test_that("p2_orphans_report determines the updatability of each row",{
 
-  expect_equal(purrr::map_chr(mock_args(p2_resolve_orphan),1),letters)
-  expect_equal(purrr::map_chr(mock_args(p2_resolve_orphan),2),LETTERS)
-  expect_equal(purrr::map_lgl(mock_args(p2_resolve_orphan),"dry_run"),rep(T,26))
-  expect_equal(openxlsx::read.xlsx(xlsx)$can.be.Updated, rep(c(T,F),13))
+  expect_equal(purrr::map_chr(mock_args(p2_resolve_orphan),1) %>% sort,p2_orphans$address %>% sort)
+  expect_equal(purrr::map_chr(mock_args(p2_resolve_orphan),2) %>% sort,tessi_changed_emails$to %>% sort)
+  expect_equal(purrr::map_lgl(mock_args(p2_resolve_orphan),"dry_run"),rep(T,nrow(p2_orphans)))
+  expect_equal(openxlsx::read.xlsx(xlsx)$can.be.Updated, rep(c(T,F),26))
 
 })

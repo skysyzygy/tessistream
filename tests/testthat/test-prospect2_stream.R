@@ -329,6 +329,7 @@ test_that("p2_update only loads contacts after max(updated_timestamp)", {
   withr::local_package("lubridate")
   p2_load <- mock(cycle = T)
   stub(p2_update, "p2_load", p2_load)
+  p2_db_open()
   copy_to(tessistream$p2_db, name = "contacts", data.table(updated_timestamp = seq(today(), today() + ddays(30), by = "day") %>% as.character()))
 
   p2_update()
@@ -340,6 +341,7 @@ test_that("p2_update only loads contacts after max(updated_timestamp)", {
 test_that("p2_update only loads logs and linkData after max(id)", {
   p2_load <- mock(cycle = T)
   stub(p2_update, "p2_load", p2_load)
+  p2_db_open()
   copy_to(tessistream$p2_db, name = "logs", data.table(id = seq(100) %>% as.character()))
   copy_to(tessistream$p2_db, name = "linkData", data.table(id = seq(100) %>% as.character()))
 
@@ -353,6 +355,7 @@ test_that("p2_update only loads logs and linkData after max(id)", {
 test_that("p2_update updates recent linkData", {
   p2_load <- mock(cycle = T)
   stub(p2_update, "p2_load", p2_load)
+  p2_db_open()
   copy_to(tessistream$p2_db, name = "links", data.table(
     id = seq(100) %>% as.character(),
     updated_timestamp = today() %>% as.character(),
@@ -398,10 +401,10 @@ test_that("p2_email_map matches up Tessi customer numbers and emails from within
   expect_false(any(is.na(p2_email_map()$customer_no)))
 })
 
+p2_db_close()
 
 # p2_stream_build ---------------------------------------------------------------
 
-p2_db_close()
 
 test_that("p2_stream_build combines log (sends), linkData (opens/clicks), contactLists (unsubs/bounces) and bounceLogs",{
   p2_db_open("p2.sqlite")
@@ -438,12 +441,13 @@ test_that("p2_stream_build outputs a stream-compliant dataset",{
 })
 
 test_that("p2_stream_enrich doesn't grow the file but adds new columns",{
-  p2_db_open("p2.sqlite")
   stub(p2_stream_build,"p2_email_map",data.table(id=seq(100),customer_no=seq(100),email=paste0(seq(100),"@gmail.com")))
 
+  p2_db_open("p2.sqlite")
   p2_stream <- p2_stream_build()
   p2_stream_nrow <- nrow(p2_stream)
 
+  p2_db_open("p2.sqlite")
   p2_stream_enriched <- p2_stream_enrich(p2_stream)
 
   expect_equal(nrow(p2_stream_enriched),p2_stream_nrow)
@@ -459,6 +463,7 @@ test_that("p2_stream writes out two cache files and copies the database", {
   expect_false(file.exists(tessilake::cache_path("p2_stream_enriched.parquet", "deep", "stream")))
 
   p2_db_open("p2.sqlite")
+  stub(p2_stream_build,"p2_db_close",NULL)
   stub(p2_stream_build,"p2_email_map",data.table(id=seq(100),customer_no=seq(100),email=paste0(seq(100),"@gmail.com")))
   stub(p2_stream,"p2_stream_build",p2_stream_build)
   p2_stream <- p2_stream()

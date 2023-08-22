@@ -140,7 +140,6 @@ p2_db_close <- function() {
 #' @importFrom purrr walk
 #' @importFrom dplyr distinct
 p2_db_update <- function(data, table, overwrite = FALSE) {
-  p2_db_open()
   if (is.null(data)) {
     return(invisible())
   }
@@ -230,6 +229,9 @@ p2_unnest <- function(data, colname) {
 p2_update <- function() {
   updated_timestamp <- id <- linkclicks <- NULL
 
+  withr::defer(p2_db_close())
+  p2_db_open()
+
   # not immutable or filterable, just reload the whole thing
   p2_load("campaigns")
   p2_load("messages")
@@ -314,8 +316,6 @@ p2_email_map <- function() {
 
   primary_ind <- address <- customer_no <- . <- email <- id <- value <- contact <- i.customer_no <- group_customer_no <- i.group_customer_no <- NULL
 
-  p2_db_open()
-
   # load data
   emails <- tessilake::read_tessi("emails",freshness = 0) %>%
     filter(primary_ind == "Y") %>%
@@ -392,6 +392,7 @@ p2_stream_build <- function() {
   # url
   # domain
 
+  withr::defer(p2_db_close())
   p2_db_open()
 
   sends <- tbl(tessistream$p2_db, "logs") %>%
@@ -464,6 +465,9 @@ p2_stream_build <- function() {
 #' @importFrom data.table setDT
 #' @return stream data.table with added descriptive columns
 p2_stream_enrich <- function(p2_stream) {
+  withr::defer(p2_db_close())
+  p2_db_open()
+
   name <- screenshot <- id <- send_amt <- total_amt <- opens <- uniqueopens <- linkclicks <- uniquelinkclicks <-
     subscriberclicks <- forwards <- uniqueforwards <- hardbounces <- softbounces <- unsubscribes <- . <- subject <-
     preheader_text <- link <- NULL

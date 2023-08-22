@@ -291,7 +291,7 @@ p2_orphans <- function(freshness = 0) {
 #' @export
 p2_orphans_report <- function(freshness = 0) {
   . <- type <- timestamp <- id <- from <- to <- customer_no.x <- expr_dt <- memb_level <-
-    last_updated_by <- NULL
+    last_updated_by <- customer_no <- i.customer_no <- NULL
 
   p2_orphans <- p2_orphans()
   tessi_emails <- tessi_changed_emails(since = 0, freshness = freshness)

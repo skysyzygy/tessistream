@@ -11,7 +11,7 @@ p2_update_orphans(freshness = 0, since = Sys.time() - 7200, test_emails = NULL)
 
 \item{since}{datetime, passed on to \code{tessi_changed_emails}, defaults to the last two hours.}
 
-\item{test_emails}{character, if set then all updates are dry_runs except for emails matching \code{test_emails}}
+\item{test_emails}{character, if set then all updates are dry runs except for emails matching \code{test_emails}}
 }
 \description{
 Run \code{p2_update_email} for all emails changed since \code{since} using Tessitura data at least as

@@ -500,11 +500,6 @@ p2_stream_enrich <- function(p2_stream) {
 #' @export
 p2_stream <- function() {
 
-  if(rlang::is_installed("future")) {
-    withr::defer(future::plan("sequential"))
-    future::plan("multisession")
-  }
-
   p2_stream <- p2_stream_build()
   write_cache(p2_stream,"p2_stream","stream",overwrite = T)
   p2_stream_enriched <- p2_stream_enrich(p2_stream)

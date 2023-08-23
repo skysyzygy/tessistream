@@ -369,7 +369,7 @@ fieldValues <- data.table(id=seq(90)+2000,contact=seq(90),field=1,value=seq(90)+
 # two thirds are subscribed to a list
 contactLists <- data.table(id=seq(200)+1000,
                            contact=rep(seq(100),2),
-                           status=rep(c(1,2),length.out=200))
+                           status=rep(c(1,1,2),length.out=200))
 
 contacts[,(colnames(contacts)) := lapply(.SD,as.character)]
 fieldValues[,(colnames(fieldValues)) := lapply(.SD,as.character)]
@@ -379,9 +379,13 @@ copy_to(tessistream$p2_db,contacts,"contacts")
 copy_to(tessistream$p2_db,fieldValues,"fieldValues")
 copy_to(tessistream$p2_db,contactLists,"contactLists")
 
+stub(p2_orphans, "tessi_customer_no_map", data.table(customer_no = seq(100) + 1000,
+                                                     group_customer_no = seq(100) %% 10))
+
 p2_contacts <-  dplyr::inner_join(contacts,fieldValues,by=c("id"="contact")) %>%
   dplyr::inner_join(contactLists[status==1],by=c("id"="contact")) %>%
-  transmute(id = as.integer(id), address=email, customer_no = as.integer(value)) %>%
+  transmute(id = as.integer(id), address=email, customer_no = as.integer(value),
+            group_customer_no = as.integer(id) %% 10) %>%
   distinct %>% dplyr::arrange(id)
 
 test_that("p2_orphans gets all the current subscribers from p2 database",{
@@ -389,7 +393,8 @@ test_that("p2_orphans gets all the current subscribers from p2 database",{
 
   stub(p2_orphans,"read_tessi",data.table(address=NA,
                                           primary_ind=NA,
-                                          customer_no=NA))
+                                          customer_no=NA,
+                                          group_customer_no=NA))
   stub(p2_orphans,"p2_db_open",NULL)
 
   expect_mapequal(p2_orphans() %>% setkey(id),p2_contacts)
@@ -400,19 +405,21 @@ test_that("p2_orphans gets all the current subscribers from p2 database",{
 test_that("p2_orphans returns all orphans",{
   emails <- contacts[1:26,.(address=email,
                             primary_ind=c("Y","N"),
-                            customer_no=as.integer(id)+1000L)]
+                            customer_no=as.integer(id) + 1000L,
+                            group_customer_no = as.integer(id) %% 10)]
+
   stub(p2_orphans,"read_tessi",emails)
   stub(p2_orphans,"p2_db_open",NULL)
 
   expect_mapequal(p2_orphans() %>% setkey(id),
-                  p2_contacts[!address %in% contacts[1:26,email]])
+                  p2_contacts[!address %in% emails[primary_ind=="Y", address]])
 
-  # matching emails but mismatching customer_nos are orphans
+  # matching emails but mismatching group_customer_nos are orphans
 
-  emails[1,customer_no:=0]
+  emails[1,group_customer_no:=2]
 
   expect_mapequal(p2_orphans() %>% setkey(id),
-                  p2_contacts[!address %in% contacts[2:26,email]])
+                  p2_contacts[!address %in% emails[primary_ind=="Y", address][-1]])
 
 
 })

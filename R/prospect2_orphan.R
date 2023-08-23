@@ -242,6 +242,9 @@ p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_ema
 #' against all accounts in Tessi. An orphan is an account that exists in P2, that originated
 #' from Tessitura, but no longer matches an account with a primary email address in Tessitura.
 #'
+#' As of v0.3.0 this also checks to see if the customer_no for the primary email address
+#' (or household members) matches the customer_no recorded in P2.
+#'
 #' @param freshness difftime,	the returned data will be at least this fresh
 #'
 #' @return data.table of orphaned accounts
@@ -251,6 +254,7 @@ p2_orphans <- function(freshness = 0) {
   . <- status <- field <- email <- value <- id <- contact <- address <- primary_ind <- customer_no <- NULL
 
   p2_db_open()
+  customer_no_map <- tessi_customer_no_map(freshness = freshness) %>% select(customer_no, group_customer_no) %>% collect
 
   # All contacts
   p2_emails <- tbl(tessistream$p2_db, "contacts") %>% select(id,email) %>% collect %>%
@@ -266,13 +270,14 @@ p2_orphans <- function(freshness = 0) {
       address = trimws(tolower(email)),
       customer_no = as.integer(value),
       id = as.integer(id)
-    ) %>% distinct %>% setDT
+    ) %>% distinct %>% setDT %>%
+    merge(customer_no_map, by = "customer_no")
 
   tessi_emails <- read_tessi("emails", c("address", "customer_no", "primary_ind"),freshness = freshness) %>%
     filter(primary_ind=="Y") %>% collect %>% setDT() %>%
     .[,address := trimws(tolower(address))]
 
-  p2_orphans <- p2_emails[!tessi_emails, on = c("address", "customer_no")][!is.na(customer_no)]
+  p2_orphans <- p2_emails[!tessi_emails, on = c("address", "group_customer_no")][!is.na(customer_no)]
 
 }
 

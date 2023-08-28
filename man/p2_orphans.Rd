@@ -17,3 +17,7 @@ Create a dataset of orphaned accounts in Prospect2 by comparing all accounts in 
 against all accounts in Tessi. An orphan is an account that exists in P2, that originated
 from Tessitura, but no longer matches an account with a primary email address in Tessitura.
 }
+\details{
+As of v0.3.0 this also checks to see if the customer_no for the primary email address
+(or household members) matches the customer_no recorded in P2.
+}

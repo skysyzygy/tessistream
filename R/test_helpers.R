@@ -84,6 +84,10 @@ address_prepare_fixtures <- function() {
 
   stream <- address_create_stream()
 
+  future::plan("multisession")
+  address_parse <- address_parse(stream)
+
+  file.copy(tessilake::cache_primary_path("address_stream.sqlite","stream"), testthat::test_path(), overwrite = T)
   saveRDS(stream, testthat::test_path("address_stream.Rds"))
   saveRDS(audit, testthat::test_path("address_audit.Rds"))
   saveRDS(addresses, testthat::test_path("addresses.Rds"))

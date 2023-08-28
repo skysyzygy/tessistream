@@ -61,7 +61,7 @@ duplicates_data <- function(...) {
   # rename libpostal columns
   addresses <- addresses[!is.na(street1) & !is.na(group_customer_no),
       c("group_customer_no", grep("libpostal", colnames(addresses), value = TRUE)), with = F] %>%
-    setnames(grep("libpostal", colnames(.), value = TRUE),
+    setnames(colnames(.),
              gsub("libpostal\\.","",colnames(.)))
 
   # load all phone numbers past and present
@@ -71,12 +71,13 @@ duplicates_data <- function(...) {
   # load all email addresses past and present
   emails <- stream_from_audit("emails", cols = c("address", "eaddress_type"), ...) %>%
     # Not assistant emails (eaddress_type = 6,7)
-    .[!is.na(address) & !eaddress_type %in% c(6,7) & !is.na(group_customer_no), .(group_customer_no, address)]
+    .[!is.na(address) & !eaddress_type %in% c(6,7) & !is.na(group_customer_no), .(group_customer_no, email = address)]
 
-  data <- merge(customers, addresses, by = "group_customer_no", all.x = T, suffixes = c("",".address")) %>%
+  data <- merge(customers, addresses, by = "group_customer_no", all.x = T, suffixes = c("",".address"), allow.cartesian = TRUE) %>%
     merge(phones, by = "group_customer_no", all.x = T, suffixes = c("",".phone"), allow.cartesian = TRUE) %>%
     merge(emails, by = "group_customer_no", all.x = T, suffixes = c("",".email"), allow.cartesian = TRUE) %>%
     collect %>% setDT
 
-  data <- data[, (colnames(data)) := lapply(.SD, \(x) trimws(tolower(x)))]
+  character_cols <- colnames(data)[sapply(data,is.character)]
+  data <- data[, (character_cols) := lapply(.SD, \(x) trimws(tolower(x))), .SDcols = character_cols]
 }

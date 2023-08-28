@@ -301,11 +301,12 @@ address_parse_libpostal <- function(address_stream) {
 #' Parses addresses using libpostal and handles caching of already-parsed addresses so that they're only parsed once
 #'
 #' @param address_stream data.table of addresses
+#' @param ... additional parameters passed on to [address_cache_chunked]
 #'
 #' @return data.table of addresses parsed
 #' @importFrom dplyr collect
-address_parse <- function(address_stream) {
-  address_cache_chunked(address_stream, "address_parse", address_parse_libpostal, n = 1000)
+address_parse <- function(address_stream, ...) {
+  address_cache_chunked(address_stream, "address_parse", address_parse_libpostal, n = 1000, ...)
 }
 
 #' address_cache

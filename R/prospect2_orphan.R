@@ -8,6 +8,7 @@
 #' @importFrom dplyr lag
 #' @importFrom tessilake read_sql_table
 #' @importFrom lubridate now dyears
+#' @export
 #' @return data.table of changed emails with columns `old_value`, `new_value`, and `customer_no`
 tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
   . <- customer_no <- address <- eaddress_no <- timestammp <- primary_ind <- i.address <-
@@ -251,7 +252,7 @@ p2_update_orphans <- function(freshness = 0, since = Sys.time() - 7200, test_ema
 #' @export
 #'
 p2_orphans <- function(freshness = 0) {
-  . <- status <- field <- email <- value <- id <- contact <- address <- primary_ind <- customer_no <- NULL
+  . <- status <- field <- email <- value <- id <- contact <- address <- primary_ind <- customer_no <- group_customer_no <- NULL
 
   p2_db_open()
   customer_no_map <- tessi_customer_no_map(freshness = freshness) %>% select(customer_no, group_customer_no) %>% collect

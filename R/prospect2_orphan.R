@@ -64,6 +64,7 @@ tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
 #' @param dry_run boolean, nothing will be changed in P2 if set to `TRUE`
 #' @importFrom rlang inform
 #' @return `TRUE` if update is run succesfully, `FALSE` if not.
+#' @export
 p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_run = FALSE) {
   field <- value <- NULL
 

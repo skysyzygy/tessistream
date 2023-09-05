@@ -108,7 +108,7 @@ contribution_stream <- function(type = "stream",
   ]
 
 
-  write_cache(contribution_stream, "contribution_stream", type = type)
+  write_cache(contribution_stream, "contribution_stream", type = type, overwrite = TRUE)
 
   contribution_stream
 }

@@ -1,6 +1,8 @@
 withr::local_package("checkmate")
 withr::local_package("mockery")
 
+# duplicates_data ---------------------------------------------------------
+
 test_that("duplicates_data returns data needed for deduplicating", {
   stub(duplicates_data, "read_tessi", readRDS(rprojroot::find_testthat_root_file("duplicates_stream-customers.Rds")))
   stub(duplicates_data, "read_cache", readRDS(rprojroot::find_testthat_root_file("address_stream.Rds")))
@@ -17,4 +19,42 @@ test_that("duplicates_data returns data needed for deduplicating", {
 
   expect_true(all(sapply(duplicates_data[,c("customer_no","group_customer_no")], is.integer)))
   expect_true(all(sapply(duplicates_data[,-c("customer_no","group_customer_no")], is.character)))
+})
+
+# duplicates_stream -------------------------------------------------------
+
+test_that("duplicates_stream returns all email matches", {
+  tessilake:::local_cache_dirs()
+  emails <- paste0(letters,"@me.com")
+
+  duplicates_data <- data.table(email = rep(emails,2), customer_no = seq(52), group_customer_no = seq(52))
+  stub(duplicates_stream, "duplicates_data", duplicates_data)
+
+  dupes <- duplicates_stream()
+  expect_equal(nrow(dupes), 26)
+  expect_mapequal(dupes, data.table(email = emails,
+                                    customer_no_match = seq(26), customer_no = seq(27,52),
+                                    i.group_customer_no = seq(26), group_customer_no = seq(27,52)))
+
+  duplicates_data <- data.table(email = rep(emails,3), customer_no = seq(78), group_customer_no = seq(78))
+  stub(duplicates_stream, "duplicates_data", duplicates_data)
+
+  dupes <- duplicates_stream()
+  expect_equal(nrow(dupes), 52)
+  expect_equal(dupes$email, rep(emails,2))
+  expect_equal(dupes$customer_no_match, seq(52))
+  expect_equal(dupes$customer_no, seq(27,78))
+
+})
+
+test_that("duplicates_stream suppresses matches by household", {
+  tessilake:::local_cache_dirs()
+  emails <- paste0(letters,"@me.com")
+
+  duplicates_data <- data.table(email = rep(emails,2), customer_no = seq(52), group_customer_no = rep(seq(26), 2))
+  stub(duplicates_stream, "duplicates_data", duplicates_data)
+
+  dupes <- duplicates_stream()
+  expect_equal(nrow(dupes), 0)
+
 })

@@ -25,12 +25,22 @@
 #' * it provides reporting that includes the match pattern and posterior probability for each pair
 #'
 #' @return data.table of duplicates
+#' @importFrom tessilake write_cache
 #' @param ... additional parameters passed on to [read_tessi] and [read_cache]
 #' @export
 duplicates_stream <- function(...) {
+  duplicates_data <- duplicates_data(...) %>% .[!is.na(email) & nchar(email) > 5]
+  duplicates_data[,i.customer_no := customer_no-.1]
 
+  dupes <- duplicates_data[duplicates_data,
+                           on = c("email","i.customer_no"="customer_no"),
+                           roll = -Inf] %>%
+    .[!is.na(customer_no) & group_customer_no != i.group_customer_no] %>%
+    .[,i.i.customer_no := NULL]
 
+  write_cache(dupes, "duplicate_stream", "stream", overwrite = TRUE)
 
+  dupes
 }
 
 #' @describeIn duplicates_stream Load data for [duplicates_stream]
@@ -54,9 +64,9 @@ duplicates_data <- function(...) {
   # load all addresses past and present
   addresses <- read_cache("address_stream_full", "stream") %>%
     select(c(address_cols, "group_customer_no", "customer_no")) %>%
-    collect %>% setDT %>%
+    collect %>% setDT #%>%
   # and append libpostal parsed data
-    cbind(address_parse(.)[,-address_cols, with = F])
+  #  cbind(address_parse(.)[,-address_cols, with = F])
 
   # rename libpostal columns
   addresses <- addresses[!is.na(street1) & !is.na(group_customer_no),

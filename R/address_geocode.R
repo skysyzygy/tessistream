@@ -7,6 +7,7 @@
 #' `street1`, and `street2`, and the US census and openstreetmap geocoders.
 #'
 #' @param address_stream data.table of addresses
+#' @param num_tries integer number of times to retry on error
 #'
 #' @return data.table of addresses, one row per address in input, must include `address_cols`. Contains only address_cols and columns returned by `tidygeocoder`
 #' @importFrom tidygeocoder geocode_combine
@@ -14,7 +15,7 @@
 #' @importFrom tidyr expand_grid any_of all_of
 #' @importFrom checkmate assert_data_table assert_names
 #' @describeIn address_geocode geocode all addresses
-address_geocode_all <- function(address_stream) {
+address_geocode_all <- function(address_stream, num_tries = 10) {
   . <- libpostal.street <- NULL
 
   assert_data_table(address_stream)
@@ -68,12 +69,13 @@ address_geocode_all <- function(address_stream) {
     map(flatten)
 
   # Run the queries
-  result <- geocode_combine(address_stream_parsed,
+  result <- make_resilient(geocode_combine(address_stream_parsed,
                     queries = queries,
                     global_params = global_params,
                     return_list = TRUE,
                     lat = "lat", long = "lon",
-                    query_names = map_chr(queries,~paste(.$method,.$address)))
+                    query_names = map_chr(queries,~paste(.$method,.$address))),
+                    default = address_stream)
 
   if(!is.data.frame(result))
      result <- rbindlist(result, fill = TRUE, idcol = "query")
@@ -157,6 +159,7 @@ address_reverse_census <- function(address_stream) {
 #' @return data.table of census geographies, one row per lat/lon pair in `address_stream`
 #' @importFrom censusxy cxy_geography
 #' @importFrom data.table rbindlist setnames
+#' @importFrom purrr modify_if
 address_reverse_census_all <- function(address_stream) {
   . <- lat <- lon <- NULL
 
@@ -164,9 +167,8 @@ address_reverse_census_all <- function(address_stream) {
   assert_names(colnames(address_stream), must.include = c("lat","lon"))
   address_stream <- address_stream[,.(lat,lon)]
 
-  address_reverse <- Vectorize(cxy_geography, SIMPLIFY = FALSE)(lon = address_stream$lon,
-                                                                lat = address_stream$lat) %>%
-    purrr::modify_if(is.null,~list(NA)) %>% rbindlist(fill = TRUE)
+  address_reverse <- apply(address_stream, 1, \(.) try(cxy_geography(lon = .["lon"], lat = .["lat"]))) %>%
+    modify_if(~!is.list(.),~list(NA)) %>% rbindlist(fill = TRUE)
 
   columns <- Vectorize(grep, "pattern")(paste0("Census\\.Blocks\\.",c("STATE","COUNTY","TRACT","BLOCK"),"$"),
                                         colnames(address_reverse), value = T)

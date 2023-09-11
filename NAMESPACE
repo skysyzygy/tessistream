@@ -3,6 +3,7 @@
 export("%>%")
 export(address_stream)
 export(contribution_stream)
+export(make_resilient)
 export(p2_email_map)
 export(p2_orphans)
 export(p2_resolve_orphan)

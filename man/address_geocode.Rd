@@ -5,12 +5,14 @@
 \alias{address_geocode}
 \title{address_geocode}
 \usage{
-address_geocode_all(address_stream)
+address_geocode_all(address_stream, num_tries = 10)
 
 address_geocode(address_stream)
 }
 \arguments{
 \item{address_stream}{data.table of addresses}
+
+\item{num_tries}{integer number of times to retry on error}
 }
 \value{
 data.table of addresses, one row per address in input, must include \code{address_cols}. Contains only address_cols and columns returned by \code{tidygeocoder}

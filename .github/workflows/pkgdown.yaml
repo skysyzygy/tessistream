@@ -1,0 +1,70 @@
+# Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
+# Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+name: pkgdown
+
+jobs:
+  pkgdown:
+    runs-on: ubuntu-latest
+    # Only restrict concurrency for non-PR jobs
+    concurrency:
+      group: pkgdown-${{ github.event_name != 'pull_request' || github.run_id }}
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::pkgdown, local::.
+          needs: website
+
+      - name: Update Mermaid figures
+        run: >
+          find . -name README.md -exec
+          perl -0777 -i -pe 's/``` mermaid(.*?)```/```{=html}\n<pre class="mermaid">\1<\/pre>\n```/sg' {} \+
+
+      - name: Build site
+        run: pkgdown::build_site_github_pages()
+        shell: Rscript {0}
+
+      - name: Deploy to GitHub pages 🚀
+        if: github.event_name != 'pull_request'
+        uses: JamesIves/github-pages-deploy-action@v4.4.1
+        with:
+          clean: false
+          branch: gh-pages
+          folder: docs
+
+      - name: Prepare for Sharepoint
+        run: |
+          find docs -name *.html -exec mv "{}" "{}.aspx" \;
+          find docs -name *.aspx -exec sed -i 's/\.html/.html.aspx/g' {} \+
+        shell: bash {0}
+
+      - name: Publish to Sharepoint 💥
+        uses: skysyzygy/action-sharepoint-publish-glob@v1
+        with:
+         site_url: 'https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org'
+         library_folder: ${{ format('Documents/documentation/{0}', github.event.repository.name) }}
+         sharepoint_username: ${{ secrets.SHAREPOINT_USERNAME }}
+         sharepoint_password: ${{ secrets.SHAREPOINT_PASSWORD }}
+         base: 'docs'
+         glob: 'docs/**'
+

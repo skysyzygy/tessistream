@@ -290,12 +290,12 @@ test_that("address_reverse_census_all turns lat/lon pairs into census tract info
 })
 
 test_that("address_reverse_census_all is resilient to API failures",{
-  stub(address_reverse_census_all, "cxy_geocode", \(...) stop("Census API Error!"))
+  stub(address_reverse_census_all, "cxy_geography", \(...) stop("Census API Error!"))
   # NY, CA, MO, Toronto
   coords <- data.table(lat = c(44.731171, 36.778259, 37.964252, 43.653225),
                        lon = c(-75.428833, -119.417931, -91.831833, -79.383186))
 
-  res <- address_reverse_census_all(coords)
+  expect_warning(res <- address_reverse_census_all(coords), "Error in cxy_geography.+4 rows.+Census API Error!")
 
   expect_equal(nrow(coords),nrow(res))
 

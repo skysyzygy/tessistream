@@ -167,14 +167,23 @@ address_reverse_census_all <- function(address_stream) {
   assert_names(colnames(address_stream), must.include = c("lat","lon"))
   address_stream <- address_stream[,.(lat,lon)]
 
-  address_reverse <- apply(address_stream, 1, \(.) try(cxy_geography(lon = .["lon"], lat = .["lat"]))) %>%
-    modify_if(~!is.list(.),~list(NA)) %>% rbindlist(fill = TRUE)
+  address_reverse <- apply(address_stream, 1,
+                           \(.) tryCatch(
+                             cxy_geography(lon = .["lon"], lat = .["lat"]),
+                             error = \(e) e$message
+                            )) %>%
+    as.list() %>% modify_if(~!is.list(.),~list(error = . %||% NA)) %>% rbindlist(fill = TRUE)
+
+  errors <- address_reverse[!is.na(error),error]
+  if(length(errors))
+    rlang::warn(c(paste("Error in cxy_geography in",length(errors),"rows, last error was"),
+                "*" = tail(errors,1)))
 
   columns <- Vectorize(grep, "pattern")(paste0("Census\\.Blocks\\.",c("STATE","COUNTY","TRACT","BLOCK"),"$"),
-                                        colnames(address_reverse), value = T)
+                                        colnames(address_reverse), value = T) %>%
+    setNames(c("state_fips","county_fips","census_tract","census_block")) %>% unlist
 
-  address_reverse[,columns, with = FALSE] %>%
-    setnames(c("state_fips","county_fips","census_tract","census_block")) %>%
+  address_reverse[,columns, with = FALSE] %>% setNames(names(columns)) %>%
     cbind(address_stream)
 }
 

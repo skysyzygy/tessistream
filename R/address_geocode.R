@@ -174,10 +174,11 @@ address_reverse_census_all <- function(address_stream) {
                             )) %>%
     as.list() %>% modify_if(~!is.list(.),~list(error = . %||% NA)) %>% rbindlist(fill = TRUE)
 
-  errors <- address_reverse[!is.na(error),error]
-  if(length(errors))
+  if(!is.null(address_reverse$error) && any(!is.na(address_reverse$error))) {
+    errors <- na.omit(address_reverse$error)
     rlang::warn(c(paste("Error in cxy_geography in",length(errors),"rows, last error was"),
-                "*" = tail(errors,1)))
+                  "*" = tail(errors,1)))
+  }
 
   columns <- Vectorize(grep, "pattern")(paste0("Census\\.Blocks\\.",c("STATE","COUNTY","TRACT","BLOCK"),"$"),
                                         colnames(address_reverse), value = T) %>%

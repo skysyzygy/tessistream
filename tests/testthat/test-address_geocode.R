@@ -276,6 +276,21 @@ test_that("address_geocode does not retry successfully geocoded addresses", {
 
 test_that("address_reverse_census_all turns lat/lon pairs into census tract info",{
   # NY, CA, MO, Toronto
+  coords <- data.table(lat = c(44.731171, 36.778259, 37.964252),
+                       lon = c(-75.428833, -119.417931, -91.831833))
+
+  res <- address_reverse_census_all(coords)
+
+  expect_equal(res$state_fips, c("36", "06", "29"))
+  expect_equal(res$county_fips, c("089", "019", "161"))
+  expect_named(res, c("state_fips","county_fips","census_tract","census_block","lat","lon"),
+               ignore.order = TRUE)
+  expect_equal(nrow(coords),nrow(res))
+
+})
+
+test_that("address_reverse_census_all gracefully works when non-US data is submitted",{
+  # NY, CA, MO, Toronto
   coords <- data.table(lat = c(44.731171, 36.778259, 37.964252, 43.653225),
                        lon = c(-75.428833, -119.417931, -91.831833, -79.383186))
 
@@ -285,6 +300,14 @@ test_that("address_reverse_census_all turns lat/lon pairs into census tract info
   expect_equal(res$county_fips, c("089", "019", "161", NA))
   expect_named(res, c("state_fips","county_fips","census_tract","census_block","lat","lon"),
                ignore.order = TRUE)
+  expect_equal(nrow(coords),nrow(res))
+
+  coords <- data.table(lat = c(43.653225),
+                       lon = c(-79.383186))
+
+  res <- address_reverse_census_all(coords)
+
+  expect_named(res, c("lat","lon"), ignore.order = TRUE)
   expect_equal(nrow(coords),nrow(res))
 
 })

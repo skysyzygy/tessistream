@@ -35,11 +35,6 @@ jobs:
           extra-packages: any::pkgdown, local::.
           needs: website
 
-      - name: Update Mermaid figures
-        run: >
-          find . -name README.md -exec
-          perl -0777 -i -pe 's/``` mermaid(.*?)```/```{=html}\n<pre class="mermaid">\1<\/pre>\n```/sg' {} \+
-
       - name: Build site
         run: pkgdown::build_site_github_pages()
         shell: Rscript {0}

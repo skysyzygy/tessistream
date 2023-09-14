@@ -63,24 +63,27 @@ tessi_changed_emails <- function(since = Sys.Date() - 7, ...) {
 #' the customer # field in P2 or the update will not be run
 #' @param dry_run boolean, nothing will be changed in P2 if set to `TRUE`
 #' @importFrom rlang inform
+#' @importFrom checkmate test_character test_integerish
 #' @return `TRUE` if update is run succesfully, `FALSE` if not.
 #' @export
 p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_run = FALSE) {
   field <- value <- NULL
 
+  from_valid <- test_character(from,min.chars = 1, len=1, all.missing=FALSE)
+  to_valid <- test_character(to,min.chars = 1, len=1, all.missing=FALSE)
+  customer_no_valid <- test_integerish(customer_no, lower=0, len = 1, any.missing = FALSE)
+
   customer_no_string <- paste0(customer_no, collapse = ", ")
   inform(paste("Updating", from, "to", to, "for customer #", customer_no_string))
 
-  p2_contact_from <- if(is.character(from) && !is.na(from) && nchar(from) > 0) p2_query_api(modify_url(
+  p2_contact_from <- if(from_valid) p2_query_api(modify_url(
     api_url, path = "api/3/contacts",
     query = list(
       email = from,
       include = "fieldValues,contactAutomations"
     )))
-  else
-    list()
 
-  p2_contact_to <- if(is.character(to) && !is.na(to) && nchar(to) > 0) p2_query_api(modify_url(
+  p2_contact_to <- if(to_valid) p2_query_api(modify_url(
     api_url, path = "api/3/contacts",
     query = list(
       email = to,
@@ -94,7 +97,7 @@ p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_ru
     c("From email is in P2" = !is.null(p2_contact_from$contacts) && tolower(unlist(p2_contact_from$contacts$email)) == from,
       "To email is not in P2" = length(p2_contact_to) > 0 && is.null(p2_contact_to$contacts),
       "Customer # matches" = !is.null(p2_contact_from$fieldValues) && !is.null(p2_contact_from$fieldValues$field) &&
-        unlist(p2_contact_from$fieldValues[field == 1, as.integer(value)]) %in% customer_no
+        customer_no_valid && unlist(p2_contact_from$fieldValues[field == 1, as.integer(value)]) %in% customer_no
     )
 
   # Report the result of the tests

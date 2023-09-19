@@ -1,4 +1,48 @@
-url: ~
+url: !expr file.path(Sys.getenv("PKGDOWN_URL"),Sys.getenv("PKGDOWN_DIR"),pkgload::pkg_name())
+
+home:
+  strip_header: true
+  sidebar:
+    structure: [links, authors, dev, toc]
+
+deploy:
+  install_metadata: true
+
 template:
   bootstrap: 5
+  bootswatch: sandstone
+  includes:
+    after_body: >
+      <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: false });
+        mermaid.run({
+          querySelector: '.mermaid code',
+        });
+
+        jQuery("pre.mermaid code").on("click", (e) => jQuery(e.currentTarget).toggleClass("svg-modal"))
+      </script>
+
+navbar:
+  bg: primary
+  structure:
+    left:  [intro, packages, reference, articles, tutorials, news]
+    right: [search, github]
+  components:
+    packages:
+      text: R Packages
+      menu:
+      - text: data @ BAM
+        href: !expr downlit:::href_package("dataAtBAM")
+      - text: tessireport
+        href: !expr downlit:::href_package("tessireport")
+      - text: tessistream
+        href: !expr downlit:::href_package("tessistream")
+      - text: tessilake
+        href: !expr downlit:::href_package("tessilake")
+      - text: tessiflow
+        href: !expr downlit:::href_package("tessiflow")
+
+# development:
+#   mode: "devel"
 

@@ -26,7 +26,7 @@
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
     
 
-    <nav class="navbar fixed-top navbar-light navbar-expand-lg bg-light"><div class="container">
+    <nav class="navbar fixed-top navbar-dark navbar-expand-lg bg-primary"><div class="container">
     
     <a class="navbar-brand me-2" href="index.html">tessistream</a>
 
@@ -39,6 +39,16 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item dropdown">
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-r-packages">R Packages</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-r-packages">
+    <a class="dropdown-item" href>data @ BAM</a>
+    <a class="dropdown-item" href>tessireport</a>
+    <a class="dropdown-item" href>tessistream</a>
+    <a class="external-link dropdown-item" href="https://github.com/skysyzygy/tessilake">tessilake</a>
+    <a class="dropdown-item" href>tessiflow</a>
+  </div>
+</li>
 <li class="nav-item">
   <a class="nav-link" href="reference/index.html">Reference</a>
 </li>
@@ -58,8 +68,7 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="tessistream">tessistream<a class="anchor" aria-label="anchor" href="#tessistream"></a>
-</h1></div>
+
 <!-- badges: start -->
 
 <p>Builds timestamped datasets based on contributions, ticket sales, address changes, inventory for historical and predictive analysis.</p>
@@ -93,23 +102,7 @@
 <span><span class="co">## basic example code</span></span></code></pre></div>
 </div>
 </div>
-  </main><aside class="col-md-3"><div class="license">
-<h2 data-toc-skip>License</h2>
-<ul class="list-unstyled">
-<li><a href="LICENSE.html">Full license</a></li>
-<li><small>GPL (&gt;= 3)</small></li>
-</ul>
-</div>
-
-
-<div class="citation">
-<h2 data-toc-skip>Citation</h2>
-<ul class="list-unstyled">
-<li><a href="authors.html#citation">Citing tessistream</a></li>
-</ul>
-</div>
-
-<div class="developers">
+  </main><aside class="col-md-3"><div class="developers">
 <h2 data-toc-skip>Developers</h2>
 <ul class="list-unstyled">
 <li>Sky Syzygy <br><small class="roles"> Author, maintainer </small> <a href="https://orcid.org/YOUR-ORCID-ID" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a> </li>
@@ -121,6 +114,13 @@
 <ul class="list-unstyled">
 <li><a href="https://github.com/skysyzygy/tessistream/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/skysyzygy/tessistream/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
 <li><a href="https://app.codecov.io/gh/skysyzygy/tessistream?branch=main" class="external-link"><img src="https://codecov.io/gh/skysyzygy/tessistream/branch/main/graph/badge.svg?token=3R8UJNG6QY" alt="Codecov test coverage"></a></li>
+</ul>
+</div>
+
+<div class="table-of-contents">
+<h2 data-toc-skip>Table of contents</h2>
+<ul class="list-unstyled">
+<li><nav id="toc"></nav></li>
 </ul>
 </div>
 
@@ -143,7 +143,14 @@
 
   
 
-  
+  <script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: false });
+  mermaid.run({
+    querySelector: '.mermaid code',
+  });
 
-  </body>
+  jQuery("pre.mermaid code").on("click", (e) => jQuery(e.currentTarget).toggleClass("svg-modal"))
+</script>
+</body>
 </html>

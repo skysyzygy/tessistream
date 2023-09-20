@@ -33,15 +33,15 @@ navbar:
       text: R Packages
       menu:
       - text: data @ BAM
-        href: !expr downlit:::href_package("dataAtBAM")
+        href: "../dataAtBAM/index.html"
       - text: tessireport
-        href: !expr downlit:::href_package("tessireport")
+        href: "../tessireport/index.html"
       - text: tessistream
-        href: !expr downlit:::href_package("tessistream")
+        href: "../tessistream/index.html"
       - text: tessilake
-        href: !expr downlit:::href_package("tessilake")
+        href: "../tessilake/index.html"
       - text: tessiflow
-        href: !expr downlit:::href_package("tessiflow")
+        href: "../tessiflow/index.html"
 
 # development:
 #   mode: "devel"

@@ -53,10 +53,13 @@ jobs:
 
       - name: Prepare for Sharepoint
         run: |
+          # rename html to aspx
           find docs -name *.html -exec mv "{}" "{}.aspx" \;
-          find docs \( -name *.aspx -o -name sitemap.xml -o -name search.json \) -exec sed -i 's/\.html/.html.aspx/g' {} \+
-          find docs \( -name *.aspx -o -name sitemap.xml -o -name search.json \) -exec sed -i 's%https://github.com/skysyzygy%'${PKGDOWN_URL}/${PKGDOWN_DIR}'%g' {} \+
-          find docs \( -name *.aspx -o -name sitemap.xml -o -name search.json \) -exec perl -i -pe 's%(?<='${PKGDOWN_URL}')([^"]+)(?!=\.html\.aspx)%\1/index.html.aspx%g' {} \+
+          # point links to aspx files
+          find docs -type f -exec perl -i -pe 's%\.html"%.html.aspx"%g' {} \+
+          # change broken github references
+          find docs -type f -exec perl -i -pe 's%https://github.com/skysyzygy%'${PKGDOWN_URL}/${PKGDOWN_DIR}'%g' {} \+
+          find docs -type f -exec perl -i -pe 's%(?<='${PKGDOWN_URL}')([^"]+)(?!=\.html\.aspx)"%\1/index.html.aspx"%g' {} \+
         shell: bash {0}
 
       - name: Publish to Sharepoint 💥

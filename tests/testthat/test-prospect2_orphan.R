@@ -139,7 +139,7 @@ test_that("p2_resolve_orphan updates the email iff it passes three tests", {
   # customer # doesn't match
   expect_message_n(2,p2_resolve_orphan("a","to",12345), "x Customer # matches : 12345")
   # everything passes!
-  expect_message_n(2,p2_resolve_orphan("a","to",1))
+  expect_message_n(2,p2_resolve_orphan("a","to",c(1,12345)))
   expect_length(mock_args(p2_update_email),1)
 })
 

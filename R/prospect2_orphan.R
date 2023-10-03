@@ -71,7 +71,7 @@ p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_ru
 
   from_valid <- test_character(from,min.chars = 1, len=1, all.missing=FALSE)
   to_valid <- test_character(to,min.chars = 1, len=1, all.missing=FALSE)
-  customer_no_valid <- test_integerish(customer_no, lower=0, len = 1, any.missing = FALSE)
+  customer_no_valid <- test_integerish(customer_no, lower = 0, min.len = 1, any.missing = FALSE)
 
   customer_no_string <- paste0(customer_no, collapse = ", ")
   inform(paste("Updating", from, "to", to, "for customer #", customer_no_string))

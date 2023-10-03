@@ -291,13 +291,13 @@ test_that("address_reverse_census_all turns lat/lon pairs into census tract info
 
 test_that("address_reverse_census_all gracefully works when non-US data is submitted",{
   # NY, CA, MO, Toronto
-  coords <- data.table(lat = c(44.731171, 36.778259, 37.964252, 43.653225),
-                       lon = c(-75.428833, -119.417931, -91.831833, -79.383186))
+  coords <- data.table(lat = c(40.6866574, 36.778259, 37.964252, 43.653225),
+                       lon = c(-73.9777373, -119.417931, -91.831833, -79.383186))
 
   res <- address_reverse_census_all(coords)
 
   expect_equal(res$state_fips, c("36", "06", "29", NA))
-  expect_equal(res$county_fips, c("089", "019", "161", NA))
+  expect_equal(res$county_fips, c("047", "019", "161", NA))
   expect_named(res, c("state_fips","county_fips","census_tract","census_block","lat","lon"),
                ignore.order = TRUE)
   expect_equal(nrow(coords),nrow(res))
@@ -315,8 +315,8 @@ test_that("address_reverse_census_all gracefully works when non-US data is submi
 test_that("address_reverse_census_all is resilient to API failures",{
   stub(address_reverse_census_all, "cxy_geography", \(...) stop("Census API Error!"))
   # NY, CA, MO, Toronto
-  coords <- data.table(lat = c(44.731171, 36.778259, 37.964252, 43.653225),
-                       lon = c(-75.428833, -119.417931, -91.831833, -79.383186))
+  coords <- data.table(lat = c(40.6866574, 36.778259, 37.964252, 43.653225),
+                       lon = c(-73.9777373, -119.417931, -91.831833, -79.383186))
 
   expect_warning(res <- address_reverse_census_all(coords), "Error in cxy_geography.+4 rows.+Census API Error!")
 

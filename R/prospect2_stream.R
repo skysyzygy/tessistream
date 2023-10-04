@@ -147,7 +147,7 @@ p2_db_update <- function(data, table, overwrite = FALSE) {
     data <<- p2_unnest(data, .)
   })
 
-  data <- distinct(data)
+  data <- distinct(data, id, .keep_all = TRUE)
 
   if (table %in% DBI::dbListTables(tessistream$p2_db) & !overwrite) {
     sqlite_upsert(tessistream$p2_db, table, data)

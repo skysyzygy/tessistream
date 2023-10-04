@@ -3,6 +3,31 @@ withr::defer(p2_db_close())
 withr::local_envvar(R_CONFIG_FILE = "tessistream-config.yml")
 future::plan(future::sequential)
 
+
+# p2_query_table_length ---------------------------------------------------
+
+test_that("p2_query_table_length queries url to get total", {
+  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_table_length, "GET", GET)
+  stub(p2_query_table_length, "content", I)
+
+  expect_equal(p2_query_table_length("test"),1234)
+  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
+})
+
+test_that("p2_query_table_length handles missing meta by querying once", {
+  GET <- mock(list(test = seq(1234)), cycle = T)
+  stub(p2_query_table_length, "GET", GET)
+  stub(p2_query_table_length, "content", I)
+
+  expect_equal(p2_query_table_length("test"),1234)
+  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
+})
+
+
+# p2_query_api ------------------------------------------------------------
+
+
 test_that("p2_query_api successfully connects to p2", {
   stub(p2_query_api, "content",function(.){rlang::abort("content",result=.)})
   stub(p2_query_api, "p2_query_table_length", 1)
@@ -14,90 +39,70 @@ test_that("p2_query_api successfully connects to p2", {
   expect_length(content(result)$contacts,1)
 })
 
-test_that("p2_query_table_length queries url to get total", {
-  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
-  stub(p2_query_api, "GET", GET)
-  stub(p2_query_api, "content", I)
-  stub(p2_query_api, "p2_combine_jsons", I)
 
-  p2_query_api("test")
-
-  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=34")
-})
-
-test_that("p2_query_api handles missing meta by querying once", {
-  GET <- mock(list(test = seq(1234)), cycle = T)
-  stub(p2_query_api, "GET", GET)
-  stub(p2_query_api, "content", I)
-  stub(p2_query_api, "p2_combine_jsons", I)
-  p2_query_api("test")
-
-  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=1234")
-})
 
 test_that("p2_query_api uses offset to change the data loaded", {
   GET <- mock(list(test = seq(1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
   stub(p2_query_api, "GET", GET)
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
   p2_query_api("test", offset = 1232)
 
-  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_match(mock_args(GET)[[2]][[1]], "limit=2")
-  expect_match(mock_args(GET)[[2]][[1]], "offset=1232")
+  expect_match(mock_args(GET)[[1]][[1]], "limit=2")
+  expect_match(mock_args(GET)[[1]][[1]], "offset=1232")
 
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
   stub(p2_query_api, "GET", GET)
+  stub(p2_query_api, "p2_query_table_length", 1234)
   p2_query_api("test", offset = 1233)
   expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_match(mock_args(GET)[[2]][[1]], "limit=1")
-  expect_match(mock_args(GET)[[2]][[1]], "offset=1233")
+  expect_match(mock_args(GET)[[1]][[1]], "offset=1233")
 })
 
 test_that("p2_query_api returns NULL when offset is larger than available data", {
   GET <- mock(list(test = seq(1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
   stub(p2_query_api, "GET", GET)
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
   expect_equal(p2_query_api("test", offset = 1234),NULL)
-  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_length(mock_args(GET),1)
+  expect_length(mock_args(GET),0)
 
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
   stub(p2_query_api, "GET", GET)
   expect_equal(p2_query_api("test", offset = 1235),NULL)
-  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_length(mock_args(GET),1)
+  expect_length(mock_args(GET),0)
 })
 
 test_that("p2_query_api queries url in groups of 100", {
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
   stub(p2_query_api, "GET", GET)
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
   p2_query_api("test")
 
-  expect_length(mock_args(GET), 14)
+  expect_length(mock_args(GET), 13)
   # offsets increase by 100
-  imap(mock_args(GET)[-1], ~ expect_match(.x[[1]], paste0("offset=", (.y - 1) * 100)))
+  imap(mock_args(GET), ~ expect_match(.x[[1]], paste0("offset=", (.y - 1) * 100)))
   # all but the last one has limit 100
-  expect_match(purrr::map_chr(head(mock_args(GET)[-1], -1), 1), "limit=100")
+  expect_match(purrr::map_chr(head(mock_args(GET), -1), 1), "limit=100")
 })
 
 test_that("p2_query_api queries url starting from offset in groups of 100", {
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
   stub(p2_query_api, "GET", GET)
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
   p2_query_api("test", offset = 1)
 
-  expect_length(mock_args(GET), 14)
+  expect_length(mock_args(GET), 13)
   # offsets start at 1 and increase by 100
-  imap(mock_args(GET)[-1], ~ expect_match(.x[[1]], paste0("offset=", (.y - 1) * 100 + 1)))
+  imap(mock_args(GET), ~ expect_match(.x[[1]], paste0("offset=", (.y - 1) * 100 + 1)))
   # all but the last one has limit 100
-  expect_match(purrr::map_chr(head(mock_args(GET)[-1], -1), 1), "limit=100")
+  expect_match(purrr::map_chr(head(mock_args(GET), -1), 1), "limit=100")
   # last one is one less
   expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=33")
 })
@@ -260,6 +265,7 @@ test_that("p2_unnest unnests list columns without names longer and replace missi
 test_that("p2_load dispatches arguments to modify_url", {
   modify_url <- mock(cycle = TRUE)
   stub(p2_query_api, "GET", NULL)
+  stub(p2_query_api, "p2_query_table_length", 1)
   stub(p2_query_api, "content", list(a = 1))
   stub(p2_load, "modify_url", modify_url)
   stub(p2_load, "p2_query_api", p2_query_api)

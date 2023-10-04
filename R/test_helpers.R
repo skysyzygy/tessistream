@@ -171,7 +171,7 @@ p2_prepare_fixtures <- function() {
   p2_db_open("p2.sqlite")
   withr::defer(p2_db_close())
 
-  tables <- c("fieldValues", "campaigns", "messages", "links", "lists", "bounceLogs", "contactLists", "contacts", "logs", "linkData")
+  tables <- c("fieldValues", "campaigns", "messages", "links", "lists", "bounceLogs", "contactLists", "contacts", "logs", "linkData", "mppLinkData")
   map(tables[-1], p2_load)
   p2_load("fieldValues", path = "api/3/fieldValues", query = list("filters[fieldid]" = 1))
 

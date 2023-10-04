@@ -434,7 +434,7 @@ test_that("p2_stream_build combines log (sends), linkData (opens/clicks), contac
 
 test_that("p2_stream_build outputs a stream-compliant dataset",{
   p2_db_open("p2.sqlite")
-  stub(p2_stream_build,"p2_email_map",data.table(id=seq(3e5)) %>%
+  stub(p2_stream_build,"p2_email_map",data.table(id=seq(1e6)) %>%
          .[,`:=`(customer_no = id,
                  group_customer_no = id,
                  email=paste0(seq(id),"@gmail.com"))])

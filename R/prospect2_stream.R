@@ -255,7 +255,7 @@ p2_update <- function() {
   p2_load("contacts", query = list("filters[updated_after]" = as.character(contacts_max_date)))
 
   # immutable, just load new ids
-  for (table in c("logs", "linkData")) {
+  for (table in c("logs", "linkData", "mppLinkData")) {
     max_id <- if (DBI::dbExistsTable(tessistream$p2_db, table)) {
       tbl(tessistream$p2_db, table) %>%
         summarize(max(as.integer(id), na.rm = TRUE)) %>%
@@ -276,9 +276,11 @@ p2_update <- function() {
 
     p <- progressor(nrow(recent_links))
     map(recent_links$id, ~ {
-      path <- paste0("api/3/links/", ., "/linkData")
-      p(paste("Querying", path))
-      p2_load("linkData", path = path)
+      for(table in c("linkData","mppLinkData")) {
+        path <- file.path("api/3/links", ., table)
+        p(paste("Querying", path))
+        p2_load(table, path = path)
+      }
     })
   }
 }
@@ -422,6 +424,23 @@ p2_stream_build <- function() {
     ) %>%
     collect() %>%
     setDT()
+
+  events2 <- tbl(tessistream$p2_db, "mppLinkData") %>%
+    filter(messageid != "0") %>%
+    transmute(
+      timestamp = unixepoch(tstamp),
+      subscriberid = as.integer(subscriberid),
+      campaignid = as.integer(campaignid),
+      messageid = as.integer(messageid),
+      linkid = as.integer(link),
+      isread = as.logical(isread),
+      times = as.integer(times),
+      ip, ua, uasrc, referer
+    ) %>%
+    collect() %>%
+    setDT()
+
+  events <- rbind(events, events2, fill = T)
 
   bounces <- tbl(tessistream$p2_db, "bounceLogs") %>%
     filter(email!="") %>%

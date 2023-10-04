@@ -18,21 +18,21 @@
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="nav-item dropdown">
-  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-r-packages">R Packages</a>
-  <div class="dropdown-menu" aria-labelledby="dropdown-r-packages">
+      <ul class="navbar-nav me-auto"><li class="active nav-item">
+  <a class="nav-link" href="../reference/index.html">Reference</a>
+</li>
+<li class="nav-item">
+  <a class="nav-link" href="../news/index.html">Changelog</a>
+</li>
+<li class="nav-item dropdown">
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-developer">Developer</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-developer">
     <a class="dropdown-item" href="../../dataAtBAM/index.html">data @ BAM</a>
     <a class="dropdown-item" href="../../tessireport/index.html">tessireport</a>
     <a class="dropdown-item" href="../../tessistream/index.html">tessistream</a>
     <a class="dropdown-item" href="../../tessilake/index.html">tessilake</a>
     <a class="dropdown-item" href="../../tessiflow/index.html">tessiflow</a>
   </div>
-</li>
-<li class="active nav-item">
-  <a class="nav-link" href="../reference/index.html">Reference</a>
-</li>
-<li class="nav-item">
-  <a class="nav-link" href="../news/index.html">Changelog</a>
 </li>
       </ul><form class="form-inline my-2 my-lg-0" role="search">
         <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off"></form>
@@ -48,9 +48,9 @@
     </div>
 
     <div class="section level2">
-      <h2 id="all-functions">All functions<a class="anchor" aria-label="anchor" href="#all-functions"></a></h2>
+      <h2 id="address-stream">Address Stream<a class="anchor" aria-label="anchor" href="#address-stream"></a></h2>
       
-      
+      <p class="section-desc"></p><p>Functions related to geocoding and census data appends for address dataset</p>
 
       
     </div><div id="" class="section level2">
@@ -123,7 +123,18 @@
           <code><a href="census_variables.html">census_variables()</a></code> 
         </dt>
         <dd>census_variables</dd>
-      </dl><dl><dt>
+      </dl></div><div class="section level2">
+      <h2 id="contribution-stream">Contribution Stream<a class="anchor" aria-label="anchor" href="#contribution-stream"></a></h2>
+      
+      <p class="section-desc"></p><p>Functions related to creating contribution dataset</p>
+
+      
+    </div><div id="" class="section level2">
+      
+      
+      
+
+      <dl><dt>
           
           <code><a href="contribution_membership_match.html">contribution_membership_match()</a></code> <code><a href="contribution_membership_match.html">set_contribution_membership_match()</a></code> 
         </dt>
@@ -133,12 +144,18 @@
           <code><a href="contribution_stream.html">contribution_stream()</a></code> 
         </dt>
         <dd>contribution_stream</dd>
-      </dl><dl><dt>
-          
-          <code><a href="make_resilient.html">make_resilient()</a></code> 
-        </dt>
-        <dd>make_resilient</dd>
-      </dl><dl><dt>
+      </dl></div><div class="section level2">
+      <h2 id="prospect-">Prospect2<a class="anchor" aria-label="anchor" href="#prospect-"></a></h2>
+      
+      <p class="section-desc"></p><p>Functions related to quering the P2 API, caching tables locally, and preparing a P2 email dataset</p>
+
+      
+    </div><div id="" class="section level2">
+      
+      
+      
+
+      <dl><dt>
           
           <code><a href="p2_add_tag.html">p2_add_tag()</a></code> 
         </dt>
@@ -185,7 +202,7 @@
         <dd>p2_orphans</dd>
       </dl><dl><dt>
           
-          <code><a href="p2_query_api.html">p2_query_api()</a></code> 
+          <code><a href="p2_query_api.html">p2_query_table_length()</a></code> <code><a href="p2_query_api.html">p2_query_api()</a></code> 
         </dt>
         <dd>p2_query_api</dd>
       </dl><dl><dt>
@@ -228,6 +245,22 @@
           <code><a href="p2_update_orphans.html">p2_update_orphans()</a></code> 
         </dt>
         <dd>p2_update_orphans</dd>
+      </dl></div><div class="section level2">
+      <h2 id="other">Other<a class="anchor" aria-label="anchor" href="#other"></a></h2>
+      
+      <p class="section-desc"></p><p>Other things</p>
+
+      
+    </div><div id="" class="section level2">
+      
+      
+      
+
+      <dl><dt>
+          
+          <code><a href="make_resilient.html">make_resilient()</a></code> 
+        </dt>
+        <dd>make_resilient</dd>
       </dl><dl><dt>
           
           <code><a href="progress_expr.html">progress_expr()</a></code> 
@@ -264,7 +297,8 @@
         </dt>
         <dd>tessi_changed_emails</dd>
       </dl></div>
-  </main></div>
+  </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>
+    </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">

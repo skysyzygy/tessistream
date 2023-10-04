@@ -164,7 +164,7 @@ p2_prepare_fixtures <- function() {
   withr::local_package("mockery")
   withr::local_package("dplyr")
 
-  stub(p2_query_api, "as.integer", 100)
+  stub(p2_query_api, "p2_query_table_length", 100)
   stub(p2_load, "p2_query_api", p2_query_api)
 
   file.remove("p2.sqlite")

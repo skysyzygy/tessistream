@@ -413,13 +413,13 @@ test_that("p2_stream_build combines log (sends), linkData (opens/clicks), contac
   p2_stream <- p2_stream_build()
   expect_equal(length(unique(p2_stream$event_subtype)),6)
 
-  # only unsubscribes and softbounces can be without campaignid
   expect_equal(p2_stream[is.na(subscriberid),.N],0)
 
   expect_equal(p2_stream[event_subtype=="Send" & (is.na(campaignid) | is.na(messageid)),.N],0)
   expect_equal(p2_stream[event_subtype=="Open" & (is.na(campaignid) | is.na(messageid) | is.na(linkid)),.N],0)
   expect_equal(p2_stream[event_subtype=="Click" & (is.na(campaignid) | is.na(messageid) | is.na(linkid)),.N],0)
-  expect_equal(p2_stream[event_subtype=="Hard Bounce" & (is.na(campaignid) | is.na(messageid)),.N],1)
+  # only unsubscribes and bounces can be without campaignid
+  expect_equal(p2_stream[event_subtype=="Hard Bounce" & (is.na(listid)),.N],0)
   expect_equal(p2_stream[event_subtype=="Unsubscribe" & (is.na(listid)),.N],0)
 
 })

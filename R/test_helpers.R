@@ -166,7 +166,10 @@ p2_prepare_fixtures <- function() {
 
   stub(p2_query_api, "as.integer", 100)
   stub(p2_load, "p2_query_api", p2_query_api)
+
+  file.remove("p2.sqlite")
   p2_db_open("p2.sqlite")
+  withr::defer(p2_db_close())
 
   tables <- c("fieldValues", "campaigns", "messages", "links", "lists", "bounceLogs", "contactLists", "contacts", "logs", "linkData")
   map(tables[-1], p2_load)
@@ -184,5 +187,5 @@ p2_prepare_fixtures <- function() {
       copy_to(dest = tessistream$p2_db, table, overwrite = TRUE, temporary = FALSE)
   })
 
-  p2_db_close()
+  invisible()
 }

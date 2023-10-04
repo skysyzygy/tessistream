@@ -143,6 +143,8 @@ p2_db_close <- function() {
 #' @importFrom purrr walk
 #' @importFrom dplyr distinct
 p2_db_update <- function(data, table, overwrite = FALSE) {
+  id <- NULL
+
   if (is.null(data)) {
     return(invisible())
   }

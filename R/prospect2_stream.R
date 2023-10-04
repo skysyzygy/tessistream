@@ -1,5 +1,21 @@
 api_url <- "https://brooklynacademyofmusic.api-us1.com"
 
+
+#' @describeIn p2_query_api get the length of the p2 API table at `url`
+p2_query_table_length <- function(url, api_key = keyring::key_get("P2_API")) {
+
+  first <- modify_url(url, query = list("limit" = 1)) %>%
+    GET(add_headers("Api-Token" = api_key), httr::timeout(300)) %>%
+    content()
+  if (is.null(first$meta)) {
+    total <- map_int(first, length) %>% max()
+  } else {
+    total <- as.integer(first$meta$total)
+  }
+
+  total
+}
+
 #' p2_query_api
 #'
 #' Parallel load from P2/Active Campaign API at `url` with key `api_key`. Loads pages of 100 records until it reaches the total.
@@ -15,16 +31,8 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) 
 
   api_headers <- add_headers("Api-Token" = api_key)
 
-  first <- modify_url(url, query = list("limit" = 1)) %>%
-    GET(api_headers, httr::timeout(300)) %>%
-    content()
-  if (is.null(first$meta)) {
-    total <- map_int(first, length) %>% max()
-    by <- total
-  } else {
-    total <- as.integer(first$meta$total)
-    by <- 100
-  }
+  total <- p2_query_table_length(url, api_key)
+  by <- min(total, 100)
 
   if (offset >= total)
     return(invisible())

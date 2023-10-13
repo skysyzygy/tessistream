@@ -196,29 +196,11 @@ p2_unnest <- function(data, colname) {
     return(data)
   }
 
-  # rlang::inform(paste("Unnesting",colname))
+  # replace nulls and lists with NA
+  col <- modify_if(col, ~ length(.) != 1, ~NA)
 
-  # replace nulls up to the second depth with NAs because nulls are only valid in lists
-  col <- modify_if(col, ~ length(.) == 0, ~NA)
-  col <- modify_if(col, ~ is.list(.), ~ modify_if(., ~ length(.) == 0, ~NA))
-
-  # if any element is a list then it's a list column!
-  if (any(map_lgl(col, is.list))) {
-    if (is.null(names(col[[1]]))) {
-      other_colnames <- setdiff(colnames(data), colname)
-      data[, I := .I]
-      data <- data[, list2(!!colname := flatten(col[I])), by = I][data,
-        c(colname, other_colnames),
-        on = "I", with = F
-      ] %>% p2_unnest(colname)
-    } else {
-      col <- rbindlist(col, fill = T) %>% setNames(paste(colname, names(.), sep = "."))
-      data <- cbind(data[, -colname, with = F], col)
-    }
-  } else {
-    # have to plunk the whole column to get typing correct
-    data[, (colname) := unlist(col)]
-  }
+  # plunk the whole column
+  data[,(colname) := unlist(col)]
 
   data
 }

@@ -15,6 +15,11 @@ p2_unnest(data, colname)
 unnested data.table, modified in place (unless the column needs to be unnested longer)
 }
 \description{
-Unnest a nested data.table ... this might be a useful function for other purposes but will need testing. For now it should at least
+Unnest a nested data.table wider. This might be a useful function for
+other purposes but will need testing. For now it should at least
 work with the nested structures that come from P2 JSONs
+}
+\note{
+Assumes for speed that all elements have the same structure and
+that there are no NULLs in the table anywhere.
 }

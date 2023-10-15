@@ -169,8 +169,12 @@ p2_db_update <- function(data, table, overwrite = FALSE) {
 
 #' p2_unnest
 #'
-#' Unnest a nested data.table ... this might be a useful function for other purposes but will need testing. For now it should at least
+#' Unnest a nested data.table wider. This might be a useful function for
+#' other purposes but will need testing. For now it should at least
 #' work with the nested structures that come from P2 JSONs
+#'
+#' @note Assumes for speed that all elements have the same structure and
+#' that there are no NULLs in the table anywhere.
 #'
 #' @param data data.table
 #' @param colname character, column to unnest
@@ -188,12 +192,77 @@ p2_unnest <- function(data, colname) {
   assert_data_table(data)
   assert_choice(colname, colnames(data))
 
-  if(is.atomic(data[, colname, with = F]))
+  if(data[, is.atomic(get(colname))])
     return(data)
 
-  # Get rid of list and length 0 items
-  data[map(get(colname),length) != 1, (colname) := NA]
-  data[,(colname) := unlist(get(colname))]
+  # Turn length 0 items into NAs
+  data[map(get(colname),length) == 0, (colname) := NA]
+
+  # Base logic on the first element for speed
+  test <- data[1, get(colname)][[1]]
+  if (length(test) > 1) {
+    new_names <- data[,map(get(colname),names) %>% unlist %>% unique]
+    data[, paste(colname, new_names, sep = ".") :=
+           rbindlist(get(colname),fill=T)]
+    data[,(colname) := NULL]
+  } else {
+    data[,(colname) := unlist(get(colname))]
+  }
+
+}
+
+p2_unnest_drop <- function(data, colname) {
+    . <- NULL
+
+    assert_data_table(data)
+    assert_choice(colname, colnames(data))
+
+    if(is.atomic(data[, colname, with = F]))
+      return(data)
+
+    # Get rid of list and length 0 items
+    data[map(get(colname),length) != 1, (colname) := NA]
+    data[,(colname) := unlist(get(colname))]
+
+    data
+}
+
+p2_unnest_old <- function(data, colname) {
+  . <- NULL
+
+  assert_data_table(data)
+  assert_choice(colname, colnames(data))
+
+  col <- data[, get(colname)]
+
+  # if column is not a list then there's nothing to do
+  if (is_atomic(col)) {
+    return(data)
+  }
+
+  # rlang::inform(paste("Unnesting",colname))
+
+  # replace nulls up to the second depth with NAs because nulls are only valid in lists
+  col <- modify_if(col, ~ length(.) == 0, ~NA)
+  col <- modify_if(col, ~ is.list(.), ~ modify_if(., ~ length(.) == 0, ~NA))
+
+  # if any element is a list then it's a list column!
+  if (any(map_lgl(col, is.list))) {
+    if (is.null(names(col[[1]]))) {
+      other_colnames <- setdiff(colnames(data), colname)
+      data[, I := .I]
+      data <- data[, list2(!!colname := flatten(col[I])), by = I][data,
+                                                                  c(colname, other_colnames),
+                                                                  on = "I", with = F
+      ] %>% p2_unnest(colname)
+    } else {
+      col <- rbindlist(col, fill = T) %>% setNames(paste(colname, names(.), sep = "."))
+      data <- cbind(data[, -colname, with = F], col)
+    }
+  } else {
+    # have to plunk the whole column to get typing correct
+    data[, (colname) := unlist(col)]
+  }
 
   data
 }

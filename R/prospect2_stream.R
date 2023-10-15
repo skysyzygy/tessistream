@@ -153,9 +153,8 @@ p2_db_update <- function(data, table, overwrite = FALSE) {
   assert_names(colnames(data), must.include = "id")
 
   # unnest columns
-  walk(colnames(data), ~ {
-    data <<- p2_unnest(data, .)
-  })
+  for(col in colnames(data))
+    p2_unnest(data, col)
 
   data <- distinct(data, id, .keep_all = TRUE)
 
@@ -189,18 +188,12 @@ p2_unnest <- function(data, colname) {
   assert_data_table(data)
   assert_choice(colname, colnames(data))
 
-  col <- data[, get(colname)]
-
-  # if column is not a list then there's nothing to do
-  if (is_atomic(col)) {
+  if(is.atomic(data[, colname, with = F]))
     return(data)
-  }
 
-  # replace nulls and lists with NA
-  col <- modify_if(col, ~ length(.) != 1, ~NA)
-
-  # plunk the whole column
-  data[,(colname) := unlist(col)]
+  # Get rid of list and length 0 items
+  data[map(get(colname),length) != 1, (colname) := NA]
+  data[,(colname) := unlist(get(colname))]
 
   data
 }

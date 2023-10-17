@@ -40,7 +40,6 @@ test_that("p2_query_api successfully connects to p2", {
 })
 
 
-
 test_that("p2_query_api uses offset to change the data loaded", {
   GET <- mock(list(test = seq(1234)), cycle = T)
   stub(p2_query_api, "p2_query_table_length", 1234)
@@ -107,6 +106,31 @@ test_that("p2_query_api queries url starting from offset in groups of 100", {
   expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=33")
 })
 
+test_that("p2_query_api queries url starting from offset in groups of 100
+          and stops when max_len rows have been queried", {
+  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
+  stub(p2_query_api, "GET", GET)
+  stub(p2_query_api, "content", I)
+  stub(p2_query_api, "p2_combine_jsons", I)
+
+  p2_query_api("test", offset = 1, 100)
+  expect_length(mock_args(GET), 1)
+
+  p2_query_api("test", offset = 1, 200)
+  expect_length(mock_args(GET), 3)
+
+  p2_query_api("test", offset = 1000, 300)
+  expect_length(mock_args(GET), 6)
+
+  # offsets start at 1 and increase by 100
+  expect_match(purrr::map(mock_args(GET),1),
+                    paste0("offset=", c(1,1,101,1000,1100,1200)))
+  # all but the last one has limit 100
+  expect_match(purrr::map_chr(head(mock_args(GET), -1), 1), "limit=100")
+  # last one is 34
+  expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=34")
+})
 
 # p2_json_to_datatable --------------------------------------------------------
 

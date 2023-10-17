@@ -23,15 +23,21 @@ p2_query_table_length <- function(url, api_key = keyring::key_get("P2_API")) {
 #' @param url Active Campaign API url to query
 #' @param api_key Active Campaign API key, defaults to `keyring::key_get("P2_API")`
 #' @param offset integer offset from the start of the query to return
+#' @param max_len integer maximum number of rows to load, defaults to
+#'    [p2_query_table_length]`(url, api_key)` - `offset`.
 #'
 #' @return JSON object as a list
 #' @importFrom httr modify_url GET content add_headers
-p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) {
+p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
+                         offset = 0, max_len = NULL) {
   len <- off <- NULL
 
   api_headers <- add_headers("Api-Token" = api_key)
 
   total <- p2_query_table_length(url, api_key)
+  if(!is.null(max_len))
+    total <- min(max_len + offset, total)
+
   by <- min(total, 100)
 
   if (offset >= total)
@@ -336,12 +342,12 @@ p2_update <- function() {
 #' Load p2 data from `api/3/{table}`, modified by arguments in `...` to the matching `table` in the local database
 #'
 #' @param table character, table to update
-#' @param offset integer number of rows to offset from beginning of query
 #' @param overwrite logical, whether to overwrite the table in the database
+#' @inheritParams p2_query_api
 #' @param ... additional parameters to pass on to modify_url
 #'
 #' @importFrom rlang list2 `%||%` call2
-p2_load <- function(table, offset = 0, overwrite = FALSE, ...) {
+p2_load <- function(table, offset = 0, max_len = NULL, overwrite = FALSE, ...) {
   . <- NULL
 
   # fresh load of everything
@@ -349,7 +355,7 @@ p2_load <- function(table, offset = 0, overwrite = FALSE, ...) {
   args$path <- args$path %||% paste0("api/3/", table)
   args$url <- args$url %||% api_url
 
-  p2_query_api(eval(call2("modify_url", !!!args)), offset = offset) %>%
+  p2_query_api(eval(call2("modify_url", !!!args)), offset = offset, max_len = max_len) %>%
     {
       p2_db_update(.[[table]], table, overwrite = overwrite)
     }

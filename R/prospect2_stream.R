@@ -150,8 +150,9 @@ p2_db_close <- function() {
 #' @importFrom dplyr distinct
 p2_db_update <- function(data, table, overwrite = FALSE) {
   id <- NULL
+  assert_data_table(data)
 
-  if (is.null(data)) {
+  if (nrow(data) == 0) {
     return(invisible())
   }
 

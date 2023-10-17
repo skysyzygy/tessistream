@@ -50,19 +50,17 @@ Output Features are:
 }
 \section{Functions}{
 \itemize{
-\item \code{contribution_stream_load()}: load data for contribution_stream
-
+\item \code{contribution_stream_load}: load data for contribution_stream
 }}
+
 \note{
 \itemize{
-\item This value for \strong{event_subtypes}:
-
-\if{html}{\out{<div class="sourceCode">}}\preformatted{list(
+\item This value for \strong{event_subtypes}:\preformatted{list(
    !is.na(cust_memb_no) ~ "Membership",
    grepl("BENE",campaign_desc) ~ "Gala",
    TRUE ~ campaign_category_desc
    )
-}\if{html}{\out{</div>}}
+}
 
 Assigns event_subtype to
 \itemize{
@@ -70,15 +68,13 @@ Assigns event_subtype to
 \item "Gala" for everything else with "BENE" in \code{campaign_desc} and
 \item the value of \code{campaign_category_desc} for everything else
 }
-\item This value for \strong{event_subtypes2}, which is also the default:
-
-\if{html}{\out{<div class="sourceCode">}}\preformatted{list(
+\item This value for \strong{event_subtypes2}, which is also the default:\preformatted{list(
    1:.N == 1 ~ "New",
    !is.na(cust_memb_no) & duplicated(cust_memb_no) |
      is.na(cust_memb_no) & duplicated(campaign_no) ~ "Upgrade",
    timestamp - lag(timestamp) <= ddays(365) ~ "Renew",
    TRUE ~ "Reinstate")
-}\if{html}{\out{</div>}}
+}
 
 Assigns event_subtype2 by group of \code{group_customer_no} / \code{event_subtype} to
 \itemize{

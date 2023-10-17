@@ -7,7 +7,12 @@
 \usage{
 p2_query_table_length(url, api_key = keyring::key_get("P2_API"))
 
-p2_query_api(url, api_key = keyring::key_get("P2_API"), offset = 0)
+p2_query_api(
+  url,
+  api_key = keyring::key_get("P2_API"),
+  offset = 0,
+  max_len = NULL
+)
 }
 \arguments{
 \item{url}{Active Campaign API url to query}
@@ -15,6 +20,9 @@ p2_query_api(url, api_key = keyring::key_get("P2_API"), offset = 0)
 \item{api_key}{Active Campaign API key, defaults to \code{keyring::key_get("P2_API")}}
 
 \item{offset}{integer offset from the start of the query to return}
+
+\item{max_len}{integer maximum number of rows to load, defaults to
+\link{p2_query_table_length}\verb{(url, api_key)} - \code{offset}.}
 }
 \value{
 JSON object as a list
@@ -24,6 +32,6 @@ Parallel load from P2/Active Campaign API at \code{url} with key \code{api_key}.
 }
 \section{Functions}{
 \itemize{
-\item \code{p2_query_table_length()}: get the length of the p2 API table at \code{url}
-
+\item \code{p2_query_table_length}: get the length of the p2 API table at \code{url}
 }}
+

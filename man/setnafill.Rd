@@ -38,11 +38,11 @@ Displatches to setnafill_ functions based on column class and type of fill
 }
 \section{Functions}{
 \itemize{
-\item \code{setnafill_const_simple()}: Simple constant fill for factors and character
+\item \code{setnafill_const_simple}: Simple constant fill for factors and character
 
-\item \code{setnafill_group()}: rolling join to quickly do setnafill by groups
-
+\item \code{setnafill_group}: rolling join to quickly do setnafill by groups
 }}
+
 \examples{
 x <- data.table::data.table(a = NA_character_, b = rep(seq(1, 2), each = 10))
 x[1, a := "a"]

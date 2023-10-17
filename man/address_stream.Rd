@@ -22,10 +22,10 @@ Appends census demographic and aggregate income data and iWave income data.
 }
 \section{Functions}{
 \itemize{
-\item \code{address_stream_build()}: build the address_stream by combining data from \link{address_create_stream},
+\item \code{address_stream_build}: build the address_stream by combining data from \link{address_create_stream},
 \link{address_parse}, \link{address_geocode}, \link{address_census}, and iWave data from \link[tessilake:read_tessi]{tessilake::read_tessi}
-
 }}
+
 \note{
 Uses \link[future:future]{future::future} for parallel processing and \link[progressr:progressr]{progressr::progressr} for progress tracking
 }

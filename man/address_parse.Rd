@@ -29,8 +29,8 @@ Parses addresses using libpostal and handles caching of already-parsed addresses
 }
 \section{Functions}{
 \itemize{
-\item \code{address_exec_libpostal()}: execute address_parser and query it with a vector of addresses
+\item \code{address_exec_libpostal}: execute address_parser and query it with a vector of addresses
 
-\item \code{address_parse_libpostal()}: handle parsing by libpostal
-
+\item \code{address_parse_libpostal}: handle parsing by libpostal
 }}
+

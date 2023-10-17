@@ -24,8 +24,8 @@ Tries each address up to six times, using \code{libpostal} parsing (if \code{lib
 }
 \section{Functions}{
 \itemize{
-\item \code{address_geocode_all()}: geocode all addresses
+\item \code{address_geocode_all}: geocode all addresses
 
-\item \code{address_geocode()}: geocode only uncached addresses, load others from cache
-
+\item \code{address_geocode}: geocode only uncached addresses, load others from cache
 }}
+

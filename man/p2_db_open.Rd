@@ -20,6 +20,6 @@ Open the local P2 email database
 }
 \section{Functions}{
 \itemize{
-\item \code{p2_db_close()}: Close the local P2 email database
-
+\item \code{p2_db_close}: Close the local P2 email database
 }}
+

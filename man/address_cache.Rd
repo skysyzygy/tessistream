@@ -50,6 +50,6 @@ Handles caching of already-processed addresses so that they're only processed on
 }
 \section{Functions}{
 \itemize{
-\item \code{address_cache_chunked()}: Parallel wrapper around address_cache using \link[furrr:furrr-package]{furrr::furrr} and \link[progressr:progressr]{progressr::progressr}
-
+\item \code{address_cache_chunked}: Parallel wrapper around address_cache using \link[furrr:furrr-package]{furrr::furrr} and \link[progressr:progressr]{progressr::progressr}
 }}
+

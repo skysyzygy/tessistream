@@ -22,8 +22,8 @@ Loads and caches census data
 }
 \section{Functions}{
 \itemize{
-\item \code{census_data()}: Loads census data through cache
+\item \code{census_data}: Loads census data through cache
 
-\item \code{census_get_data_all()}: Loads census data (does not cache)
-
+\item \code{census_get_data_all}: Loads census data (does not cache)
 }}
+

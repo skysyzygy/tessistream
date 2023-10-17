@@ -307,20 +307,7 @@ p2_update <- function() {
   }
   p2_load("contacts", query = list("filters[updated_after]" = as.character(contacts_max_date)))
 
-  # immutable, just load new ids
-  for (table in c("logs", "linkData", "mppLinkData")) {
-    max_id <- if (DBI::dbExistsTable(tessistream$p2_db, table)) {
-      tbl(tessistream$p2_db, table) %>%
-        summarize(max(as.integer(id), na.rm = TRUE)) %>%
-        collect() %>%
-        as.integer()
-    } else {
-      0
-    }
-    p2_load(table, offset = max_id)
-  }
-
-  # linkData is *mostly* immutable, so lets refresh the recent links...
+  # linkData and mppLinkData are *mostly* immutable, so refresh the recent links...
   if (DBI::dbExistsTable(tessistream$p2_db, "links")) {
     recent_links <- tbl(tessistream$p2_db, "links") %>%
       filter(linkclicks > 0 & updated_timestamp > !!(today() - dmonths(1))) %>%
@@ -336,6 +323,18 @@ p2_update <- function() {
       }
     })
   }
+
+  # then load new ids
+  for (table in c("logs", "linkData", "mppLinkData")) {
+    max_id <- if (DBI::dbExistsTable(tessistream$p2_db, table)) {
+      tbl(tessistream$p2_db, table) %>%
+        summarize(max(as.integer(id), na.rm = TRUE)) %>%
+        collect() %>%
+        as.integer()
+    } else {
+      0
+    }
+    p2_load(table, offset = max_id)
 }
 
 #' p2_load

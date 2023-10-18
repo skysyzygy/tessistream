@@ -335,6 +335,7 @@ p2_update <- function() {
       0
     }
     p2_load(table, offset = max_id)
+  }
 }
 
 #' p2_load

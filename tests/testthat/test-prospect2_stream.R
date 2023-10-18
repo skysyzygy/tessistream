@@ -106,26 +106,26 @@ test_that("p2_query_api queries url starting from offset in groups of 100", {
   expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=33")
 })
 
-test_that("p2_query_api queries url starting from offset in groups of 100
-          and stops when max_len rows have been queried", {
+test_that("p2_query_api queries url starting from offset in groups of 100 and stops when max_len rows have been queried", {
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
   stub(p2_query_api, "p2_query_table_length", 1234)
   stub(p2_query_api, "GET", GET)
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
 
-  p2_query_api("test", offset = 1, 100)
+  p2_query_api("test", offset = 1, max_len = 100)
   expect_length(mock_args(GET), 1)
 
-  p2_query_api("test", offset = 1, 200)
+  p2_query_api("test", offset = 1, max_len = 200)
   expect_length(mock_args(GET), 3)
 
-  p2_query_api("test", offset = 1000, 300)
+  p2_query_api("test", offset = 1000, max_len = 300)
   expect_length(mock_args(GET), 6)
 
   # offsets start at 1 and increase by 100
-  expect_match(purrr::map(mock_args(GET),1),
-                    paste0("offset=", c(1,1,101,1000,1100,1200)))
+  purrr::map2(purrr::map(mock_args(GET),1),
+              c(1,1,101,1000,1100,1200),
+             ~expect_match(.x, paste0("offset=", .y)))
   # all but the last one has limit 100
   expect_match(purrr::map_chr(head(mock_args(GET), -1), 1), "limit=100")
   # last one is 34
@@ -288,11 +288,11 @@ test_that("p2_unnest unnests list columns with names wider and replaces missing 
 
 test_that("p2_load dispatches arguments to modify_url", {
   modify_url <- mock(cycle = TRUE)
-  stub(p2_query_api, "GET", NULL)
-  stub(p2_query_api, "p2_query_table_length", 1)
-  stub(p2_query_api, "content", list(a = 1))
   stub(p2_load, "modify_url", modify_url)
-  stub(p2_load, "p2_query_api", p2_query_api)
+  stub(p2_load, "p2_query_api", function(url, ...) {
+    url;
+    list(test=data.table())
+  })
 
   p2_load("test")
   expect_equal(mock_args(modify_url)[[1]][["path"]], "api/3/test")
@@ -302,7 +302,7 @@ test_that("p2_load dispatches arguments to modify_url", {
 })
 
 test_that("p2_load dispatches arguments to p2_query_api", {
-  p2_query_api <- mock(cycle = TRUE)
+  p2_query_api <- mock(list(test = data.table()), cycle = TRUE)
   stub(p2_load, "p2_query_api", p2_query_api)
 
   p2_load("test", offset = 1234)

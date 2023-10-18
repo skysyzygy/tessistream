@@ -160,8 +160,8 @@ p2_db_update <- function(data, table, overwrite = FALSE) {
   assert_names(colnames(data), must.include = "id")
 
   # unnest columns
-  for(col in colnames(data))
-    p2_unnest(data, col)
+  for(col in copy(colnames(data)))
+      p2_unnest(data,col)
 
   data <- distinct(data, id, .keep_all = TRUE)
 

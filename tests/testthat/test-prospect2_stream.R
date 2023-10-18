@@ -122,7 +122,6 @@ test_that("p2_query_api queries url starting from offset in groups of 100 and st
   p2_query_api("test", offset = 1000, max_len = 300)
   expect_length(mock_args(GET), 6)
 
-  # offsets start at 1 and increase by 100
   purrr::map2(purrr::map(mock_args(GET),1),
               c(1,1,101,1000,1100,1200),
              ~expect_match(.x, paste0("offset=", .y)))
@@ -130,6 +129,47 @@ test_that("p2_query_api queries url starting from offset in groups of 100 and st
   expect_match(purrr::map_chr(head(mock_args(GET), -1), 1), "limit=100")
   # last one is 34
   expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=34")
+})
+
+test_that("p2_query_api will run specific jobs when specified", {
+  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
+  stub(p2_query_api, "GET", GET)
+  stub(p2_query_api, "content", I)
+  stub(p2_query_api, "p2_combine_jsons", I)
+
+  jobs <- data.table(off = as.integer(runif(100,0,10000)),
+                     len = as.integer(runif(100,0,10000)))
+
+  p2_query_api("test", jobs = jobs)
+  expect_length(mock_args(GET), 100)
+
+  purrr::map2(purrr::map(mock_args(GET),1),
+              jobs$off,
+              ~expect_match(.x, paste0("offset=", .y)))
+  purrr::map2(purrr::map(mock_args(GET),1),
+              jobs$len,
+              ~expect_match(.x, paste0("limit=", .y)))
+
+})
+
+test_that("p2_query_api complains when jobs isn't valid or offset/max_len are set", {
+  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
+  stub(p2_query_api, "GET", GET)
+  stub(p2_query_api, "content", I)
+  stub(p2_query_api, "p2_combine_jsons", I)
+
+  jobs <- data.table(off = as.integer(runif(100,0,10000)),
+                     len = as.integer(runif(100,0,10000)))
+
+  expect_error(p2_query_api("test", jobs = jobs[,off]), "Must be a data.table")
+  expect_error(p2_query_api("test", jobs = jobs[,.(off)]), "missing.+len")
+  expect_error(p2_query_api("test", jobs = jobs[,.(len)]), "missing.+off")
+
+  expect_warning(p2_query_api("test", jobs = jobs, offset = 1), "ignoring.+offset")
+  expect_warning(p2_query_api("test", jobs = jobs, max_len = 1), "ignoring.+max_len")
+
 })
 
 # p2_json_to_datatable --------------------------------------------------------

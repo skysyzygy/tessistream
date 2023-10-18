@@ -9,7 +9,7 @@ p2_load(table, offset = 0, max_len = NULL, overwrite = FALSE, ...)
 \arguments{
 \item{table}{character, table to update}
 
-\item{offset}{integer offset from the start of the query to return}
+\item{offset}{integer offset from the start of the query to return; default is 0.}
 
 \item{max_len}{integer maximum number of rows to load, defaults to
 \code{\link[=p2_query_table_length]{p2_query_table_length()}} - \code{offset}.}

@@ -22,29 +22,45 @@ p2_query_table_length <- function(url, api_key = keyring::key_get("P2_API")) {
 #'
 #' @param url Active Campaign API url to query
 #' @param api_key Active Campaign API key, defaults to `keyring::key_get("P2_API")`
-#' @param offset integer offset from the start of the query to return
+#' @param offset integer offset from the start of the query to return; default is 0.
 #' @param max_len integer maximum number of rows to load, defaults to
 #'    [p2_query_table_length()] - `offset`.
+#' @param jobs data.table of jobs to run instead of building a jobs based on `offset` and `max_len`
 #'
 #' @return JSON object as a list
 #' @importFrom httr modify_url GET content add_headers
+#' @importFrom checkmate assert check_data_table check_names
 p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
-                         offset = 0, max_len = NULL) {
+                         offset = NULL, max_len = NULL, jobs = NULL) {
   len <- off <- NULL
 
   api_headers <- add_headers("Api-Token" = api_key)
-
   total <- p2_query_table_length(url, api_key)
-  if(!is.null(max_len))
-    total <- min(max_len + offset, total)
 
-  by <- min(total, 100)
+  if(!is.null(jobs)) {
+    assert(check_data_table(jobs),
+           check_names(colnames(jobs), must.include = c("off","len")),
+           combine = "and"
+    )
+    for (var in c("max_len", "offset")) {
+      if(!is.null(get(var)))
+        warning(paste0("Both `",var,"` and `jobs` are defined, ignoring `",var,"`"))
+    }
+  } else {
 
-  if (offset >= total)
-    return(invisible())
+    if(!is.null(max_len))
+      total <- min(max_len + offset, total)
 
-  jobs <- data.table(off = seq(offset, total, by = by))
-  jobs <- jobs[, len := c(off[-1], total) - off][len > 0]
+    offset <- offset %||% 0
+    by <- min(total, 100)
+
+    if (offset >= total)
+      return(invisible())
+
+    jobs <- data.table(off = seq(offset, total, by = by))
+    jobs <- jobs[, len := c(off[-1], total) - off][len > 0]
+
+  }
 
   p <- progressor(sum(jobs$len) + 1)
   p(paste("Querying", url))
@@ -56,7 +72,8 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
   }
 
   mapper(jobs$off, jobs$len, ~ {
-    res <- make_resilient(GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers, httr::timeout(300)) %>%
+    res <- make_resilient(GET(modify_url(url, query = list("offset" = .x, "limit" = .y)),
+                              api_headers, httr::timeout(300)) %>%
             content() %>%
             map(p2_json_to_datatable))
     p(amount = .y)
@@ -287,6 +304,8 @@ p2_update <- function() {
                 lag_id=lag(as.integer(id),
                            order_by = as.integer(id))) %>%
       filter(id-lag_id>1) %>%
+      transmute(off = lag_id,
+                len = lag_id-id-1) %>%
       collect()
     if(nrow(holes) > 0) {
       split(holes, seq(nrow(holes))) %>%

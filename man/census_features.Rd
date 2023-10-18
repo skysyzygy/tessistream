@@ -26,12 +26,12 @@ Prepare features from raw census data
 }
 \section{Functions}{
 \itemize{
-\item \code{census_race_features}: Prepares census race/ethnicity data
+\item \code{census_race_features()}: Prepares census race/ethnicity data
 
-\item \code{census_sex_features}: Prepares census sex data
+\item \code{census_sex_features()}: Prepares census sex data
 
-\item \code{census_age_features}: Prepares census age data
+\item \code{census_age_features()}: Prepares census age data
 
-\item \code{census_income_features}: Prepares census income data
+\item \code{census_income_features()}: Prepares census income data
+
 }}
-

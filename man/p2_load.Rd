@@ -12,7 +12,7 @@ p2_load(table, offset = 0, max_len = NULL, overwrite = FALSE, ...)
 \item{offset}{integer offset from the start of the query to return}
 
 \item{max_len}{integer maximum number of rows to load, defaults to
-\link{p2_query_table_length}\verb{(url, api_key)} - \code{offset}.}
+\code{\link[=p2_query_table_length]{p2_query_table_length()}} - \code{offset}.}
 
 \item{overwrite}{logical, whether to overwrite the table in the database}
 

@@ -347,7 +347,7 @@ test_that("p2_load passes overwrite on to p2_db_update", {
 test_that("p2_update loads campaigns, messages, links, bounceLogs, contactLists, customer_nos", {
   p2_load <- mock(cycle = T)
   stub(p2_update, "p2_load", p2_load)
-  stub(p2_update, "tbl", data.table(a = 1))
+  stub(p2_update, "tbl", data.table(id = 1))
 
   p2_update()
 
@@ -363,6 +363,9 @@ test_that("p2_update only loads contacts after max(updated_timestamp)", {
   stub(p2_update, "p2_load", p2_load)
   p2_db_open()
   copy_to(tessistream$p2_db, name = "contacts", data.table(updated_timestamp = seq(today(), today() + ddays(30), by = "day") %>% as.character()))
+  copy_to(tessistream$p2_db, name = "logs", data.table(id = seq(100)))
+  copy_to(tessistream$p2_db, name = "linkData", data.table(id = seq(100)))
+  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id = seq(100)))
 
   p2_update()
 
@@ -376,12 +379,36 @@ test_that("p2_update only loads logs and linkData after max(id)", {
   p2_db_open()
   copy_to(tessistream$p2_db, name = "logs", data.table(id = seq(100) %>% as.character()))
   copy_to(tessistream$p2_db, name = "linkData", data.table(id = seq(100) %>% as.character()))
+  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id = seq(100) %>% as.character()))
 
   p2_update()
 
   calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("logs", "linkData"))
   expect_equal(calls[[1]][["offset"]], 100)
   expect_equal(calls[[2]][["offset"]], 100)
+})
+
+
+test_that("p2_update fills in gaps in logs and linkData", {
+  p2_load <- mock(cycle = T)
+  stub(p2_update, "p2_load", p2_load)
+  p2_db_open()
+  copy_to(tessistream$p2_db, name = "logs", data.table(id = c(seq(100),
+                                                              seq(102,200)) %>% as.character()))
+  copy_to(tessistream$p2_db, name = "linkData", data.table(id = c(seq(100),
+                                                                  seq(102,200)) %>% as.character()))
+  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id = c(seq(100),
+                                                                  seq(102,200)) %>% as.character()))
+
+  p2_update()
+
+  calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("logs", "linkData", "mppLinkData"))
+  expect_equal(calls[[1]], list("logs", offset = 200))
+  expect_equal(calls[[2]], list("logs", offset = 100, max_len = 1))
+  expect_equal(calls[[3]], list("linkData", offset = 200))
+  expect_equal(calls[[4]], list("linkData", offset = 100, max_len = 1))
+  expect_equal(calls[[5]], list("mppLinkData", offset = 200))
+  expect_equal(calls[[6]], list("mppLinkData", offset = 100, max_len = 1))
 })
 
 test_that("p2_update updates recent linkData", {
@@ -393,6 +420,9 @@ test_that("p2_update updates recent linkData", {
     updated_timestamp = today() %>% as.character(),
     linkclicks = "1"
   ))
+  copy_to(tessistream$p2_db, name = "logs", data.table(id=seq(100)))
+  copy_to(tessistream$p2_db, name = "linkData", data.table(id=seq(100)))
+  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id=seq(100)))
 
   p2_update()
 

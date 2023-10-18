@@ -24,7 +24,7 @@ p2_query_table_length <- function(url, api_key = keyring::key_get("P2_API")) {
 #' @param api_key Active Campaign API key, defaults to `keyring::key_get("P2_API")`
 #' @param offset integer offset from the start of the query to return
 #' @param max_len integer maximum number of rows to load, defaults to
-#'    [p2_query_table_length]`(url, api_key)` - `offset`.
+#'    [p2_query_table_length()] - `offset`.
 #'
 #' @return JSON object as a list
 #' @importFrom httr modify_url GET content add_headers
@@ -218,62 +218,6 @@ p2_unnest <- function(data, colname) {
 
 }
 
-p2_unnest_drop <- function(data, colname) {
-    . <- NULL
-
-    assert_data_table(data)
-    assert_choice(colname, colnames(data))
-
-    if(is.atomic(data[, colname, with = F]))
-      return(data)
-
-    # Get rid of list and length 0 items
-    data[map(get(colname),length) != 1, (colname) := NA]
-    data[,(colname) := unlist(get(colname))]
-
-    data
-}
-
-p2_unnest_old <- function(data, colname) {
-  . <- NULL
-
-  assert_data_table(data)
-  assert_choice(colname, colnames(data))
-
-  col <- data[, get(colname)]
-
-  # if column is not a list then there's nothing to do
-  if (is_atomic(col)) {
-    return(data)
-  }
-
-  # rlang::inform(paste("Unnesting",colname))
-
-  # replace nulls up to the second depth with NAs because nulls are only valid in lists
-  col <- modify_if(col, ~ length(.) == 0, ~NA)
-  col <- modify_if(col, ~ is.list(.), ~ modify_if(., ~ length(.) == 0, ~NA))
-
-  # if any element is a list then it's a list column!
-  if (any(map_lgl(col, is.list))) {
-    if (is.null(names(col[[1]]))) {
-      other_colnames <- setdiff(colnames(data), colname)
-      data[, I := .I]
-      data <- data[, list2(!!colname := flatten(col[I])), by = I][data,
-                                                                  c(colname, other_colnames),
-                                                                  on = "I", with = F
-      ] %>% p2_unnest(colname)
-    } else {
-      col <- rbindlist(col, fill = T) %>% setNames(paste(colname, names(.), sep = "."))
-      data <- cbind(data[, -colname, with = F], col)
-    }
-  } else {
-    # have to plunk the whole column to get typing correct
-    data[, (colname) := unlist(col)]
-  }
-
-  data
-}
-
 #' p2_update
 #'
 #' Incrementally update all of the p2 data in the local sqlite database
@@ -335,6 +279,24 @@ p2_update <- function() {
       0
     }
     p2_load(table, offset = max_id)
+
+    # fill in gaps
+    # for (table in c("logs", "linkData", "mppLinkData")) {
+    #   holes <- tbl(tessistream$p2_db, table) %>%
+    #     transmute(id=as.integer(id),
+    #               lag_id=lag(as.integer(id),
+    #                          order_by = as.integer(id))) %>%
+    #     filter(id-lag_id>1) %>%
+    #     collect()
+    #   split(holes, seq(nrow(holes))) %>%
+    #     purrr::map(~ {
+    #       message(paste(.$lag_id,"-",.$id))
+    #       p2_load(table,
+    #               offset = .$lag_id,
+    #               max_len = .$id-.$lag_id)})
+    #
+    # }
+
   }
 }
 

@@ -209,8 +209,9 @@ p2_unnest <- function(data, colname) {
   test <- data[1, get(colname)][[1]]
   if (length(test) > 1) {
     new_names <- data[,map(get(colname),names) %>% unlist %>% unique]
-    data[, paste(colname, new_names, sep = ".") :=
-           rbindlist(get(colname),fill=T)]
+    new_width <- data[,map(get(colname),length) %>% unlist %>% max]
+    data[, paste(colname, new_names %||% seq(new_width), sep = ".") :=
+           rbindlist(get(colname), fill = !is.null(new_names))]
     data[,(colname) := NULL]
   } else {
     data[,(colname) := unlist(get(colname))]

@@ -251,13 +251,18 @@ test_that("p2_unnest unnests list columns with names wider", {
   expect_equal(p2_unnest(dt, "a"), data.table(a.a = rep("a", 100), a.b = rep(1, 100)))
 })
 
-test_that("p2_unnest unnests list columns with names wider in place", {
+test_that("p2_unnest unnests list columns without names wider", {
+  dt <- data.table(a = rep(list(list("a", 1)), 100))
+  expect_equal(p2_unnest(dt, "a"), data.table(a.1 = rep("a", 100), a.2 = rep(1, 100)))
+})
+
+test_that("p2_unnest unnests list columns wider in place", {
   dt <- data.table(a = rep(list(list(a = "a", b = 1)), 100))
   tracemem(dt)
   expect_silent(p2_unnest(dt, "a"))
 })
 
-test_that("p2_unnest unnests list columns with names wider and replaces missing elements with NAs", {
+test_that("p2_unnest unnests list columns wider and replaces missing elements with NAs", {
   dt <- data.table(a = rep(list(list(a = "a", b = 1), list(a = "a")), 100))
   dt_copy <- copy(dt)
   expect_equal(p2_unnest(dt_copy, "a"), data.table(a.a = rep(c("a", "a"), 100), a.b = rep(c(1, NA), 100)))

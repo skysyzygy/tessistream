@@ -29,7 +29,7 @@ p2_query_table_length <- function(url, api_key = keyring::key_get("P2_API")) {
 #'
 #' @return JSON object as a list
 #' @importFrom httr modify_url GET content add_headers
-#' @importFrom checkmate assert check_data_table check_names
+#' @importFrom checkmate assert check_data_frame check_names
 p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
                          offset = NULL, max_len = NULL, jobs = NULL) {
   len <- off <- NULL
@@ -38,7 +38,7 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
   total <- p2_query_table_length(url, api_key)
 
   if(!is.null(jobs)) {
-    assert(check_data_table(jobs),
+    assert(check_data_frame(jobs),
            check_names(colnames(jobs), must.include = c("off","len")),
            combine = "and"
     )
@@ -305,16 +305,11 @@ p2_update <- function() {
                            order_by = as.integer(id))) %>%
       filter(id-lag_id>1) %>%
       transmute(off = lag_id,
-                len = lag_id-id-1) %>%
+                len = id-lag_id-1) %>%
       collect()
     if(nrow(holes) > 0) {
-      split(holes, seq(nrow(holes))) %>%
-        purrr::map(~ {
-          p2_load(table,
-                  offset = .$lag_id,
-                  max_len = .$id-.$lag_id-1)})
+          p2_load(table, jobs = holes)
     }
-
 
   }
 }
@@ -329,7 +324,8 @@ p2_update <- function() {
 #' @param ... additional parameters to pass on to modify_url
 #'
 #' @importFrom rlang list2 `%||%` call2
-p2_load <- function(table, offset = 0, max_len = NULL, overwrite = FALSE, ...) {
+p2_load <- function(table, offset = NULL, max_len = NULL,
+                    jobs = NULL, overwrite = FALSE, ...) {
   . <- NULL
 
   # fresh load of everything

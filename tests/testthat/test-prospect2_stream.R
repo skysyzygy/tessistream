@@ -163,7 +163,7 @@ test_that("p2_query_api complains when jobs isn't valid or offset/max_len are se
   jobs <- data.table(off = as.integer(runif(100,0,10000)),
                      len = as.integer(runif(100,0,10000)))
 
-  expect_error(p2_query_api("test", jobs = jobs[,off]), "Must be a data.table")
+  expect_error(p2_query_api("test", jobs = jobs[,off]), "Must be.+data.frame")
   expect_error(p2_query_api("test", jobs = jobs[,.(off)]), "missing.+len")
   expect_error(p2_query_api("test", jobs = jobs[,.(len)]), "missing.+off")
 
@@ -449,11 +449,14 @@ test_that("p2_update fills in gaps in logs and linkData", {
 
   calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("logs", "linkData", "mppLinkData"))
   expect_equal(calls[[1]], list("logs", offset = 200))
-  expect_equal(calls[[2]], list("logs", offset = 100, max_len = 1))
+  expect_equal(calls[[2]], list("logs", jobs = data.frame(off = 100, len = 1)),
+              ignore_attr = T)
   expect_equal(calls[[3]], list("linkData", offset = 200))
-  expect_equal(calls[[4]], list("linkData", offset = 100, max_len = 1))
+  expect_equal(calls[[4]], list("linkData", jobs = data.frame(off = 100, len = 1)),
+              ignore_attr = T)
   expect_equal(calls[[5]], list("mppLinkData", offset = 200))
-  expect_equal(calls[[6]], list("mppLinkData", offset = 100, max_len = 1))
+  expect_equal(calls[[6]], list("mppLinkData", jobs = data.frame(off = 100, len = 1)),
+              ignore_attr = T)
 })
 
 test_that("p2_update updates recent linkData", {

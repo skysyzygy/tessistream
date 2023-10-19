@@ -297,7 +297,7 @@ test_that("p2_unnest unnests list columns without names wider", {
   dt <- data.table(a = rep(list(list("a", 1), list("b")), 100))
   expect_warning(p2_unnest(dt, "a"), "filled with NA")
   expect_equal(dt, data.table(a.1 = rep(c("a", "b"), 100),
-                                              a.2 = rep(c(1, NA), 100)))
+                              a.2 = rep(c(1, NA), 100)))
 })
 
 test_that("p2_unnest unnests list columns wider in place", {

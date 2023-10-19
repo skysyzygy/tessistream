@@ -113,7 +113,7 @@ test_that("p2_query_api queries url starting from offset in groups of 100 and st
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
 
-  p2_query_api("test", offset = 1, max_len = 100)
+  p2_query_api("test", max_len = 100)
   expect_length(mock_args(GET), 1)
 
   p2_query_api("test", offset = 1, max_len = 200)
@@ -123,7 +123,7 @@ test_that("p2_query_api queries url starting from offset in groups of 100 and st
   expect_length(mock_args(GET), 6)
 
   purrr::map2(purrr::map(mock_args(GET),1),
-              c(1,1,101,1000,1100,1200),
+              c(0,1,101,1000,1100,1200),
              ~expect_match(.x, paste0("offset=", .y)))
   # all but the last one has limit 100
   expect_match(purrr::map_chr(head(mock_args(GET), -1), 1), "limit=100")

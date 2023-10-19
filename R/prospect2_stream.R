@@ -48,10 +48,11 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
     }
   } else {
 
+    offset <- offset %||% 0
+
     if(!is.null(max_len))
       total <- min(max_len + offset, total)
 
-    offset <- offset %||% 0
     by <- min(total, 100)
 
     if (offset >= total)

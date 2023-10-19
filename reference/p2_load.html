@@ -10,7 +10,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">tessistream</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.1</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -55,7 +55,14 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">p2_load</span><span class="op">(</span><span class="va">table</span>, offset <span class="op">=</span> <span class="fl">0</span>, overwrite <span class="op">=</span> <span class="cn">FALSE</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">p2_load</span><span class="op">(</span></span>
+<span>  <span class="va">table</span>,</span>
+<span>  offset <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  max_len <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  jobs <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  overwrite <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -65,7 +72,16 @@
 
 
 <dt>offset</dt>
-<dd><p>integer number of rows to offset from beginning of query</p></dd>
+<dd><p>integer offset from the start of the query to return; default is 0.</p></dd>
+
+
+<dt>max_len</dt>
+<dd><p>integer maximum number of rows to load, defaults to
+<code><a href="p2_query_api.html">p2_query_table_length()</a></code> - <code>offset</code>.</p></dd>
+
+
+<dt>jobs</dt>
+<dd><p>data.table of jobs to run instead of building a jobs based on <code>offset</code> and <code>max_len</code></p></dd>
 
 
 <dt>overwrite</dt>

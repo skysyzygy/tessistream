@@ -22,23 +22,45 @@ p2_query_table_length <- function(url, api_key = keyring::key_get("P2_API")) {
 #'
 #' @param url Active Campaign API url to query
 #' @param api_key Active Campaign API key, defaults to `keyring::key_get("P2_API")`
-#' @param offset integer offset from the start of the query to return
+#' @param offset integer offset from the start of the query to return; default is 0.
+#' @param max_len integer maximum number of rows to load, defaults to
+#'    [p2_query_table_length()] - `offset`.
+#' @param jobs data.table of jobs to run instead of building a jobs based on `offset` and `max_len`
 #'
 #' @return JSON object as a list
 #' @importFrom httr modify_url GET content add_headers
-p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) {
+#' @importFrom checkmate assert check_data_frame check_names
+p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
+                         offset = NULL, max_len = NULL, jobs = NULL) {
   len <- off <- NULL
 
   api_headers <- add_headers("Api-Token" = api_key)
-
   total <- p2_query_table_length(url, api_key)
-  by <- min(total, 100)
 
-  if (offset >= total)
-    return(invisible())
+  if(!is.null(jobs)) {
+    assert(check_data_frame(jobs),
+           check_names(colnames(jobs), must.include = c("off","len")),
+           combine = "and"
+    )
+    for (var in c("max_len", "offset")) {
+      if(!is.null(get(var)))
+        warning(paste0("Both `",var,"` and `jobs` are defined, ignoring `",var,"`"))
+    }
+  } else {
 
-  jobs <- data.table(off = seq(offset, total, by = by))
-  jobs <- jobs[, len := c(off[-1], total) - off][len > 0]
+    if(!is.null(max_len))
+      total <- min(max_len + offset, total)
+
+    offset <- offset %||% 0
+    by <- min(total, 100)
+
+    if (offset >= total)
+      return(invisible())
+
+    jobs <- data.table(off = seq(offset, total, by = by))
+    jobs <- jobs[, len := c(off[-1], total) - off][len > 0]
+
+  }
 
   p <- progressor(sum(jobs$len) + 1)
   p(paste("Querying", url))
@@ -50,7 +72,8 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"), offset = 0) 
   }
 
   mapper(jobs$off, jobs$len, ~ {
-    res <- make_resilient(GET(modify_url(url, query = list("offset" = .x, "limit" = .y)), api_headers, httr::timeout(300)) %>%
+    res <- make_resilient(GET(modify_url(url, query = list("offset" = .x, "limit" = .y)),
+                              api_headers, httr::timeout(300)) %>%
             content() %>%
             map(p2_json_to_datatable))
     p(amount = .y)
@@ -144,8 +167,9 @@ p2_db_close <- function() {
 #' @importFrom dplyr distinct
 p2_db_update <- function(data, table, overwrite = FALSE) {
   id <- NULL
+  assert_data_table(data)
 
-  if (is.null(data)) {
+  if (nrow(data) == 0) {
     return(invisible())
   }
 
@@ -153,9 +177,8 @@ p2_db_update <- function(data, table, overwrite = FALSE) {
   assert_names(colnames(data), must.include = "id")
 
   # unnest columns
-  walk(colnames(data), ~ {
-    data <<- p2_unnest(data, .)
-  })
+  for(col in copy(colnames(data)))
+      p2_unnest(data,col)
 
   data <- distinct(data, id, .keep_all = TRUE)
 
@@ -170,8 +193,12 @@ p2_db_update <- function(data, table, overwrite = FALSE) {
 
 #' p2_unnest
 #'
-#' Unnest a nested data.table ... this might be a useful function for other purposes but will need testing. For now it should at least
+#' Unnest a nested data.table wider. This might be a useful function for
+#' other purposes but will need testing. For now it should at least
 #' work with the nested structures that come from P2 JSONs
+#'
+#' @note Assumes for speed that all elements have the same structure and
+#' that there are no NULLs in the table anywhere.
 #'
 #' @param data data.table
 #' @param colname character, column to unnest
@@ -189,38 +216,27 @@ p2_unnest <- function(data, colname) {
   assert_data_table(data)
   assert_choice(colname, colnames(data))
 
-  col <- data[, get(colname)]
-
-  # if column is not a list then there's nothing to do
-  if (is_atomic(col)) {
+  if(data[, is.atomic(get(colname))])
     return(data)
-  }
 
-  # rlang::inform(paste("Unnesting",colname))
+  # Turn length 0 items into NAs
+  data[map(get(colname),length) == 0, (colname) := NA]
 
-  # replace nulls up to the second depth with NAs because nulls are only valid in lists
-  col <- modify_if(col, ~ length(.) == 0, ~NA)
-  col <- modify_if(col, ~ is.list(.), ~ modify_if(., ~ length(.) == 0, ~NA))
-
-  # if any element is a list then it's a list column!
-  if (any(map_lgl(col, is.list))) {
-    if (is.null(names(col[[1]]))) {
-      other_colnames <- setdiff(colnames(data), colname)
-      data[, I := .I]
-      data <- data[, list2(!!colname := flatten(col[I])), by = I][data,
-        c(colname, other_colnames),
-        on = "I", with = F
-      ] %>% p2_unnest(colname)
-    } else {
-      col <- rbindlist(col, fill = T) %>% setNames(paste(colname, names(.), sep = "."))
-      data <- cbind(data[, -colname, with = F], col)
-    }
+  # Base logic on the first element for speed
+  test <- data[1, get(colname)][[1]]
+  if (length(test) > 1) {
+    new_names <- data[,map(get(colname),names) %>% unlist %>% unique]
+    new_width <- data[,map(get(colname),length) %>% unlist %>% max]
+    if (is.null(new_names))
+      data[ map(get(colname),length) < new_width,
+            (colname) := map(get(colname), `length<-`, new_width)]
+    data[, paste(colname, new_names %||% seq(new_width), sep = ".") :=
+           rbindlist(get(colname), fill = !is.null(new_names))]
+    data[,(colname) := NULL]
   } else {
-    # have to plunk the whole column to get typing correct
-    data[, (colname) := unlist(col)]
+    data[,(colname) := unlist(get(colname))]
   }
 
-  data
 }
 
 #' p2_update
@@ -256,20 +272,7 @@ p2_update <- function() {
   }
   p2_load("contacts", query = list("filters[updated_after]" = as.character(contacts_max_date)))
 
-  # immutable, just load new ids
-  for (table in c("logs", "linkData", "mppLinkData")) {
-    max_id <- if (DBI::dbExistsTable(tessistream$p2_db, table)) {
-      tbl(tessistream$p2_db, table) %>%
-        summarize(max(as.integer(id), na.rm = TRUE)) %>%
-        collect() %>%
-        as.integer()
-    } else {
-      0
-    }
-    p2_load(table, offset = max_id)
-  }
-
-  # linkData is *mostly* immutable, so lets refresh the recent links...
+  # linkData and mppLinkData are *mostly* immutable, so refresh the recent links...
   if (DBI::dbExistsTable(tessistream$p2_db, "links")) {
     recent_links <- tbl(tessistream$p2_db, "links") %>%
       filter(linkclicks > 0 & updated_timestamp > !!(today() - dmonths(1))) %>%
@@ -285,6 +288,33 @@ p2_update <- function() {
       }
     })
   }
+
+  # then load new ids greater than the current max id
+  for (table in c("logs", "linkData", "mppLinkData")) {
+    max_id <- if (DBI::dbExistsTable(tessistream$p2_db, table)) {
+      tbl(tessistream$p2_db, table) %>%
+        summarize(max(as.integer(id), na.rm = TRUE)) %>%
+        collect() %>%
+        as.integer()
+    } else {
+      0
+    }
+    p2_load(table, offset = max_id)
+
+    # amd try to fill in any remaining gaps in the index
+    holes <- tbl(tessistream$p2_db, table) %>%
+      transmute(id=as.integer(id),
+                lag_id=lag(as.integer(id),
+                           order_by = as.integer(id))) %>%
+      filter(id-lag_id>1) %>%
+      transmute(off = lag_id,
+                len = id-lag_id-1) %>%
+      collect()
+    if(nrow(holes) > 0) {
+          p2_load(table, jobs = holes)
+    }
+
+  }
 }
 
 #' p2_load
@@ -292,12 +322,13 @@ p2_update <- function() {
 #' Load p2 data from `api/3/{table}`, modified by arguments in `...` to the matching `table` in the local database
 #'
 #' @param table character, table to update
-#' @param offset integer number of rows to offset from beginning of query
 #' @param overwrite logical, whether to overwrite the table in the database
+#' @inheritParams p2_query_api
 #' @param ... additional parameters to pass on to modify_url
 #'
 #' @importFrom rlang list2 `%||%` call2
-p2_load <- function(table, offset = 0, overwrite = FALSE, ...) {
+p2_load <- function(table, offset = NULL, max_len = NULL,
+                    jobs = NULL, overwrite = FALSE, ...) {
   . <- NULL
 
   # fresh load of everything
@@ -305,7 +336,7 @@ p2_load <- function(table, offset = 0, overwrite = FALSE, ...) {
   args$path <- args$path %||% paste0("api/3/", table)
   args$url <- args$url %||% api_url
 
-  p2_query_api(eval(call2("modify_url", !!!args)), offset = offset) %>%
+  p2_query_api(eval(call2("modify_url", !!!args)), offset = offset, max_len = max_len) %>%
     {
       p2_db_update(.[[table]], table, overwrite = overwrite)
     }

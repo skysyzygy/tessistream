@@ -7,14 +7,25 @@
 \usage{
 p2_query_table_length(url, api_key = keyring::key_get("P2_API"))
 
-p2_query_api(url, api_key = keyring::key_get("P2_API"), offset = 0)
+p2_query_api(
+  url,
+  api_key = keyring::key_get("P2_API"),
+  offset = NULL,
+  max_len = NULL,
+  jobs = NULL
+)
 }
 \arguments{
 \item{url}{Active Campaign API url to query}
 
 \item{api_key}{Active Campaign API key, defaults to \code{keyring::key_get("P2_API")}}
 
-\item{offset}{integer offset from the start of the query to return}
+\item{offset}{integer offset from the start of the query to return; default is 0.}
+
+\item{max_len}{integer maximum number of rows to load, defaults to
+\code{\link[=p2_query_table_length]{p2_query_table_length()}} - \code{offset}.}
+
+\item{jobs}{data.table of jobs to run instead of building a jobs based on \code{offset} and \code{max_len}}
 }
 \value{
 JSON object as a list

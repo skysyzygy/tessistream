@@ -1,3 +1,9 @@
+# tessistream 0.3.1
+
+* Faster p2_unnest which means faster load and update times
+* Add mppLinkData to p2_update and p2_stream because most of the open data
+is now being recorded in this table.
+
 # tessistream 0.3.0
 
 * Working contribution_stream implementation 

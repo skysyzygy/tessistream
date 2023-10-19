@@ -4,12 +4,24 @@
 \alias{p2_load}
 \title{p2_load}
 \usage{
-p2_load(table, offset = 0, overwrite = FALSE, ...)
+p2_load(
+  table,
+  offset = NULL,
+  max_len = NULL,
+  jobs = NULL,
+  overwrite = FALSE,
+  ...
+)
 }
 \arguments{
 \item{table}{character, table to update}
 
-\item{offset}{integer number of rows to offset from beginning of query}
+\item{offset}{integer offset from the start of the query to return; default is 0.}
+
+\item{max_len}{integer maximum number of rows to load, defaults to
+\code{\link[=p2_query_table_length]{p2_query_table_length()}} - \code{offset}.}
+
+\item{jobs}{data.table of jobs to run instead of building a jobs based on \code{offset} and \code{max_len}}
 
 \item{overwrite}{logical, whether to overwrite the table in the database}
 

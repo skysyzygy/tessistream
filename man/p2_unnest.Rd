@@ -20,7 +20,6 @@ other purposes but will need testing. For now it should at least
 work with the nested structures that come from P2 JSONs
 }
 \note{
-Assumes for speed that all elements of each column are either named or unnamed
-and that there are no NULLs in the table anywhere. List columns with variable length
-list elements are filled with NAs during unnesting.
+Assumes for speed that elements of each column are either all named or all unnamed.
+List columns with variable length are filled with NAs during unnesting.
 }

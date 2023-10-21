@@ -198,9 +198,8 @@ p2_db_update <- function(data, table, overwrite = FALSE) {
 #' other purposes but will need testing. For now it should at least
 #' work with the nested structures that come from P2 JSONs
 #'
-#' @note Assumes for speed that all elements of each column are either named or unnamed
-#' and that there are no NULLs in the table anywhere. List columns with variable length
-#' list elements are filled with NAs during unnesting.
+#' @note Assumes for speed that elements of each column are either all named or all unnamed.
+#' List columns with variable length are filled with NAs during unnesting.
 #'
 #' @param data data.table
 #' @param colname character, column to unnest
@@ -224,14 +223,20 @@ p2_unnest <- function(data, colname) {
   # Turn length 0 items into NAs
   data[map(get(colname),length) == 0, (colname) := NA]
 
-  # Base logic on the first element for speed
-  test <- data[1, get(colname)][[1]]
-  if (length(test) > 1) {
+  if (data[,any(map(get(colname),length)>1)]) {
     new_names <- data[,map(get(colname),names) %>% unlist %>% unique]
-    new_width <- data[,map(get(colname),length) %>% unlist %>% max]
-    if (is.null(new_names))
+    new_width <- max(length(new_names),
+      data[,map(get(colname),length) %>% unlist %>% max])
+    if (is.null(new_names)) {
       data[ map(get(colname),length) < new_width,
-            (colname) := map(get(colname), `length<-`, new_width)]
+            (colname) := map(get(colname), ~c(., rep(NA,new_width-length(.))))]
+    } else {
+      data[ map(get(colname),~ is.null(names(.))) == TRUE,
+            (colname) := map(get(colname),
+                             ~modifyList(setNames(rep(list(NA),new_width),
+                                                  new_names),.))]
+
+    }
     data[, paste(colname, new_names %||% seq(new_width), sep = ".") :=
            rbindlist(get(colname), fill = !is.null(new_names))]
     data[,(colname) := NULL]

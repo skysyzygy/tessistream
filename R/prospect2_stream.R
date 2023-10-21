@@ -343,10 +343,11 @@ p2_load <- function(table, offset = NULL, max_len = NULL,
   args$path <- args$path %||% paste0("api/3/", table)
   args$url <- args$url %||% api_url
 
-  p2_query_api(eval(call2("modify_url", !!!args)), offset = offset, max_len = max_len) %>%
-    {
-      p2_db_update(.[[table]], table, overwrite = overwrite)
-    }
+  data <- p2_query_api(eval(call2("modify_url", !!!args)), offset = offset, max_len = max_len)
+
+  if(!is.null(data[[table]])) {
+    p2_db_update(data[[table]], table, overwrite = overwrite)
+  }
 }
 
 #' p2_email_map

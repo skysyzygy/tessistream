@@ -82,8 +82,8 @@ work with the nested structures that come from P2 JSONs</p>
     </div>
     <div class="section level2">
     <h2 id="note">Note<a class="anchor" aria-label="anchor" href="#note"></a></h2>
-    <p>Assumes for speed that all elements have the same structure and
-that there are no NULLs in the table anywhere.</p>
+    <p>Assumes for speed that elements of each column are either all named or all unnamed.
+List columns with variable length are filled with NAs during unnesting.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>

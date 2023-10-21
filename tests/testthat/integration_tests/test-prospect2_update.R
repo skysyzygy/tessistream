@@ -1,17 +1,22 @@
 withr::local_package("mockery")
+withr::local_package("lubridate")
 future::plan("multisession")
 tessilake:::local_cache_dirs()
 dir.create(file.path(tempdir(),"deep","stream"))
 
-max_len <- 1000
+max_len <- 2000
 
-stub(p2_update,"p2_load",function(...) {
-  args <- modifyList(list2(...), list(max_len = max_len))
+stub(p2_update,"p2_load",function(table, query = NULL, ...) {
+  if(table == "contacts")
+    query = list("filters[updated_after]" = as.character(today() - ddays(30)))
+  args <- modifyList(list2(...), list(table = table,
+                                      max_len = max_len,
+                                      query = query))
   do.call(tessistream:::p2_load, args)
   })
 
 test_that("p2_update is able to query all tables", {
-  expect_silent(p2_update())
+  progressr::with_progress(p2_update(),progressr::handler_pbcol())
   p2_db_open()
   withr::defer(p2_db_close())
 

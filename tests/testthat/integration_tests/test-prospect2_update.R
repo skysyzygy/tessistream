@@ -8,7 +8,7 @@ max_len <- 2000
 
 stub(p2_update,"p2_load",function(table, query = NULL, ...) {
   if(table == "contacts")
-    query = list("filters[updated_after]" = as.character(today() - ddays(30)))
+    query = list("filters[updated_after]" = as.character(today() - ddays(1)))
   args <- modifyList(list2(...), list(table = table,
                                       max_len = max_len,
                                       query = query))

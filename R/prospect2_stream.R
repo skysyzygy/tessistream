@@ -229,8 +229,8 @@ p2_unnest <- function(data, colname) {
       data[,map(get(colname),length) %>% unlist %>% max])
     if (is.null(new_names)) {
       data[ map(get(colname),length) < new_width,
-            (colname) := map(get(colname), ~list(c(as.list(.),
-                                              rep(NA,new_width-length(.)))))]
+            (colname) := map(get(colname), ~c(as.list(.),
+                                              rep(NA,new_width-length(.))))]
     } else {
       data[ map(get(colname),~ is.null(names(.))) == TRUE,
             (colname) := map(get(colname),

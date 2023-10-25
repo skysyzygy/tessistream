@@ -309,7 +309,9 @@ test_that("p2_unnest unnests list columns with missing elements", {
                                                 a.2 = rep(c(1,NA), 100))),
     "has been filled with NA"
   )
-
+  dt <- data.table(a = rep(list(list("a", 1),list(NA)), 100))
+  expect_equal(p2_unnest(dt, "a"), data.table(a.1 = rep(c("a",NA), 100),
+                                              a.2 = rep(c(1,NA), 100)))
 
 })
 

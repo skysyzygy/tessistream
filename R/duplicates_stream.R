@@ -26,19 +26,33 @@
 #'
 #' @return data.table of duplicates
 #' @importFrom tessilake write_cache
-#' @param ... additional parameters passed on to [read_tessi] and [read_cache]
+#' @aliases duplicatesc
 #' @export
 duplicates_stream <- function(...) {
-  duplicates_data <- duplicates_data(...) %>% .[!is.na(email) & nchar(email) > 5]
+  duplicates_data <- duplicates_data(...)
   duplicates_data[,i.customer_no := customer_no-.1]
 
-  dupes <- duplicates_data[duplicates_data,
+  match_cols <- c("email")
+  email_data <- duplicates_data[apply(duplicates_data[.,match_cols],1,
+                                      \(.) !any(is.na(.))),]
+  email_dupes <- email_data[email_data,
                            on = c("email","i.customer_no"="customer_no"),
                            roll = -Inf] %>%
     .[!is.na(customer_no) & group_customer_no != i.group_customer_no] %>%
     .[,i.i.customer_no := NULL]
 
-  write_cache(dupes, "duplicate_stream", "stream", overwrite = TRUE)
+  match_cols <- c("email","house_number","road","apartment",
+                  "city","state","fname","lname")
+  exact_data <- duplicates_data[apply(duplicates_data[.,match_cols],1,
+                                      \(.) !any(is.na(.))),]
+  exact_dupes <- exact_data[exact_data,
+                                 on = c("email","street1","city","state",
+                                        "fname","lname","i.customer_no"="customer_no"),
+                                 roll = -Inf] %>%
+    .[!is.na(customer_no) & group_customer_no != i.group_customer_no] %>%
+    .[,i.i.customer_no := NULL]
+
+  write_cache(exact_dupes, "duplicate_stream", "stream", overwrite = TRUE)
 
   dupes
 }
@@ -49,6 +63,7 @@ duplicates_stream <- function(...) {
 #' @importFrom dplyr filter collect
 #' @note depends on [address_stream]
 #' @return data.table of data for deduplication
+#' @inheritDotParams tessilake::read_tessi freshness incremental
 duplicates_data <- function(...) {
   cust_type_desc <- fname <- lname <- eaddress_type <- NULL
 

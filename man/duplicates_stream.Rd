@@ -2,13 +2,19 @@
 % Please edit documentation in R/duplicates_stream.R
 \name{duplicates_stream}
 \alias{duplicates_stream}
+\alias{duplicates}
 \alias{duplicates_data}
 \title{duplicates_stream}
 \usage{
 duplicates_stream(...)
 }
 \arguments{
-\item{...}{additional parameters passed on to \link{read_tessi} and \link{read_cache}}
+\item{...}{
+  Arguments passed on to \code{\link[tessilake:read_tessi]{tessilake::read_tessi}}
+  \describe{
+    \item{\code{freshness}}{the returned data will be at least this fresh}
+    \item{\code{incremental}}{whether or not to load data incrementally, default is \code{TRUE}}
+  }}
 }
 \value{
 data.table of duplicates

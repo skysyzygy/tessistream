@@ -26,35 +26,59 @@
 #'
 #' @return data.table of duplicates
 #' @importFrom tessilake write_cache
-#' @aliases duplicatesc
+#' @aliases duplicates
 #' @export
 duplicates_stream <- function(...) {
   duplicates_data <- duplicates_data(...)
-  duplicates_data[,i.customer_no := customer_no-.1]
+  saveRDS(duplicates_data, "duplicates_data.Rds")
+  readRDS("duplicates_data.Rds") %>% setDT -> duplicates_data
 
-  match_cols <- c("email")
-  email_data <- duplicates_data[apply(duplicates_data[.,match_cols],1,
-                                      \(.) !any(is.na(.))),]
-  email_dupes <- email_data[email_data,
-                           on = c("email","i.customer_no"="customer_no"),
-                           roll = -Inf] %>%
-    .[!is.na(customer_no) & group_customer_no != i.group_customer_no] %>%
-    .[,i.i.customer_no := NULL]
+  email_dupes <- duplicates_exact_match(duplicates_data, "email")
 
-  match_cols <- c("email","house_number","road","apartment",
-                  "city","state","fname","lname")
-  exact_data <- duplicates_data[apply(duplicates_data[.,match_cols],1,
-                                      \(.) !any(is.na(.))),]
-  exact_dupes <- exact_data[exact_data,
-                                 on = c("email","street1","city","state",
-                                        "fname","lname","i.customer_no"="customer_no"),
-                                 roll = -Inf] %>%
-    .[!is.na(customer_no) & group_customer_no != i.group_customer_no] %>%
-    .[,i.i.customer_no := NULL]
+  exact_dupes <- duplicates_exact_match(duplicates_data, c("email","house_number","road",
+                                                           "city","state","fname","lname"))
+
+
+  households <- tessi_customer_no_map()
+  exact_dupes <- merge(exact_dupes,households,all.x=T,by="customer_no") %>%
+    merge(households,all.x=T,by.x="i.customer_no",by.y="customer_no") %>%
+    .[group_customer_no.x!=group_customer_no.y,.(customer_no,i.customer_no)] %>%
+    merge(exact_dupes,by=c("customer_no","i.customer_no"))
+
+  relationships <- read_sql_table("VT_ASSOCIATION","BI") %>% collect %>% setDT
+  exact_dupes <- exact_dupes[!relationships, on=c("customer_no"="customer_no","i.customer_no"="associated_customer_no")]
 
   write_cache(exact_dupes, "duplicate_stream", "stream", overwrite = TRUE)
 
-  dupes
+  exact_dupes
+}
+
+#' @rdname duplicates_stream
+#' @title duplicates_exact_match
+#' @description
+#' Returns a minimal set of customers matching exactly on `match_cols`.
+#'
+#' @param data data.table to deduplicate
+#' @param match_cols columns to match on
+#'
+#' @return data.table of matching customers with columns `customer_no` and `i.customer_no`
+duplicates_exact_match <- function(data, match_cols) {
+
+  assert_data_table(data)
+  assert_names(names(data), must.include = match_cols)
+
+  # Suppress rows with missing data
+  data <- data[data[,rowSums(setDT(lapply(.SD,is.na))) == 0,.SDcols = match_cols]]
+
+  # Do the match
+  data[,i.customer_no := customer_no-.1]
+  data[data,
+       on = c(match_cols,"i.customer_no"="customer_no"),
+       roll = -Inf] %>%
+    .[!is.na(customer_no),.SD[1],
+      by = c("customer_no", "i.customer_no"),
+      .SDcols=c(match_cols)]
+
 }
 
 #' @describeIn duplicates_stream Load data for [duplicates_stream]
@@ -79,12 +103,12 @@ duplicates_data <- function(...) {
   # load all addresses past and present
   addresses <- read_cache("address_stream_full", "stream") %>%
     select(c(address_cols, "group_customer_no", "customer_no")) %>%
-    collect %>% setDT #%>%
+    collect %>% setDT %>%
   # and append libpostal parsed data
-  #  cbind(address_parse(.)[,-address_cols, with = F])
+    cbind(address_parse(.)[,-address_cols, with = F])
 
   # rename libpostal columns
-  addresses <- addresses[!is.na(street1) & !is.na(group_customer_no),
+  addresses <- addresses[!is.na(group_customer_no),
       c("group_customer_no", grep("libpostal", colnames(addresses), value = TRUE)), with = F] %>%
     setnames(colnames(.),
              gsub("libpostal\\.","",colnames(.)))
@@ -105,4 +129,7 @@ duplicates_data <- function(...) {
 
   character_cols <- colnames(data)[sapply(data,is.character)]
   data <- data[, (character_cols) := lapply(.SD, \(x) trimws(tolower(x))), .SDcols = character_cols]
+  for(col in character_cols)
+    data[get(col)=="",(col) := NA]
+
 }

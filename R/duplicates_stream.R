@@ -63,6 +63,10 @@ duplicates_append_data <- function(data, features = rlang::exprs(
   "Last activity date" = last_activity_dt,
   "Last update date" = last_update_dt)) {
 
+  . <- memb_level <- last_login_dt <- last_activity_dt <- last_update_dt <-
+    cur_record_ind <- customer_no <- memb_amt <- inactive <- inactive_desc <-
+    keep_customer_no <- i.customer_no <- NULL
+
   memberships <- read_tessi("memberships") %>%
     filter(cur_record_ind == 'Y') %>% collect %>% setDT %>%
     setkey(customer_no,memb_amt) %>%
@@ -108,6 +112,9 @@ duplicates_append_data <- function(data, features = rlang::exprs(
 #' @describeIn duplicates_stream Suppress duplicates that are related by household
 #' or that have a relationships (in Tessi-speak: an association) with each other.
 duplicates_suppress_related <- function(data) {
+  . <- group_customer_no.x <- group_customer_no.y <- customer_no <- i.customer_no <-
+    associated_customer_no <- NULL
+
   households <- tessi_customer_no_map()
 
   dupes_in_households <-
@@ -136,6 +143,8 @@ duplicates_suppress_related <- function(data) {
 #' @return data.table of matching customers with columns `customer_no` and `i.customer_no`
 duplicates_exact_match <- function(data, match_cols) {
 
+  . <- customer_no <- i.customer_no <- NULL
+
   assert_data_table(data)
   assert_names(names(data), must.include = match_cols)
 
@@ -161,7 +170,8 @@ duplicates_exact_match <- function(data, match_cols) {
 #' @return data.table of data for deduplication
 #' @inheritDotParams tessilake::read_tessi freshness incremental
 duplicates_data <- function(...) {
-  cust_type_desc <- fname <- lname <- eaddress_type <- NULL
+  . <- cust_type_desc <- fname <- lname <- eaddress_type <- inactive_desc <-
+    customer_no <- group_customer_no <- phone <- address <- NULL
 
   # load individual names
   customers <- read_tessi("customers", ...) %>%

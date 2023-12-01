@@ -1,16 +1,16 @@
 #' duplicates_stream
 #'
 #' Create a dataset of duplicates derived from matching names, email addresses, postal addresses, and phone numbers. The match probability
-#' for each probable duplicate is determined using the [fastLink] package.
+#' for each probable duplicate is determined using the \link[fastLink:fastLink-package]{fastLink} package.
 #'
-#' ### Deduplication using [fastLink]
-#' This system is based on the [fastLink] package, a "Fast Probabilistic Record Linkage" library developed by
+#' ### Deduplication using \link[fastLink:fastLink-package]{fastLink}
+#' This system is based on the \link[fastLink:fastLink-package]{fastLink} package, a "Fast Probabilistic Record Linkage" library developed by
 #' [Ted Enamorado, Ben Fifield, and Kosuke Imai](https://github.com/kosukeimai/fastLink).
 #'
-#' [fastLink] is designed to find matches between two datasets across multiple variables. It was designed for linking together political/social science datasets.
+#' \link[fastLink:fastLink-package]{fastLink} is designed to find matches between two datasets across multiple variables. It was designed for linking together political/social science datasets.
 #' For deduplication, `duplicates_stream` compares the data against itself. Links will either be trivial \eqn{(A=A)} or they will be duplicates.
 #'
-#' [fastLink] identifies matches in a way that is sensitive to the structure of the data it is given: it assigns to each match pattern a probability that it is a match.
+#' \link[fastLink:fastLink-package]{fastLink} identifies matches in a way that is sensitive to the structure of the data it is given: it assigns to each match pattern a probability that it is a match.
 #' A match pattern is a unique way that the variables match or don’t match: for example, two records that match on first name, partially match on last name, one is missing
 #' data for email, etc. The algorithm tabulates counts of every occurring combination of match / partial-match / non-match / missing data across every variable for every
 #' combination of two records. It then uses a Bayesian expectation-maximization algorithm to determine the probability that each combination of matches / non-matches / etc.

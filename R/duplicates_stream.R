@@ -30,33 +30,105 @@
 #' @export
 duplicates_stream <- function(...) {
   duplicates_data <- duplicates_data(...)
-  saveRDS(duplicates_data, "duplicates_data.Rds")
-  readRDS("duplicates_data.Rds") %>% setDT -> duplicates_data
+  #saveRDS(duplicates_data, "duplicates_data.Rds")
+  #readRDS("duplicates_data.Rds") %>% setDT -> duplicates_data
 
   email_dupes <- duplicates_exact_match(duplicates_data, "email")
 
-  exact_dupes <- duplicates_exact_match(duplicates_data, c("email","house_number","road",
+  # allow matching on empty unit
+  duplicates_data[is.na(unit), unit:=""]
+
+  exact_dupes <- duplicates_exact_match(duplicates_data, c("email","house_number","road","unit",
                                                            "city","state","fname","lname"))
 
 
-  households <- tessi_customer_no_map()
-  exact_dupes <- merge(exact_dupes,households,all.x=T,by="customer_no") %>%
-    merge(households,all.x=T,by.x="i.customer_no",by.y="customer_no") %>%
-    .[group_customer_no.x!=group_customer_no.y,.(customer_no,i.customer_no)] %>%
-    merge(exact_dupes,by=c("customer_no","i.customer_no"))
+  dupes <- duplicates_suppress_related(exact_dupes) %>%
+    duplicates_append_data()
 
-  relationships <- read_sql_table("VT_ASSOCIATION","BI") %>% collect %>% setDT
-  exact_dupes <- exact_dupes[!relationships, on=c("customer_no"="customer_no","i.customer_no"="associated_customer_no")]
+  write_cache(dupes, "duplicate_stream", "stream", overwrite = TRUE)
 
-  write_cache(exact_dupes, "duplicate_stream", "stream", overwrite = TRUE)
-
-  exact_dupes
+  dupes
 }
 
-#' @rdname duplicates_stream
-#' @title duplicates_exact_match
-#' @description
-#' Returns a minimal set of customers matching exactly on `match_cols`.
+#' @describeIn duplicates_stream
+#' Chooses which of each duplicate pair to keep or delete based
+#' on appended data and return the reason for the choice.
+#' @param features sorted, named list of expressions to use for selecting which customer
+#' to keep. Note: this is not ready to be exposed; at the moment the appended data is very limited.
+#'
+#' @return data.table
+duplicates_append_data <- function(data, features = rlang::exprs(
+  "Current membership" = !is.na(memb_level),
+  "Last login date" = last_login_dt,
+  "Last activity date" = last_activity_dt,
+  "Last update date" = last_update_dt)) {
+
+  memberships <- read_tessi("memberships") %>%
+    filter(cur_record_ind == 'Y') %>% collect %>% setDT %>%
+    setkey(customer_no,memb_amt) %>%
+    .[,.SD[.N],.SDcols="memb_level",by="customer_no"]
+
+  logins <- read_tessi("logins") %>%
+    filter(inactive == 'N') %>% collect %>% setDT %>%
+    setkey(customer_no,last_login_dt) %>%
+    .[, .(last_login_dt = max(last_login_dt)),by="customer_no"]
+
+  customers <- read_tessi("customers") %>%
+    filter(inactive_desc == "Active") %>%
+    select(customer_no, last_activity_dt, last_update_dt) %>%
+    collect %>% setDT
+
+  append_data <- merge(memberships,logins,by="customer_no",all=T) %>%
+    merge(customers,by="customer_no",all=T)
+
+  data[,keep_customer_no := NA_integer_]
+
+  purrr::imap(features, \(feature, name) {
+    lhs <- merge(data, append_data, all.x=T,
+                 by.x="customer_no", by.y="customer_no") %>%
+      .[,eval(feature)]
+    rhs <- merge(data, append_data, all.x=T,
+                 by.x="i.customer_no", by.y="customer_no") %>%
+      .[,eval(feature)]
+
+    data[lhs>rhs & is.na(keep_customer_no),
+         `:=`(keep_customer_no = customer_no,
+              delete_customer_no = i.customer_no,
+              keep_reason = name)]
+    data[rhs>lhs & is.na(keep_customer_no),
+         `:=`(keep_customer_no = i.customer_no,
+              delete_customer_no = customer_no,
+              keep_reason = name)]
+
+  })
+
+  data
+}
+
+#' @describeIn duplicates_stream Suppress duplicates that are related by household
+#' or that have a relationships (in Tessi-speak: an association) with each other.
+duplicates_suppress_related <- function(data) {
+  households <- tessi_customer_no_map()
+
+  dupes_in_households <-
+    merge(data,households,all.x=T,
+          by.x="customer_no", by.y="customer_no") %>%
+    merge(households,all.x=T,
+          by.x="i.customer_no",by.y="customer_no") %>%
+    .[group_customer_no.x==group_customer_no.y, .(customer_no, i.customer_no)]
+
+  relationships <- read_sql_table("VT_ASSOCIATION","BI") %>% collect %>%
+    select(customer_no = customer_no, i.customer_no = associated_customer_no) %>%
+    setDT
+
+ data[!rbind(relationships, dupes_in_households),
+      on = c("customer_no", "i.customer_no")]
+}
+
+#' @describeIn duplicates_stream
+#' Returns a minimal (in the sense of each duplicate pairing is limited to the two
+#' closest customer numbers in a duplicate cluster, and each pair is listed only
+#' onc) set of customer pairs matching exactly on `match_cols`.
 #'
 #' @param data data.table to deduplicate
 #' @param match_cols columns to match on
@@ -68,10 +140,10 @@ duplicates_exact_match <- function(data, match_cols) {
   assert_names(names(data), must.include = match_cols)
 
   # Suppress rows with missing data
-  data <- data[data[,rowSums(setDT(lapply(.SD,is.na))) == 0,.SDcols = match_cols]]
+  data <- data[data[, rowSums(setDT(lapply(.SD,is.na))) == 0, .SDcols = match_cols]]
 
   # Do the match
-  data[,i.customer_no := customer_no-.1]
+  data[, i.customer_no := customer_no-.1]
   data[data,
        on = c(match_cols,"i.customer_no"="customer_no"),
        roll = -Inf] %>%
@@ -133,3 +205,4 @@ duplicates_data <- function(...) {
     data[get(col)=="",(col) := NA]
 
 }
+

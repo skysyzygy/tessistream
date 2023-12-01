@@ -3,10 +3,24 @@
 \name{duplicates_stream}
 \alias{duplicates_stream}
 \alias{duplicates}
+\alias{duplicates_append_data}
+\alias{duplicates_suppress_related}
+\alias{duplicates_exact_match}
 \alias{duplicates_data}
 \title{duplicates_stream}
 \usage{
 duplicates_stream(...)
+
+duplicates_append_data(
+  data,
+  features = rlang::exprs(`Current membership` = !is.na(memb_level), `Last login date` =
+    last_login_dt, `Last activity date` = last_activity_dt, `Last update date` =
+    last_update_dt)
+)
+
+duplicates_suppress_related(data)
+
+duplicates_exact_match(data, match_cols)
 }
 \arguments{
 \item{...}{
@@ -15,9 +29,20 @@ duplicates_stream(...)
     \item{\code{freshness}}{the returned data will be at least this fresh}
     \item{\code{incremental}}{whether or not to load data incrementally, default is \code{TRUE}}
   }}
+
+\item{data}{data.table to deduplicate}
+
+\item{features}{sorted, named list of expressions to use for selecting which customer
+to keep. Note: this is not ready to be exposed; at the moment the appended data is very limited.}
+
+\item{match_cols}{columns to match on}
 }
 \value{
 data.table of duplicates
+
+data.table
+
+data.table of matching customers with columns \code{customer_no} and \code{i.customer_no}
 
 data.table of data for deduplication
 }
@@ -53,6 +78,16 @@ identifies a proper match, using the overall expected match rate as a prior. The
 }
 \section{Functions}{
 \itemize{
+\item \code{duplicates_append_data()}: Chooses which of each duplicate pair to keep or delete based
+on appended data and return the reason for the choice.
+
+\item \code{duplicates_suppress_related()}: Suppress duplicates that are related by household
+or that have a relationships (in Tessi-speak: an association) with each other.
+
+\item \code{duplicates_exact_match()}: Returns a minimal (in the sense of each duplicate pairing is limited to the two
+closest customer numbers in a duplicate cluster, and each pair is listed only
+onc) set of customer pairs matching exactly on \code{match_cols}.
+
 \item \code{duplicates_data()}: Load data for \link{duplicates_stream}
 
 }}

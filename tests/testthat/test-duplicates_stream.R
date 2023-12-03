@@ -147,3 +147,77 @@ test_that("duplicates_append_data makes choices for keep/delete and returns this
 
 })
 
+# duplicates_stream -------------------------------------------------------
+
+test_that("duplicates_stream loads data from duplicates_data and deduplicates it", {
+  tessilake:::local_cache_dirs()
+  features <- c("email","house_number","road",
+                "unit","city","state","fname","lname")
+
+  dupes <- matrix(rep(letters,8*2),ncol=8,
+                  dimnames=list(NULL,features)) %>%
+    as.data.table %>% .[,customer_no:=.I]
+
+  stub(duplicates_stream, "duplicates_data", dupes)
+  stub(duplicates_stream, "duplicates_append_data", force)
+  stub(duplicates_stream, "duplicates_suppress_related", force)
+
+  expect_mapequal(duplicates_stream(),
+               cbind(dupes[27:52,],i.customer_no=1:26))
+
+
+
+})
+
+test_that("duplicates_stream suppresses and appends data to duplicates", {
+  tessilake:::local_cache_dirs()
+
+  features <- c("email","house_number","road",
+                "unit","city","state","fname","lname")
+
+  dupes <- matrix(rep(letters,8*2),ncol=8,
+                  dimnames=list(NULL,features)) %>%
+    as.data.table %>% .[,customer_no:=.I]
+
+  stub(duplicates_stream, "duplicates_data", dupes)
+  stub(duplicates_stream, "duplicates_exact_match", dupes)
+  duplicates_append_data <- mock(dupes)
+  duplicates_suppress_related <- mock(dupes)
+  stub(duplicates_stream, "duplicates_append_data", duplicates_append_data)
+  stub(duplicates_stream, "duplicates_suppress_related", duplicates_suppress_related)
+
+  duplicates_stream()
+
+  expect_length(mock_args(duplicates_append_data),1)
+  expect_length(mock_args(duplicates_suppress_related),1)
+  expect_equal(mock_args(duplicates_append_data)[[1]][[1]], dupes)
+  expect_equal(mock_args(duplicates_suppress_related)[[1]][[1]], dupes)
+
+})
+
+test_that("duplicates_stream writes to a cache", {
+  tessilake:::local_cache_dirs()
+
+  features <- c("email","house_number","road",
+                "unit","city","state","fname","lname")
+
+  dupes <- matrix(rep(letters,8*2),ncol=8,
+                  dimnames=list(NULL,features)) %>%
+    as.data.table %>% .[,customer_no:=.I]
+
+  stub(duplicates_stream, "duplicates_data", dupes)
+  stub(duplicates_stream, "duplicates_exact_match", dupes)
+  stub(duplicates_stream, "duplicates_append_data", force)
+  stub(duplicates_stream, "duplicates_suppress_related", force)
+  write_cache <- mock(T)
+  stub(duplicates_stream, "write_cache", write_cache)
+
+  duplicates_stream()
+
+  expect_length(mock_args(write_cache),1)
+  expect_equal(mock_args(write_cache)[[1]][[1]], dupes)
+  expect_equal(mock_args(write_cache)[[1]][[2]], "duplicates_stream")
+  expect_equal(mock_args(write_cache)[[1]][[3]], "stream")
+
+
+})

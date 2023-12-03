@@ -45,7 +45,7 @@ duplicates_stream <- function(...) {
   dupes <- duplicates_suppress_related(exact_dupes) %>%
     duplicates_append_data()
 
-  write_cache(dupes, "duplicate_stream", "stream", overwrite = TRUE)
+  write_cache(dupes, "duplicates_stream", "stream", overwrite = TRUE)
 
   dupes
 }
@@ -214,5 +214,6 @@ duplicates_data <- function(...) {
   for(col in character_cols)
     data[get(col)=="",(col) := NA]
 
+  data
 }
 

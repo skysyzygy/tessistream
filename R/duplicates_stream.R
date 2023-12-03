@@ -29,9 +29,8 @@
 #' @aliases duplicates
 #' @export
 duplicates_stream <- function(...) {
+  unit <- NULL
   duplicates_data <- duplicates_data(...)
-  #saveRDS(duplicates_data, "duplicates_data.Rds")
-  #readRDS("duplicates_data.Rds") %>% setDT -> duplicates_data
 
   email_dupes <- duplicates_exact_match(duplicates_data, "email")
 

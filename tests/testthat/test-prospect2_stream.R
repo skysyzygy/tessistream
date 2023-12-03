@@ -3,103 +3,174 @@ withr::defer(p2_db_close())
 withr::local_envvar(R_CONFIG_FILE = "tessistream-config.yml")
 future::plan(future::sequential)
 
-test_that("p2_query_api successfully connects to p2", {
-  stub(p2_query_api,"content",function(.){rlang::abort("content",result=.)})
 
-  result <- tryCatch(p2_query_api(file.path(api_url,"api/3/contacts?limit=1")),error=function(e){e$result})
+# p2_query_table_length ---------------------------------------------------
+
+test_that("p2_query_table_length queries url to get total", {
+  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_table_length, "GET", GET)
+  stub(p2_query_table_length, "content", I)
+
+  expect_equal(p2_query_table_length("test"),1234)
+  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
+})
+
+test_that("p2_query_table_length handles missing meta by querying once", {
+  GET <- mock(list(test = seq(1234)), cycle = T)
+  stub(p2_query_table_length, "GET", GET)
+  stub(p2_query_table_length, "content", I)
+
+  expect_equal(p2_query_table_length("test"),1234)
+  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
+})
+
+
+# p2_query_api ------------------------------------------------------------
+
+
+test_that("p2_query_api successfully connects to p2", {
+  stub(p2_query_api, "content",function(.){rlang::abort("content",result=.)})
+  stub(p2_query_api, "p2_query_table_length", 1)
+  stub(p2_query_api, "make_resilient", force)
+
+  result <- tryCatch(p2_query_api(file.path(api_url,"api/3/contacts")),error=function(e){e$parent$result})
 
   expect_length(content(result),3)
   expect_length(content(result)$contacts,1)
 })
 
-test_that("p2_query_api queries url to get total", {
-  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
-  stub(p2_query_api, "GET", GET)
-  stub(p2_query_api, "content", I)
-  stub(p2_query_api, "p2_combine_jsons", I)
-
-  p2_query_api("test")
-
-  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=34")
-})
-
-test_that("p2_query_api handles missing meta by querying once", {
-  GET <- mock(list(test = seq(1234)), cycle = T)
-  stub(p2_query_api, "GET", GET)
-  stub(p2_query_api, "content", I)
-  stub(p2_query_api, "p2_combine_jsons", I)
-  p2_query_api("test")
-
-  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=1234")
-})
 
 test_that("p2_query_api uses offset to change the data loaded", {
   GET <- mock(list(test = seq(1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
   stub(p2_query_api, "GET", GET)
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
   p2_query_api("test", offset = 1232)
 
-  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_match(mock_args(GET)[[2]][[1]], "limit=2")
-  expect_match(mock_args(GET)[[2]][[1]], "offset=1232")
+  expect_match(mock_args(GET)[[1]][[1]], "limit=2")
+  expect_match(mock_args(GET)[[1]][[1]], "offset=1232")
 
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
   stub(p2_query_api, "GET", GET)
+  stub(p2_query_api, "p2_query_table_length", 1234)
   p2_query_api("test", offset = 1233)
   expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_match(mock_args(GET)[[2]][[1]], "limit=1")
-  expect_match(mock_args(GET)[[2]][[1]], "offset=1233")
+  expect_match(mock_args(GET)[[1]][[1]], "offset=1233")
 })
 
 test_that("p2_query_api returns NULL when offset is larger than available data", {
   GET <- mock(list(test = seq(1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
   stub(p2_query_api, "GET", GET)
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
   expect_equal(p2_query_api("test", offset = 1234),NULL)
-  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_length(mock_args(GET),1)
+  expect_length(mock_args(GET),0)
 
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
   stub(p2_query_api, "GET", GET)
   expect_equal(p2_query_api("test", offset = 1235),NULL)
-  expect_match(mock_args(GET)[[1]][[1]], "limit=1")
-  expect_length(mock_args(GET),1)
+  expect_length(mock_args(GET),0)
 })
 
 test_that("p2_query_api queries url in groups of 100", {
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
   stub(p2_query_api, "GET", GET)
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
   p2_query_api("test")
 
-  expect_length(mock_args(GET), 14)
+  expect_length(mock_args(GET), 13)
   # offsets increase by 100
-  imap(mock_args(GET)[-1], ~ expect_match(.x[[1]], paste0("offset=", (.y - 1) * 100)))
+  imap(mock_args(GET), ~ expect_match(.x[[1]], paste0("offset=", (.y - 1) * 100)))
   # all but the last one has limit 100
-  expect_match(purrr::map_chr(head(mock_args(GET)[-1], -1), 1), "limit=100")
+  expect_match(purrr::map_chr(head(mock_args(GET), -1), 1), "limit=100")
 })
 
 test_that("p2_query_api queries url starting from offset in groups of 100", {
   GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
   stub(p2_query_api, "GET", GET)
   stub(p2_query_api, "content", I)
   stub(p2_query_api, "p2_combine_jsons", I)
   p2_query_api("test", offset = 1)
 
-  expect_length(mock_args(GET), 14)
+  expect_length(mock_args(GET), 13)
   # offsets start at 1 and increase by 100
-  imap(mock_args(GET)[-1], ~ expect_match(.x[[1]], paste0("offset=", (.y - 1) * 100 + 1)))
+  imap(mock_args(GET), ~ expect_match(.x[[1]], paste0("offset=", (.y - 1) * 100 + 1)))
   # all but the last one has limit 100
-  expect_match(purrr::map_chr(head(mock_args(GET)[-1], -1), 1), "limit=100")
+  expect_match(purrr::map_chr(head(mock_args(GET), -1), 1), "limit=100")
   # last one is one less
   expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=33")
 })
 
+test_that("p2_query_api queries url starting from offset in groups of 100 and stops when max_len rows have been queried", {
+  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
+  stub(p2_query_api, "GET", GET)
+  stub(p2_query_api, "content", I)
+  stub(p2_query_api, "p2_combine_jsons", I)
+
+  p2_query_api("test", max_len = 100)
+  expect_length(mock_args(GET), 1)
+
+  p2_query_api("test", offset = 1, max_len = 200)
+  expect_length(mock_args(GET), 3)
+
+  p2_query_api("test", offset = 1000, max_len = 300)
+  expect_length(mock_args(GET), 6)
+
+  purrr::map2(purrr::map(mock_args(GET),1),
+              c(0,1,101,1000,1100,1200),
+             ~expect_match(.x, paste0("offset=", .y)))
+  # all but the last one has limit 100
+  expect_match(purrr::map_chr(head(mock_args(GET), -1), 1), "limit=100")
+  # last one is 34
+  expect_match(tail(mock_args(GET), 1)[[1]][[1]], "limit=34")
+})
+
+test_that("p2_query_api will run specific jobs when specified", {
+  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
+  stub(p2_query_api, "GET", GET)
+  stub(p2_query_api, "content", I)
+  stub(p2_query_api, "p2_combine_jsons", I)
+
+  jobs <- data.table(off = as.integer(runif(100,0,10000)),
+                     len = as.integer(runif(100,0,10000)))
+
+  p2_query_api("test", jobs = jobs)
+  expect_length(mock_args(GET), 100)
+
+  purrr::map2(purrr::map(mock_args(GET),1),
+              jobs$off,
+              ~expect_match(.x, paste0("offset=", .y)))
+  purrr::map2(purrr::map(mock_args(GET),1),
+              jobs$len,
+              ~expect_match(.x, paste0("limit=", .y)))
+
+})
+
+test_that("p2_query_api complains when jobs isn't valid or offset/max_len are set", {
+  GET <- mock(list("meta" = list("total" = 1234)), cycle = T)
+  stub(p2_query_api, "p2_query_table_length", 1234)
+  stub(p2_query_api, "GET", GET)
+  stub(p2_query_api, "content", I)
+  stub(p2_query_api, "p2_combine_jsons", I)
+
+  jobs <- data.table(off = as.integer(runif(100,0,10000)),
+                     len = as.integer(runif(100,0,10000)))
+
+  expect_error(p2_query_api("test", jobs = jobs[,off]), "Must be.+data.frame")
+  expect_error(p2_query_api("test", jobs = jobs[,.(off)]), "missing.+len")
+  expect_error(p2_query_api("test", jobs = jobs[,.(len)]), "missing.+off")
+
+  expect_warning(p2_query_api("test", jobs = jobs, offset = 1), "ignoring.+offset")
+  expect_warning(p2_query_api("test", jobs = jobs, max_len = 1), "ignoring.+max_len")
+
+})
 
 # p2_json_to_datatable --------------------------------------------------------
 
@@ -220,47 +291,72 @@ test_that("p2_unnest unnests list columns with names wider", {
   expect_equal(p2_unnest(dt, "a"), data.table(a.a = rep("a", 100), a.b = rep(1, 100)))
 })
 
-test_that("p2_unnest unnests list columns with names wider in place", {
+test_that("p2_unnest unnests list columns without names wider", {
+  dt <- data.table(a = rep(list(list("a", 1)), 100))
+  expect_equal(p2_unnest(dt, "a"), data.table(a.1 = rep("a", 100), a.2 = rep(1, 100)))
+  dt <- data.table(a = rep(list(list("a", 1), list("b")), 100))
+  expect_equal(p2_unnest(dt, "a"), data.table(a.1 = rep(c("a", "b"), 100),
+                                              a.2 = rep(c(1, NA), 100)))
+})
+
+test_that("p2_unnest unnests list columns with missing elements", {
+  dt <- data.table(a = rep(list(list(a = "a", b = 1),list(NULL)), 100))
+  expect_equal(p2_unnest(dt, "a"), data.table(a.a = rep(c("a",NA), 100),
+                                              a.b = rep(c(1,NA), 100)))
+  dt <- data.table(a = rep(list(list("a", 1),list(NULL)), 100))
+  expect_warning(
+    expect_equal(p2_unnest(dt, "a"), data.table(a.1 = rep(c("a",NA), 100),
+                                                a.2 = rep(c(1,NA), 100))),
+    "has been filled with NA"
+  )
+  dt <- data.table(a = rep(list(list("a", 1),list(NA)), 100))
+  expect_equal(p2_unnest(dt, "a"), data.table(a.1 = rep(c("a",NA), 100),
+                                              a.2 = rep(c(1,NA), 100)))
+
+})
+
+test_that("p2_unnest unnests list columns wider in place", {
   dt <- data.table(a = rep(list(list(a = "a", b = 1)), 100))
   tracemem(dt)
   expect_silent(p2_unnest(dt, "a"))
 })
 
-test_that("p2_unnest unnests list columns with names wider and replaces missing elements with NAs", {
-  dt <- data.table(a = rep(list(list(a = "a", b = 1), list(a = NULL, b = NULL), list(a = NULL)), 100))
+test_that("p2_unnest unnests list columns wider and replaces missing elements with NAs", {
+  dt <- data.table(a = rep(list(list(a = "a", b = 1), list(a = "a")), 100))
   dt_copy <- copy(dt)
-  expect_equal(p2_unnest(dt_copy, "a"), data.table(a.a = rep(c("a", NA, NA), 100), a.b = rep(c(1, NA, NA), 100)))
+  expect_equal(p2_unnest(dt_copy, "a"), data.table(a.a = rep(c("a", "a"), 100), a.b = rep(c(1, NA), 100)))
   expect_equal(nrow(dt_copy), nrow(dt))
 })
 
-test_that("p2_unnest unnests list columns without names longer", {
-  dt <- data.table(a = rep(list(as.list(seq(100))), 100))
-  expect_equal(p2_unnest(dt, "a"), data.table(a = rep(seq(1, 100), 100)))
-})
-
-test_that("p2_unnest unnests list columns without names longer in place", {
-  dt <- data.table(a = rep(list(as.list(seq(100))), 100))
-  tracemem(dt)
-  expect_silent(p2_unnest(dt, "a"))
-})
-
-test_that("p2_unnest unnests list columns without names longer and replace missing elements with NAs", {
-  dt <- data.table(a = rep(list(c(seq(100), list(NULL)), NULL), 100))
-  dt[, I := .I]
-  expect_mapequal(p2_unnest(dt, "a"), data.table(
-    I = Vectorize(rep.int)(seq(200), c(101, 1)) %>% unlist(),
-    a = rep(c(seq(100), NA, NA), 100)
-  ))
-})
+# test_that("p2_unnest unnests list columns without names longer", {
+#   dt <- data.table(a = rep(list(as.list(seq(100))), 100))
+#   expect_equal(p2_unnest(dt, "a"), data.table(a = rep(seq(1, 100), 100)))
+# })
+#
+# test_that("p2_unnest unnests list columns without names longer in place", {
+#   dt <- data.table(a = rep(list(as.list(seq(100))), 100))
+#   tracemem(dt)
+#   expect_silent(p2_unnest(dt, "a"))
+# })
+#
+# test_that("p2_unnest unnests list columns without names longer and replace missing elements with NAs", {
+#   dt <- data.table(a = rep(list(c(seq(100), list(NULL)), NULL), 100))
+#   dt[, I := .I]
+#   expect_mapequal(p2_unnest(dt, "a"), data.table(
+#     I = Vectorize(rep.int)(seq(200), c(101, 1)) %>% unlist(),
+#     a = rep(c(seq(100), NA, NA), 100)
+#   ))
+# })
 
 # p2_load -----------------------------------------------------------------
 
 test_that("p2_load dispatches arguments to modify_url", {
   modify_url <- mock(cycle = TRUE)
-  stub(p2_query_api, "GET", NULL)
-  stub(p2_query_api, "content", list(a = 1))
   stub(p2_load, "modify_url", modify_url)
-  stub(p2_load, "p2_query_api", p2_query_api)
+  stub(p2_load, "p2_query_api", function(url, ...) {
+    url;
+    list(test=data.table())
+  })
 
   p2_load("test")
   expect_equal(mock_args(modify_url)[[1]][["path"]], "api/3/test")
@@ -270,7 +366,7 @@ test_that("p2_load dispatches arguments to modify_url", {
 })
 
 test_that("p2_load dispatches arguments to p2_query_api", {
-  p2_query_api <- mock(cycle = TRUE)
+  p2_query_api <- mock(list(test = data.table()), cycle = TRUE)
   stub(p2_load, "p2_query_api", p2_query_api)
 
   p2_load("test", offset = 1234)
@@ -315,7 +411,7 @@ test_that("p2_load passes overwrite on to p2_db_update", {
 test_that("p2_update loads campaigns, messages, links, bounceLogs, contactLists, customer_nos", {
   p2_load <- mock(cycle = T)
   stub(p2_update, "p2_load", p2_load)
-  stub(p2_update, "tbl", data.table(a = 1))
+  stub(p2_update, "tbl", data.table(id = 1))
 
   p2_update()
 
@@ -331,6 +427,9 @@ test_that("p2_update only loads contacts after max(updated_timestamp)", {
   stub(p2_update, "p2_load", p2_load)
   p2_db_open()
   copy_to(tessistream$p2_db, name = "contacts", data.table(updated_timestamp = seq(today(), today() + ddays(30), by = "day") %>% as.character()))
+  copy_to(tessistream$p2_db, name = "logs", data.table(id = seq(100)))
+  copy_to(tessistream$p2_db, name = "linkData", data.table(id = seq(100)))
+  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id = seq(100)))
 
   p2_update()
 
@@ -344,12 +443,39 @@ test_that("p2_update only loads logs and linkData after max(id)", {
   p2_db_open()
   copy_to(tessistream$p2_db, name = "logs", data.table(id = seq(100) %>% as.character()))
   copy_to(tessistream$p2_db, name = "linkData", data.table(id = seq(100) %>% as.character()))
+  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id = seq(100) %>% as.character()))
 
   p2_update()
 
   calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("logs", "linkData"))
   expect_equal(calls[[1]][["offset"]], 100)
   expect_equal(calls[[2]][["offset"]], 100)
+})
+
+
+test_that("p2_update fills in gaps in logs and linkData", {
+  p2_load <- mock(cycle = T)
+  stub(p2_update, "p2_load", p2_load)
+  p2_db_open()
+  copy_to(tessistream$p2_db, name = "logs", data.table(id = c(seq(100),
+                                                              seq(102,200)) %>% as.character()))
+  copy_to(tessistream$p2_db, name = "linkData", data.table(id = c(seq(100),
+                                                                  seq(102,200)) %>% as.character()))
+  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id = c(seq(100),
+                                                                  seq(102,200)) %>% as.character()))
+
+  p2_update()
+
+  calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("logs", "linkData", "mppLinkData"))
+  expect_equal(calls[[1]], list("logs", offset = 200))
+  expect_equal(calls[[2]], list("logs", jobs = data.frame(off = 100, len = 1)),
+              ignore_attr = T)
+  expect_equal(calls[[3]], list("linkData", offset = 200))
+  expect_equal(calls[[4]], list("linkData", jobs = data.frame(off = 100, len = 1)),
+              ignore_attr = T)
+  expect_equal(calls[[5]], list("mppLinkData", offset = 200))
+  expect_equal(calls[[6]], list("mppLinkData", jobs = data.frame(off = 100, len = 1)),
+              ignore_attr = T)
 })
 
 test_that("p2_update updates recent linkData", {
@@ -361,6 +487,9 @@ test_that("p2_update updates recent linkData", {
     updated_timestamp = today() %>% as.character(),
     linkclicks = "1"
   ))
+  copy_to(tessistream$p2_db, name = "logs", data.table(id=seq(100)))
+  copy_to(tessistream$p2_db, name = "linkData", data.table(id=seq(100)))
+  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id=seq(100)))
 
   p2_update()
 
@@ -413,20 +542,20 @@ test_that("p2_stream_build combines log (sends), linkData (opens/clicks), contac
   p2_stream <- p2_stream_build()
   expect_equal(length(unique(p2_stream$event_subtype)),6)
 
-  # only unsubscribes and softbounces can be without campaignid
   expect_equal(p2_stream[is.na(subscriberid),.N],0)
 
   expect_equal(p2_stream[event_subtype=="Send" & (is.na(campaignid) | is.na(messageid)),.N],0)
   expect_equal(p2_stream[event_subtype=="Open" & (is.na(campaignid) | is.na(messageid) | is.na(linkid)),.N],0)
   expect_equal(p2_stream[event_subtype=="Click" & (is.na(campaignid) | is.na(messageid) | is.na(linkid)),.N],0)
-  expect_equal(p2_stream[event_subtype=="Hard Bounce" & (is.na(campaignid) | is.na(messageid)),.N],1)
+  # only unsubscribes and bounces can be without campaignid
+  expect_equal(p2_stream[event_subtype=="Hard Bounce" & (is.na(listid)),.N],0)
   expect_equal(p2_stream[event_subtype=="Unsubscribe" & (is.na(listid)),.N],0)
 
 })
 
 test_that("p2_stream_build outputs a stream-compliant dataset",{
   p2_db_open("p2.sqlite")
-  stub(p2_stream_build,"p2_email_map",data.table(id=seq(3e5)) %>%
+  stub(p2_stream_build,"p2_email_map",data.table(id=seq(1e6)) %>%
          .[,`:=`(customer_no = id,
                  group_customer_no = id,
                  email=paste0(seq(id),"@gmail.com"))])

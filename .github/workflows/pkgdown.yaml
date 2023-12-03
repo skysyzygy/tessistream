@@ -1,0 +1,81 @@
+# Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
+# Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+name: pkgdown
+
+jobs:
+  pkgdown:
+    runs-on: ubuntu-latest
+    # Only restrict concurrency for non-PR jobs
+    concurrency:
+      group: pkgdown-${{ github.event_name != 'pull_request' || github.run_id }}
+    env:
+      GITHUB_PAT: ${{ secrets.REPO_TOKEN || secrets.GITHUB_TOKEN  }}
+      PKGDOWN_URL: https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org
+      PKGDOWN_DIR: Documents/documentation
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::pkgdown, local::., any::pkgload, any::remotes
+          needs: website
+
+      - name: Build site
+        run: |
+          options(yaml.eval.expr = TRUE)
+          pkgdown::build_site_github_pages()
+        shell: Rscript {0}
+
+      - name: Deploy to GitHub pages 🚀
+        if: github.event_name != 'pull_request'
+        uses: JamesIves/github-pages-deploy-action@v4.4.1
+        with:
+          clean: false
+          branch: gh-pages
+          folder: docs
+
+      - name: Prepare for Sharepoint
+        run: |
+          # rename html to aspx
+          find docs -name *.html -exec mv "{}" "{}.aspx" \;
+          # point links to aspx files
+          find docs -type f -exec perl -i -pe 's%\.html"%.html.aspx"%g' {} \+
+          # change broken github references
+          find docs -type f -exec perl -i -pe 's%https://github.com/skysyzygy%'${PKGDOWN_URL}/${PKGDOWN_DIR}'%g' {} \+
+          find docs -type f -exec perl -i -pe 's%(?<='${PKGDOWN_URL}')([^"]+)(?!=\.html\.aspx)"%\1/index.html.aspx"%g' {} \+
+        shell: bash {0}
+
+      - name: Publish to Sharepoint 💥
+        uses: skysyzygy/action-sharepoint-publish-glob@v1
+        with:
+         site_url: ${{ env.PKGDOWN_URL }}
+         library_folder: ${{ format('{0}/{1}', env.PKGDOWN_DIR, github.event.repository.name) }}
+         sharepoint_username: ${{ secrets.SHAREPOINT_USERNAME }}
+         sharepoint_password: ${{ secrets.SHAREPOINT_PASSWORD }}
+         base: 'docs'
+         glob: 'docs/**'
+
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
+        if: ${{ failure() }}
+        with:
+          ## If no one connects after 5 minutes, shut down server.
+          wait-timeout-minutes: 5
+

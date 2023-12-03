@@ -52,6 +52,7 @@ test_that("address_stream_build combines data from address_parse, address_census
 test_that("address_stream writes a full file containing additional data", {
   tessilake:::local_cache_dirs()
   stub(address_stream, "address_stream_build", .address_stream)
+  stub(address_stream, "sync_cache", TRUE)
 
   address_stream()
 

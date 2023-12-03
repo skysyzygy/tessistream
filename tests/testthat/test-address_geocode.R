@@ -180,8 +180,6 @@ test_that("address_geocode_all suppresses completely missing data because geocod
 
 })
 
-
-
 test_that("address_geocode_all returns one row per incoming address", {
   stub(address_geocode_all,"geocode_combine",function(.tbl,...) { cbind(.tbl,lat=123,lon=456)})
 
@@ -227,6 +225,27 @@ test_that("address_geocode_all doesn't copy input data.table", {
 
 })
 
+test_that("address_geocode_all is failure resistant", {
+
+  address_stream <- rbind(
+    data.table(street1 = "30 Lafayette Ave"),
+    data.table(street2 = "321 Ashland Pl"),
+    data.table(city = "Brooklyn"),
+    data.table(state = "NY"),
+    data.table(country = "USA"),
+    data.table(postal_code = "11217"),
+    data.table(),
+    fill = TRUE
+  )
+
+  stub(address_geocode_all, "geocode_combine", \(...) stop("Geocoding error!"))
+  stub(address_geocode_all, "make_resilient", \(expr, num_tries, sleep_secs, ...) make_resilient(expr, num_tries = 1, sleep_secs = 0, ...))
+
+  expect_message(res <- address_geocode_all(copy(address_stream)), "Geocoding error!")
+  expect_mapequal(res, address_stream)
+
+})
+
 # address_geocode ---------------------------------------------------------
 
 test_that("address_geocode does not retry successfully geocoded addresses", {
@@ -257,18 +276,54 @@ test_that("address_geocode does not retry successfully geocoded addresses", {
 
 test_that("address_reverse_census_all turns lat/lon pairs into census tract info",{
   # NY, CA, MO, Toronto
-  coords <- data.table(lat = c(44.731171, 36.778259, 37.964252, 43.653225),
-                       lon = c(-75.428833, -119.417931, -91.831833, -79.383186))
+  coords <- data.table(lat = c(44.731171, 36.778259, 37.964252),
+                       lon = c(-75.428833, -119.417931, -91.831833))
 
   res <- address_reverse_census_all(coords)
 
-  expect_equal(res$state_fips, c("36", "06", "29", NA))
-  expect_equal(res$county_fips, c("089", "019", "161", NA))
+  expect_equal(res$state_fips, c("36", "06", "29"))
+  expect_equal(res$county_fips, c("089", "019", "161"))
   expect_named(res, c("state_fips","county_fips","census_tract","census_block","lat","lon"),
                ignore.order = TRUE)
   expect_equal(nrow(coords),nrow(res))
 
 })
+
+test_that("address_reverse_census_all gracefully works when non-US data is submitted",{
+  # NY, CA, MO, Toronto
+  coords <- data.table(lat = c(40.6866574, 36.778259, 37.964252, 43.653225),
+                       lon = c(-73.9777373, -119.417931, -91.831833, -79.383186))
+
+  res <- address_reverse_census_all(coords)
+
+  expect_equal(res$state_fips, c("36", "06", "29", NA))
+  expect_equal(res$county_fips, c("047", "019", "161", NA))
+  expect_named(res, c("state_fips","county_fips","census_tract","census_block","lat","lon"),
+               ignore.order = TRUE)
+  expect_equal(nrow(coords),nrow(res))
+
+  coords <- data.table(lat = c(43.653225),
+                       lon = c(-79.383186))
+
+  res <- address_reverse_census_all(coords)
+
+  expect_named(res, c("lat","lon"), ignore.order = TRUE)
+  expect_equal(nrow(coords),nrow(res))
+
+})
+
+test_that("address_reverse_census_all is resilient to API failures",{
+  stub(address_reverse_census_all, "cxy_geography", \(...) stop("Census API Error!"))
+  # NY, CA, MO, Toronto
+  coords <- data.table(lat = c(40.6866574, 36.778259, 37.964252, 43.653225),
+                       lon = c(-73.9777373, -119.417931, -91.831833, -79.383186))
+
+  expect_warning(res <- address_reverse_census_all(coords), "Error in cxy_geography.+4 rows.+Census API Error!")
+
+  expect_equal(nrow(coords),nrow(res))
+
+})
+
 
 # address_reverse_census --------------------------------------------------
 

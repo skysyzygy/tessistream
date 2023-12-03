@@ -1,4 +1,24 @@
-url: ~
 template:
-  bootstrap: 5
+  package: dataAtBAM.pkgdown
 
+reference:
+  - title: Address Stream
+    desc: Functions related to geocoding and census data appends for address dataset
+  - contents:
+    - starts_with("address_")
+    - starts_with("census_")
+  - title: Contribution Stream
+    desc: Functions related to creating contribution dataset
+  - contents:
+    - starts_with("contribution_")
+  - title: Prospect2
+    desc: Functions related to quering the P2 API, caching tables locally, and preparing a P2 email dataset
+  - contents:
+    - starts_with("p2_")
+  - title: Other
+    desc: Other things
+  - contents:
+    - -starts_with("address_")
+    - -starts_with("census_")
+    - -starts_with("contribution_")
+    - -starts_with("p2_")

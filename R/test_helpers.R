@@ -202,11 +202,14 @@ p2_prepare_fixtures <- function() {
   withr::local_package("mockery")
   withr::local_package("dplyr")
 
-  stub(p2_query_api, "as.integer", 100)
+  stub(p2_query_api, "p2_query_table_length", 100)
   stub(p2_load, "p2_query_api", p2_query_api)
-  p2_db_open("p2.sqlite")
 
-  tables <- c("fieldValues", "campaigns", "messages", "links", "lists", "bounceLogs", "contactLists", "contacts", "logs", "linkData")
+  file.remove("p2.sqlite")
+  p2_db_open("p2.sqlite")
+  withr::defer(p2_db_close())
+
+  tables <- c("fieldValues", "campaigns", "messages", "links", "lists", "bounceLogs", "contactLists", "contacts", "logs", "linkData", "mppLinkData")
   map(tables[-1], p2_load)
   p2_load("fieldValues", path = "api/3/fieldValues", query = list("filters[fieldid]" = 1))
 
@@ -222,5 +225,5 @@ p2_prepare_fixtures <- function() {
       copy_to(dest = tessistream$p2_db, table, overwrite = TRUE, temporary = FALSE)
   })
 
-  p2_db_close()
+  invisible()
 }

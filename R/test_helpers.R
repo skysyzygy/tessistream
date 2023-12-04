@@ -84,6 +84,10 @@ address_prepare_fixtures <- function() {
 
   stream <- address_create_stream()
 
+  future::plan("multisession")
+  address_parse <- address_parse(stream)
+
+  file.copy(tessilake::cache_primary_path("address_stream.sqlite","stream"), testthat::test_path(), overwrite = T)
   saveRDS(stream, testthat::test_path("address_stream.Rds"))
   saveRDS(audit, testthat::test_path("address_audit.Rds"))
   saveRDS(addresses, testthat::test_path("addresses.Rds"))
@@ -154,6 +158,40 @@ contributions_stream_prepare_fixtures <- function() {
 
   saveRDS(contributions, "tests/testthat/contribution_stream-contributions.Rds")
   saveRDS(memberships, "tests/testthat/contribution_stream-memberships.Rds")
+}
+
+duplicates_prepare_fixtures <- function() {
+  withr::local_envvar(R_CONFIG_FILE="")
+
+  address_stream <- readRDS(rprojroot::find_testthat_root_file("address_stream.Rds"))
+
+  customers <- read_tessi("customers", select = c("cust_type_desc", "inactive_desc", "fname", "lname", "customer_no")) %>%
+    select(c("cust_type_desc", "inactive_desc", "fname", "lname", "customer_no", "group_customer_no")) %>%
+    collect %>% setDT %>%
+    .[runif(.N)<.01]
+  # anonymize customer # and scramble names
+  customers[, `:=`(group_customer_no = sample(address_stream$customer_no, .N, replace = T),
+                   fname = sample(fname, .N),
+                   lname = sample(lname, .N))] %>%
+    .[,customer_no := group_customer_no]
+
+  saveRDS(customers, rprojroot::find_testthat_root_file("duplicates_stream-customers.Rds"))
+
+  # make some random phones and emails
+  phones <- data.table(group_customer_no = address_stream$group_customer_no,
+                       phone = as.character(floor(runif(nrow(address_stream), 1e9, 1e10-.1))))
+
+  emails <- data.table(group_customer_no = address_stream$group_customer_no,
+                       eaddress_type = 1,
+                       address = paste0(
+                         sample(letters, nrow(address_stream), replace = TRUE),
+                         gsub("[^a-zA-Z]+", "_", sample(trimws(customers$lname), nrow(address_stream), replace = TRUE)),
+                         "@",
+                         c("google.com","yahoo.com","aol.com","bam.org")))
+
+  saveRDS(phones, rprojroot::find_testthat_root_file("duplicates_stream-phones.Rds"))
+  saveRDS(emails, rprojroot::find_testthat_root_file("duplicates_stream-emails.Rds"))
+
 }
 
 

@@ -10,12 +10,14 @@ address_exec_libpostal(addresses)
 
 address_parse_libpostal(address_stream)
 
-address_parse(address_stream)
+address_parse(address_stream, ...)
 }
 \arguments{
 \item{addresses}{character vector of addresses}
 
 \item{address_stream}{data.table of addresses}
+
+\item{...}{additional parameters passed on to \link{address_cache_chunked}}
 }
 \value{
 data.frame of parsed addresses, one row per vector element

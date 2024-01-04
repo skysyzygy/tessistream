@@ -287,7 +287,7 @@ p2_update <- function() {
       select(id) %>%
       collect()
 
-    p <- progressor(nrow(recent_links))
+    p <- progressor(nrow(recent_links)*2)
     map(recent_links$id, ~ {
       for(table in c("linkData","mppLinkData")) {
         path <- file.path("api/3/links", ., table)

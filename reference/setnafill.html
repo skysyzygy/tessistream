@@ -52,7 +52,7 @@ Displatches to setnafill_ functions based on column class and type of fill"><!--
     </div>
 
     <div class="ref-description section level2">
-    <p>Wrapper for <a href="https://Rdatatable.gitlab.io/data.table/reference/nafill.html" class="external-link">data.table::setnafill</a> for fast filling by group and non-numeric columns.
+    <p>Wrapper for <a href="https://rdatatable.gitlab.io/data.table/reference/nafill.html" class="external-link">data.table::setnafill</a> for fast filling by group and non-numeric columns.
 Displatches to setnafill_ functions based on column class and type of fill</p>
     </div>
 
@@ -108,7 +108,7 @@ Displatches to setnafill_ functions based on column class and type of fill</p>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://Rdatatable.gitlab.io/data.table/reference/data.table.html" class="external-link">data.table</a></span><span class="op">(</span>a <span class="op">=</span> <span class="cn">NA_character_</span>, b <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdatatable.gitlab.io/data.table/reference/data.table.html" class="external-link">data.table</a></span><span class="op">(</span>a <span class="op">=</span> <span class="cn">NA_character_</span>, b <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">x</span><span class="op">[</span><span class="fl">1</span>, <span class="va">a</span> <span class="op">:=</span> <span class="st">"a"</span><span class="op">]</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        a b</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  1:    a 1</span>
@@ -154,7 +154,7 @@ Displatches to setnafill_ functions based on column class and type of fill</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 19: &lt;NA&gt; 2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 20: &lt;NA&gt; 2</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://Rdatatable.gitlab.io/data.table/reference/copy.html" class="external-link">copy</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdatatable.gitlab.io/data.table/reference/copy.html" class="external-link">copy</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">setnafill</span><span class="op">(</span><span class="va">y</span>, type <span class="op">=</span> <span class="st">"const"</span>, fill <span class="op">=</span> <span class="st">"test"</span>, cols <span class="op">=</span> <span class="st">"a"</span><span class="op">)</span><span class="op">[</span><span class="op">]</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        a b</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  1:    a 1</span>
@@ -178,7 +178,7 @@ Displatches to setnafill_ functions based on column class and type of fill</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 19: test 2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 20: test 2</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://Rdatatable.gitlab.io/data.table/reference/copy.html" class="external-link">copy</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdatatable.gitlab.io/data.table/reference/copy.html" class="external-link">copy</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">setnafill</span><span class="op">(</span><span class="va">y</span>, type <span class="op">=</span> <span class="st">"locf"</span>, by <span class="op">=</span> <span class="st">"b"</span><span class="op">)</span><span class="op">[</span><span class="op">]</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        a b</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  1:    a 1</span>
@@ -202,7 +202,7 @@ Displatches to setnafill_ functions based on column class and type of fill</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 19: &lt;NA&gt; 2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 20: &lt;NA&gt; 2</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://Rdatatable.gitlab.io/data.table/reference/copy.html" class="external-link">copy</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdatatable.gitlab.io/data.table/reference/copy.html" class="external-link">copy</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">setnafill</span><span class="op">(</span><span class="va">y</span>, type <span class="op">=</span> <span class="st">"nocb"</span>, by <span class="op">=</span> <span class="st">"b"</span><span class="op">)</span><span class="op">[</span><span class="op">]</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        a b</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  1:    a 1</span>

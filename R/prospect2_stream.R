@@ -297,8 +297,8 @@ p2_update <- function() {
     })
   }
 
-  # then load new ids greater than the current max id
-  for (table in c("logs", "linkData", "mppLinkData")) {
+  # then load new log entries greater than the current max id
+  for (table in c("logs")) {
     max_id <- if (DBI::dbExistsTable(tessistream$p2_db, table)) {
       tbl(tessistream$p2_db, table) %>%
         summarize(max(as.integer(id), na.rm = TRUE)) %>%
@@ -308,20 +308,6 @@ p2_update <- function() {
       0
     }
     p2_load(table, offset = max_id)
-
-    # amd try to fill in any remaining gaps in the index
-    holes <- tbl(tessistream$p2_db, table) %>%
-      transmute(id=as.integer(id),
-                lag_id=lag(as.integer(id),
-                           order_by = as.integer(id))) %>%
-      filter(id-lag_id>1) %>%
-      transmute(off = lag_id,
-                len = id-lag_id-1) %>%
-      collect()
-    if(nrow(holes) > 0) {
-          p2_load(table, jobs = holes)
-    }
-
   }
 }
 

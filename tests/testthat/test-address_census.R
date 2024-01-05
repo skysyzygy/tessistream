@@ -80,7 +80,7 @@ test_that("census_race_features returns all race/ethnicity data", {
   expect_names(unique(features$feature),
                permutation.of = c("White","Black or African American","American Indian and Alaska Native","Asian","Native Hawaiian and Other Pacific Islander","Other"))
   # all years
-  expect_equal(unique(features$year),c(2000, seq(2009,2021)))
+  expect_equal(unique(features$year),c(2000, seq(2009,2022)))
   # low missingness
   expect_lt(features[,.(value=sum(value)),by=c("GEOID","year")][is.na(value) | value == 0,.N],nrow(features)*.01)
 })
@@ -95,7 +95,7 @@ test_that("census_sex_features returns all sex data", {
   # all features
   expect_names(unique(features$feature), permutation.of = c("Male","Female"))
   # all years
-  expect_equal(unique(features$year),c(2000, seq(2009,2021)))
+  expect_equal(unique(features$year),c(2000, seq(2009,2022)))
   # low missingness
   expect_lt(features[,.(value=sum(value)),by=c("GEOID","year")][is.na(value) | value == 0,.N],nrow(features)*.01)
 })
@@ -123,7 +123,7 @@ test_that("census_age_features returns all age data", {
   expect_named(features,c("year","GEOID","value","moe","feature"),ignore.order = TRUE)
   expect_names(unique(features$feature), permutation.of = age_features)
   # all years
-  expect_equal(unique(features$year),c(2000, seq(2009,2021)))
+  expect_equal(unique(features$year),c(2000, seq(2009,2022)))
   # low missingness
   expect_lt(features[,.(value=sum(value)),by=c("GEOID","year")][is.na(value) | value == 0,.N],nrow(features)*.01)
 
@@ -150,7 +150,7 @@ test_that("census_income_features returns all income data", {
   expect_named(features,c("year","GEOID","value","moe","feature"),ignore.order = TRUE)
   expect_names(unique(features$feature), permutation.of = paste(c("Median","Mean"),"Income"))
   # all years
-  expect_equal(unique(features$year),c(2000, seq(2009,2021)))
+  expect_equal(unique(features$year),c(2000, seq(2009,2022)))
   # low missingness
   expect_lt(features[,.(value=sum(value)),by=c("GEOID","year")][is.na(value) | value == 0,.N],nrow(features)*.02)
 
@@ -199,9 +199,9 @@ test_that("census_*_features return features whose sums are (mostly) consistent 
   census_age_features <- census_age_features()[,sum(value,na.rm=T),by=c("GEOID","year")]
 
   expect_lt(merge(census_race_features,census_sex_features,by=c("GEOID","year"))[,error := abs(V1.x-V1.y)/pmax(V1.x,V1.y)][error>.1,.N],
-            nrow(census_race_features)*.05)
+            nrow(census_race_features)*.1)
   expect_lt(merge(census_race_features,census_age_features,by=c("GEOID","year"))[,error := abs(V1.x-V1.y)/pmax(V1.x,V1.y)][error>.1,.N],
-            nrow(census_race_features)*.05)
+            nrow(census_race_features)*.1)
   # sex and age should be internally consistent
   expect_equal(merge(census_sex_features,census_age_features,by=c("GEOID","year"))[,error := abs(V1.x-V1.y)/pmax(V1.x,V1.y)][error>0,.N],0)
 

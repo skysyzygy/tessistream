@@ -417,7 +417,7 @@ test_that("p2_update loads campaigns, messages, links, bounceLogs, contactLists,
 
   expect_true(all(c(
     "campaigns", "messages", "links", "bounceLogs", "contactLists", "fieldValues",
-    "logs", "linkData", "contacts", "links"
+    "logs", "contacts", "links"
   ) %in% purrr::map_chr(mock_args(p2_load), 1)))
 })
 
@@ -437,45 +437,16 @@ test_that("p2_update only loads contacts after max(updated_timestamp)", {
   expect_equal(call[[1]][["query"]], list("filters[updated_after]" = as.character(today() + ddays(30))))
 })
 
-test_that("p2_update only loads logs and linkData after max(id)", {
+test_that("p2_update only loads logs after max(id)", {
   p2_load <- mock(cycle = T)
   stub(p2_update, "p2_load", p2_load)
   p2_db_open()
   copy_to(tessistream$p2_db, name = "logs", data.table(id = seq(100) %>% as.character()))
-  copy_to(tessistream$p2_db, name = "linkData", data.table(id = seq(100) %>% as.character()))
-  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id = seq(100) %>% as.character()))
 
   p2_update()
 
-  calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("logs", "linkData"))
+  calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("logs"))
   expect_equal(calls[[1]][["offset"]], 100)
-  expect_equal(calls[[2]][["offset"]], 100)
-})
-
-
-test_that("p2_update fills in gaps in logs and linkData", {
-  p2_load <- mock(cycle = T)
-  stub(p2_update, "p2_load", p2_load)
-  p2_db_open()
-  copy_to(tessistream$p2_db, name = "logs", data.table(id = c(seq(100),
-                                                              seq(102,200)) %>% as.character()))
-  copy_to(tessistream$p2_db, name = "linkData", data.table(id = c(seq(100),
-                                                                  seq(102,200)) %>% as.character()))
-  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id = c(seq(100),
-                                                                  seq(102,200)) %>% as.character()))
-
-  p2_update()
-
-  calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("logs", "linkData", "mppLinkData"))
-  expect_equal(calls[[1]], list("logs", offset = 200))
-  expect_equal(calls[[2]], list("logs", jobs = data.frame(off = 100, len = 1)),
-              ignore_attr = T)
-  expect_equal(calls[[3]], list("linkData", offset = 200))
-  expect_equal(calls[[4]], list("linkData", jobs = data.frame(off = 100, len = 1)),
-              ignore_attr = T)
-  expect_equal(calls[[5]], list("mppLinkData", offset = 200))
-  expect_equal(calls[[6]], list("mppLinkData", jobs = data.frame(off = 100, len = 1)),
-              ignore_attr = T)
 })
 
 test_that("p2_update updates recent linkData", {
@@ -494,7 +465,7 @@ test_that("p2_update updates recent linkData", {
   p2_update()
 
   calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("linkData"))
-  expect_equal(length(calls), 101)
+  expect_equal(length(calls), 100)
   expect_equal(
     keep(calls, ~ "path" %in% names(.)) %>% purrr::map_chr("path"),
     paste0("api/3/links/", seq(100), "/linkData")

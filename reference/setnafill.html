@@ -110,121 +110,131 @@ Displatches to setnafill_ functions based on column class and type of fill</p>
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdatatable.gitlab.io/data.table/reference/data.table.html" class="external-link">data.table</a></span><span class="op">(</span>a <span class="op">=</span> <span class="cn">NA_character_</span>, b <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">x</span><span class="op">[</span><span class="fl">1</span>, <span class="va">a</span> <span class="op">:=</span> <span class="st">"a"</span><span class="op">]</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        a b</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  1:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  2: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  3: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  4: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  5: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  6: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  7: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  8: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  9: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 11: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 12: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 13: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 14: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 15: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 16: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 17: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 18: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 19: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 20: &lt;NA&gt; 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          a     b</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     &lt;char&gt; &lt;int&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  1:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  2:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  3:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  4:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  5:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  6:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  7:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  8:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  9:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 11:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 12:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 13:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 14:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 15:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 16:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 17:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 18:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          a     b</span>
 <span class="r-in"><span><span class="va">x</span><span class="op">[</span><span class="fl">10</span>, <span class="va">a</span> <span class="op">:=</span> <span class="st">"x"</span><span class="op">]</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        a b</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  1:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  2: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  3: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  4: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  5: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  6: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  7: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  8: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  9: &lt;NA&gt; 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 11: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 12: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 13: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 14: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 15: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 16: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 17: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 18: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 19: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 20: &lt;NA&gt; 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          a     b</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     &lt;char&gt; &lt;int&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  1:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  2:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  3:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  4:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  5:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  6:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  7:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  8:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  9:   &lt;NA&gt;     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 11:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 12:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 13:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 14:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 15:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 16:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 17:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 18:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          a     b</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdatatable.gitlab.io/data.table/reference/copy.html" class="external-link">copy</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">setnafill</span><span class="op">(</span><span class="va">y</span>, type <span class="op">=</span> <span class="st">"const"</span>, fill <span class="op">=</span> <span class="st">"test"</span>, cols <span class="op">=</span> <span class="st">"a"</span><span class="op">)</span><span class="op">[</span><span class="op">]</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        a b</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  1:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  2: test 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  3: test 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  4: test 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  5: test 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  6: test 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  7: test 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  8: test 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  9: test 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 11: test 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 12: test 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 13: test 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 14: test 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 15: test 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 16: test 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 17: test 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 18: test 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 19: test 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 20: test 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          a     b</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     &lt;char&gt; &lt;int&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  1:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  2:   test     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  3:   test     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  4:   test     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  5:   test     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  6:   test     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  7:   test     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  8:   test     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  9:   test     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 11:   test     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 12:   test     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 13:   test     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 14:   test     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 15:   test     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 16:   test     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 17:   test     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 18:   test     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19:   test     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20:   test     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          a     b</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdatatable.gitlab.io/data.table/reference/copy.html" class="external-link">copy</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">setnafill</span><span class="op">(</span><span class="va">y</span>, type <span class="op">=</span> <span class="st">"locf"</span>, by <span class="op">=</span> <span class="st">"b"</span><span class="op">)</span><span class="op">[</span><span class="op">]</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        a b</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  1:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  2:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  3:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  4:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  5:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  6:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  7:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  8:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  9:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 11: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 12: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 13: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 14: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 15: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 16: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 17: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 18: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 19: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 20: &lt;NA&gt; 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          a     b</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     &lt;char&gt; &lt;int&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  1:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  2:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  3:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  4:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  5:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  6:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  7:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  8:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  9:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 11:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 12:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 13:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 14:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 15:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 16:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 17:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 18:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          a     b</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdatatable.gitlab.io/data.table/reference/copy.html" class="external-link">copy</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">setnafill</span><span class="op">(</span><span class="va">y</span>, type <span class="op">=</span> <span class="st">"nocb"</span>, by <span class="op">=</span> <span class="st">"b"</span><span class="op">)</span><span class="op">[</span><span class="op">]</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        a b</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  1:    a 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  2:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  3:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  4:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  5:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  6:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  7:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  8:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  9:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10:    x 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 11: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 12: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 13: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 14: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 15: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 16: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 17: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 18: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 19: &lt;NA&gt; 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 20: &lt;NA&gt; 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          a     b</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     &lt;char&gt; &lt;int&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  1:      a     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  2:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  3:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  4:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  5:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  6:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  7:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  8:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  9:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10:      x     1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 11:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 12:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 13:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 14:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 15:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 16:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 17:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 18:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 19:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 20:   &lt;NA&gt;     2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          a     b</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

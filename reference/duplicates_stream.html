@@ -62,9 +62,9 @@ for each probable duplicate is determined using the fastLink package.</p>
 <span></span>
 <span><span class="fu">duplicates_append_data</span><span class="op">(</span></span>
 <span>  <span class="va">data</span>,</span>
-<span>  features <span class="op">=</span> <span class="fu">rlang</span><span class="fu">::</span><span class="fu"><a href="https://rlang.r-lib.org/reference/defusing-advanced.html" class="external-link">exprs</a></span><span class="op">(</span>`Current membership` <span class="op">=</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">memb_level</span><span class="op">)</span>, `Last login date` <span class="op">=</span></span>
-<span>    <span class="va">last_login_dt</span>, `Last activity date` <span class="op">=</span> <span class="va">last_activity_dt</span>, `Last update date` <span class="op">=</span></span>
-<span>    <span class="va">last_update_dt</span><span class="op">)</span></span>
+<span>  features <span class="op">=</span> <span class="fu">rlang</span><span class="fu">::</span><span class="fu"><a href="https://rlang.r-lib.org/reference/defusing-advanced.html" class="external-link">exprs</a></span><span class="op">(</span>`In household` <span class="op">=</span> <span class="va">in_household</span>, `Current membership` <span class="op">=</span></span>
+<span>    <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">memb_level</span><span class="op">)</span>, `Last login date` <span class="op">=</span> <span class="va">last_login_dt</span>, `Last activity date` <span class="op">=</span></span>
+<span>    <span class="va">last_activity_dt</span>, `Last update date` <span class="op">=</span> <span class="va">last_update_dt</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">duplicates_suppress_related</span><span class="op">(</span><span class="va">data</span><span class="op">)</span></span>
@@ -148,7 +148,7 @@ on appended data and return the reason for the choice.</p></li>
 or that have a relationships (in Tessi-speak: an association) with each other.</p></li>
 <li><p><code>duplicates_exact_match()</code>: Returns a minimal (in the sense of each duplicate pairing is limited to the two
 closest customer numbers in a duplicate cluster, and each pair is listed only
-onc) set of customer pairs matching exactly on <code>match_cols</code>.</p></li>
+once) set of customer pairs matching exactly on <code>match_cols</code>.</p></li>
 <li><p><code>duplicates_data()</code>: Load data for duplicates_stream</p></li>
 </ul></div>
     <div class="section level2">

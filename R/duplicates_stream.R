@@ -57,6 +57,7 @@ duplicates_stream <- function(...) {
 #'
 #' @return data.table
 duplicates_append_data <- function(data, features = rlang::exprs(
+  "In household" = in_household,
   "Current membership" = !is.na(memb_level),
   "Last login date" = last_login_dt,
   "Last activity date" = last_activity_dt,
@@ -78,7 +79,8 @@ duplicates_append_data <- function(data, features = rlang::exprs(
 
   customers <- read_tessi("customers") %>%
     filter(inactive_desc == "Active") %>%
-    select(customer_no, last_activity_dt, last_update_dt) %>%
+    transmute(customer_no, last_activity_dt, last_update_dt,
+              in_household = customer_no != group_customer_no) %>%
     collect %>% setDT
 
   append_data <- merge(memberships,logins,by="customer_no",all=T) %>%
@@ -134,7 +136,7 @@ duplicates_suppress_related <- function(data) {
 #' @describeIn duplicates_stream
 #' Returns a minimal (in the sense of each duplicate pairing is limited to the two
 #' closest customer numbers in a duplicate cluster, and each pair is listed only
-#' onc) set of customer pairs matching exactly on `match_cols`.
+#' once) set of customer pairs matching exactly on `match_cols`.
 #'
 #' @param data data.table to deduplicate
 #' @param match_cols columns to match on

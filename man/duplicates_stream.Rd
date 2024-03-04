@@ -13,9 +13,9 @@ duplicates_stream(...)
 
 duplicates_append_data(
   data,
-  features = rlang::exprs(`Current membership` = !is.na(memb_level), `Last login date` =
-    last_login_dt, `Last activity date` = last_activity_dt, `Last update date` =
-    last_update_dt)
+  features = rlang::exprs(`In household` = in_household, `Current membership` =
+    !is.na(memb_level), `Last login date` = last_login_dt, `Last activity date` =
+    last_activity_dt, `Last update date` = last_update_dt)
 )
 
 duplicates_suppress_related(data)
@@ -86,7 +86,7 @@ or that have a relationships (in Tessi-speak: an association) with each other.
 
 \item \code{duplicates_exact_match()}: Returns a minimal (in the sense of each duplicate pairing is limited to the two
 closest customer numbers in a duplicate cluster, and each pair is listed only
-onc) set of customer pairs matching exactly on \code{match_cols}.
+once) set of customer pairs matching exactly on \code{match_cols}.
 
 \item \code{duplicates_data()}: Load data for \link{duplicates_stream}
 

@@ -90,6 +90,7 @@ test_that("duplicates_append_data makes choices for keep/delete and returns this
                                               ymd("1900-01-01"),
                                               ymd("2100-01-01")))
   customers <- data.table(customer_no = seq(n),
+                          group_customer_no = seq(n) + sample(c(0,1),n,T),
                           inactive_desc = "Active",
                        last_update_dt = runif(n,
                                              ymd("1900-01-01"),
@@ -107,23 +108,29 @@ test_that("duplicates_append_data makes choices for keep/delete and returns this
   data <- duplicates_append_data(data)
 
   reasons <- sort(c("Current membership",
+                    "In household",
                     "Last activity date",
                     "Last login date",
                     "Last update date"))
   # All reasons are represented
   expect_equal(data[,sort(unique(keep_reason))],reasons)
 
+  households <- customers[customer_no != group_customer_no, customer_no]
   current_memberships <- memberships[!is.na(memb_level),customer_no]
 
-  # if customer has membership then keep them
+  # if customer in household then keep them
   customer_has_membership <- data[customer_no %in% current_memberships &
-                                    !i.customer_no %in% current_memberships]
+                                  !i.customer_no %in% current_memberships &
+                                  !customer_no %in% households &
+                                  !i.customer_no %in% households]
   expect_equal(customer_has_membership[,keep_customer_no],
                customer_has_membership[,customer_no])
 
   # if i.customer has membership then keep them
   i.customer_has_membership <- data[!customer_no %in% current_memberships &
-                                    i.customer_no %in% current_memberships]
+                                    i.customer_no %in% current_memberships &
+                                      !customer_no %in% households &
+                                      !i.customer_no %in% households]
   expect_equal(i.customer_has_membership[,keep_customer_no],
                i.customer_has_membership[,i.customer_no])
 

@@ -194,6 +194,46 @@ duplicates_prepare_fixtures <- function() {
 
 }
 
+email_prepare_fixtures <- function() {
+  n_rows = 100000
+  withr::local_package("lubridate")
+
+  promotions = data.frame(
+    media_type = 3,
+    customer_no = sample(1:1000,n_rows,replace = TRUE),
+    promote_dt = as_datetime(runif(n_rows, ymd_hms("2000-01-01 00:00:00"), now())),
+    appeal_no = sample(1:10, n_rows, replace = TRUE),
+    campaign_no = sample(1:10, n_rows, replace = TRUE),
+    source_no = sample(1:100, n_rows, replace = TRUE)) %>%
+  mutate(group_customer_no = customer_no + 10000,
+         eaddress = paste(customer_no,sample(c("gmail.com","yahoo.com","bam.org"),n_rows,replace = TRUE),
+                          sep = "@"))
+
+  ### Promotion responses
+
+  promotion_responses =
+    dplyr::sample_frac(promotions, .1) %>%
+    filter(source_no > 1) %>% # one source has no response
+      transmute(group_customer_no,customer_no,
+              response = sample(1:5, nrow(.), replace = TRUE),
+              response_dt = promote_dt + runif(nrow(.), 300, 86400),
+              source_no, url_no = sample(1:1000, nrow(.), replace = TRUE))
+
+  arrow::write_parquet(promotions, rprojroot::find_testthat_root_file("email_stream-promotions.parquet"))
+  arrow::write_parquet(promotion_responses, rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"))
+
+  emails <- data.frame(customer_no = sample(1:1000,n_rows, replace = TRUE),
+                       primary_ind = "Y",
+                       timestamp = as_datetime(runif(n_rows, ymd_hms("2000-01-01 00:00:00"), now()))) %>%
+    mutate(group_customer_no = customer_no + 10000,
+           address = paste(customer_no,sample(c("gmail.com","yahoo.com","bam.org"),n_rows,replace = TRUE),
+                           sep = "@")) %>% setDT
+
+  saveRDS(emails, rprojroot::find_testthat_root_file("email_stream-emails.Rds"))
+
+
+}
+
 
 p2_prepare_fixtures <- function() {
   stub <- mutate <- across <- any_of <- NULL

@@ -92,10 +92,34 @@ test_that("email_data_append recalculates send timestamps based on earliest prom
 
 test_that("email_data_append fills in customer emails based on the send date", {
   email_data_append <- email_data_append_stubbed(email_data_stubbed()) %>% collect() %>% setDT
-  emails <- readRDS(rprojroot::find_testthat_root_file("email_stream-emails.RDs")) %>% setDT
+  emails <- readRDS(rprojroot::find_testthat_root_file("email_stream-emails.RDs")) %>% setDT %>%
+    setkey(customer_no, timestamp)
   email_data <- email_data_stubbed() %>% collect() %>% setDT()
 
-  expect_gt(email_data_append[!is.na(eaddress),.N],email_data[!is.na(eaddress),.N])
+  # given eaddresses are not updated
+  expect_equal(email_data_append[!is.na(eaddress) & event_subtype == "Send", eaddress],
+               email_data[!is.na(eaddress), eaddress])
+
+  emails <- emails[,.(eaddress = address, from = timestamp, to = data.table::shift(timestamp, type = "lead",
+                                                                                   fill = Inf)), by = c("customer_no")]
+
+  # new eaddresses come from the matching address in `emails`
+  email_test <- merge(email_data_append[!is.na(eaddress) & event_subtype != "Send"],
+                      emails, all.x = TRUE, by = c("customer_no", "eaddress"), allow.cartesian = TRUE)
+
+  setkey(email_data_append, customer_no, timestamp)
+  setkey(email_test, customer_no, timestamp)
+  expect_mapequal(
+    email_data_append[!is.na(eaddress) & event_subtype != "Send",.(TRUE,eaddress,timestamp)],
+    email_test[,.(eaddress,timestamp,from,to)][,any(timestamp >= from & timestamp <= to),by = c("eaddress","timestamp")]
+  )
+})
+
+test_that("email_data_append cleans the email address and extracts the domain", {
+  email_data_append <- email_data_append_stubbed(email_data_stubbed()) %>% collect() %>% setDT
+
+  expect_no_match(email_data_append$eaddress, "[A-Z\\s]")
+  expect_match(email_data_append$domain, "gmail", perl = TRUE)
 
 })
 
@@ -110,12 +134,10 @@ test_that("email_stream is sane", {
 
   # all rows have a customer
   expect_equal(email_stream[is.na(group_customer_no),.N],0)
-  # # Check that there is time information on most promotions and responses
-  # # TEST: all rows have time information
-  # testit::assert(emailStream[is.na(timestamp),] %>% nrow == 0)
-  # # TEST: 98% of all rows have an email address...
-  # testit::assert(emailStream[is.na(domain)] %>% nrow/nrow(emailStream)<.02)
-  # #Clean up
+  # all rows have time information
+  expect_equal(email_stream[is.na(timestamp),.N] == 0)
+  # all rows have an email address
+  expect_equal(email_stream[is.na(eaddress),.N] == 0)
 
 })
 

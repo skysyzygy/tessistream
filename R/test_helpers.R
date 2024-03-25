@@ -206,13 +206,15 @@ email_prepare_fixtures <- function() {
     campaign_no = sample(1:10, n_rows, replace = TRUE),
     source_no = sample(1:100, n_rows, replace = TRUE)) %>%
   mutate(group_customer_no = customer_no + 10000,
-         eaddress = paste(customer_no,sample(c("gmail.com","yahoo.com","bam.org"),n_rows,replace = TRUE),
-                          sep = "@"))
+         eaddress = ifelse(runif(n_rows) < .1,
+                           paste(customer_no,c("gmail.com","yahoo.com","bam.org",
+                                               "gmail.COM ","YAHOO.com ","bam.org "),sep = "@"),
+                           NA))
 
   ### Promotion responses
 
   promotion_responses =
-    dplyr::sample_frac(promotions, .1) %>%
+    filter(promotions, !is.na(eaddress)) %>%
     filter(source_no > 1) %>% # one source has no response
       transmute(group_customer_no,customer_no,
               response = sample(1:5, nrow(.), replace = TRUE),

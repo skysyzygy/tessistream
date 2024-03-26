@@ -2,6 +2,7 @@ withr::local_package("mockery")
 withr::local_package("checkmate")
 
 .acq_dt <- lubridate::as_datetime(lubridate::today())
+.responses <- c("Opened Email","Click Through","Hard Bounce","Soft Bounce","UnSubscribe")
 
 # email_data --------------------------------------------------------------
 
@@ -25,7 +26,7 @@ test_that("email_data loads from promotions and promotion_responses and returns 
 # email_data_append -------------------------------------------------------
 
 email_data_append_stubbed <- function(email_data) {
-  responses <- arrow::arrow_table(response = 1:5, event_subtype = c("open","click","hard","soft","unsub"))
+  responses <- arrow::arrow_table(response = 1:5, event_subtype = .responses)
   sources <- arrow::arrow_table(source_no = 1:1000, source_desc = cli::hash_md5(1:1000), acq_dt = .acq_dt)
   extractions <- arrow::arrow_table(source_no = 1:1000, extraction_desc = cli::hash_md5(paste("extraction",1:1000)))
   emails <- readRDS(rprojroot::find_testthat_root_file("email_stream-emails.RDs"))
@@ -176,12 +177,21 @@ test_that("email_stream returns an arrow table",{
 })
 
 test_that("email_stream labels multiple opens as a forward",{
+  email_stream <- email_stream_stubbed() %>% collect %>% setDT
+
+  # There are no customer_no/source_no combinations with more than one open
+  expect_equal(email_stream[grepl("open",event_subtype,ignore.case=T),
+                  .N,by=c("customer_no","source_no")][N>1,.N],0)
+
+  # And there are forwards that have been added
+  expect_gt(email_stream[grepl("forward",event_subtype,ignore.case=T),.N],0)
 
 })
+
 test_that("email_stream adds subtype counts/min/max",{
   expect_names(colnames(email_stream_stubbed()),
                must.include = data.table::CJ("email",
-                                             c("send","open","click","hard","soft","unsub","forward"),
+                                             gsub("\\s","_",tolower(c("Send","Forward",.responses))),
                                              c("count","timestamp_min","timestamp_max"),
                                              sep="_") %>%
                  do.call(what=paste))

@@ -130,14 +130,15 @@ email_stream <- function() {
     #arrow::concat_tables(p2_stream(),unify_schema = TRUE)
 
   # Build time-varying customer data
-  email_stream <- arrange(email_stream, group_customer_no, timestamp) %>% compute
+  email_stream <- arrange(email_stream, group_customer_no, timestamp)
   email_subtypes <- email_stream %>%
     select(group_customer_no, timestamp, source_no, event_subtype) %>%
     collect %>% setDT
 
   # Label multiple opens of a source as a forward
   email_subtypes[email_subtypes[grepl("open",event_subtype,ignore.case=T),
-                                .I[2:.N],by=c("group_customer_no","source_no")]$V1,
+                                tail(.I,-1),
+                                by=c("group_customer_no","source_no")]$V1,
                  event_subtype:="Forward"]
 
   for( subtype in unique(email_subtypes$event_subtype) ) {
@@ -145,7 +146,7 @@ email_stream <- function() {
     # email[subtype]TimestampMax
     # email[subtype]Count
 
-    cols = paste("email",tolower(subtype),c("timestamp_min", "timestamp_max", "count"),sep="_")
+    cols = paste("email",gsub("\\s","_",tolower(subtype)),c("timestamp_min", "timestamp_max", "count"),sep="_")
     email_subtypes[event_subtype==subtype, (cols) := list(min(timestamp),timestamp,seq_len(.N)),
                    by=group_customer_no]
     #Fill down, respecting customer boundaries
@@ -156,8 +157,8 @@ email_stream <- function() {
 
   }
 
-  email_stream <- cbind(email_stream,
-                        email_subtypes[,.SD,.SDcols = -c("timestamp", "group_customer_no","source_no", "event_subtype")])
+  email_stream <- cbind(email_stream %>% select(-event_subtype) %>% compute,
+                        email_subtypes[,.SD,.SDcols = -c("timestamp", "group_customer_no", "source_no")])
 
   write_cache(email_stream, "email_stream", "stream")
 

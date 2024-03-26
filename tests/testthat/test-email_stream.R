@@ -25,7 +25,7 @@ test_that("email_data loads from promotions and promotion_responses and returns 
 # email_data_append -------------------------------------------------------
 
 email_data_append_stubbed <- function(email_data) {
-  responses <- arrow::arrow_table(response = 1:5, event_subtype = letters[1:5])
+  responses <- arrow::arrow_table(response = 1:5, event_subtype = c("open","click","hard","soft","unsub"))
   sources <- arrow::arrow_table(source_no = 1:1000, source_desc = cli::hash_md5(1:1000), acq_dt = .acq_dt)
   extractions <- arrow::arrow_table(source_no = 1:1000, extraction_desc = cli::hash_md5(paste("extraction",1:1000)))
   emails <- readRDS(rprojroot::find_testthat_root_file("email_stream-emails.RDs"))
@@ -96,48 +96,95 @@ test_that("email_data_append fills in customer emails based on the send date", {
     setkey(customer_no, timestamp)
   email_data <- email_data_stubbed() %>% collect() %>% setDT()
 
-  # given eaddresses are not updated
-  expect_equal(email_data_append[!is.na(eaddress) & event_subtype == "Send", eaddress],
-               email_data[!is.na(eaddress), eaddress])
+  # test that all given eaddresses are still present (can't check timestamps because they've been changed!)
+  expect_contains(email_data_append[,eaddress],
+                  email_data[,tolower(trimws(eaddress))])
 
-  emails <- emails[,.(eaddress = address, from = timestamp, to = data.table::shift(timestamp, type = "lead",
-                                                                                   fill = Inf)), by = c("customer_no")]
+  # filter out known eaddresses...
+  email_data_append <- email_data_append[is.na(eaddress) | !eaddress %in% email_data[,tolower(trimws(eaddress))]]
 
-  # new eaddresses come from the matching address in `emails`
-  email_test <- merge(email_data_append[!is.na(eaddress) & event_subtype != "Send"],
-                      emails, all.x = TRUE, by = c("customer_no", "eaddress"), allow.cartesian = TRUE)
+  # build a test dataset that contains the first noted email
+# first_emails <- rbind(emails,email_data_append[!is.na(eaddress)],fill=T) %>%
+#     setkey(customer_no,timestamp) %>%
+#     .[,.(address = head(coalesce(eaddress,address),1),
+#          timestamp = as.POSIXct("1900-01-01")), by = "customer_no"]
+#   # ... as well as the stream_from_audit table of email changes
+#   emails <- rbind(emails, first_emails, fill = T) %>% setkey(customer_no, timestamp)
+  # ... and turn it into something that can be joined without rolling
+  emails <- emails[,.(eaddress = address, from = timestamp,
+                      to = data.table::shift(timestamp, type = "lead",
+                                             fill = Inf)), by = c("customer_no")]
 
-  setkey(email_data_append, customer_no, timestamp)
-  setkey(email_test, customer_no, timestamp)
-  expect_mapequal(
-    email_data_append[!is.na(eaddress) & event_subtype != "Send",.(TRUE,eaddress,timestamp)],
-    email_test[,.(eaddress,timestamp,from,to)][,any(timestamp >= from & timestamp <= to),by = c("eaddress","timestamp")]
-  )
+
+  # test that all new eaddresses come from a matching address in the `emails` test set
+  email_test <- merge(email_data_append,
+                      emails, all.x = TRUE, by = c("customer_no", "eaddress"), allow.cartesian = TRUE) %>%
+    .[,.(eaddress,customer_no,timestamp,from,to)]
+
+  expect_length(email_test[!is.na(eaddress),
+                           any(timestamp >= from & timestamp <= to),by = c("eaddress","timestamp")] %>%
+                 .[is.na(V1) | !V1, unique(eaddress)],0)
+
+  # test that missing eaddresses are before the addresses in the `emails` test set
+  expect_true(merge(email_test[is.na(eaddress),.(max_timestamp = max(timestamp, na.rm=T)),by = "customer_no"],
+                    email_test[,.(min_from = min(from, na.rm=T)), by = "customer_no"]) %>%
+                  .[,all(max_timestamp < min_from)])
+
 })
 
 test_that("email_data_append cleans the email address and extracts the domain", {
   email_data_append <- email_data_append_stubbed(email_data_stubbed()) %>% collect() %>% setDT
 
   expect_no_match(email_data_append$eaddress, "[A-Z\\s]")
-  expect_match(email_data_append$domain, "gmail", perl = TRUE)
+  expect_match(email_data_append[!is.na(eaddress),domain], "^(mac|me|hotmail|gmail|yahoo|bam)\\.")
 
 })
-
 
 # email_stream ------------------------------------------------------------
 
-test_that("email_stream is sane", {
+email_stream_stubbed <- function() {
   stub(email_stream,"email_data",email_data_stubbed)
   stub(email_stream,"email_data_append",email_data_append_stubbed)
+  stub(email_stream,"write_cache",\(...){})
+  stub(email_stream,"p2_stream",arrow::arrow_table(customer_no=integer(0)))
 
-  email_stream <- email_stream()
+  email_stream()
+}
 
+test_that("email_stream is sane", {
+  email_stream <- email_stream_stubbed() %>% collect %>% setDT()
+
+  # no rows have been added or removed
+  expect_equal(email_stream[,.N],email_data_stubbed() %>% collect %>% nrow)
   # all rows have a customer
   expect_equal(email_stream[is.na(group_customer_no),.N],0)
   # all rows have time information
-  expect_equal(email_stream[is.na(timestamp),.N] == 0)
+  expect_equal(email_stream[is.na(timestamp),.N],0)
   # all rows have an email address
-  expect_equal(email_stream[is.na(eaddress),.N] == 0)
+  #expect_equal(email_stream[is.na(eaddress),.N],0)
+
+  expect_names(colnames(email_stream),
+               must.include =
+               c("group_customer_no", "customer_no", "timestamp", "event_type",
+               "event_subtype", "source_no", "appeal_no", "campaign_no", "source_desc",
+               "extraction_desc", "response", "url_no", "eaddress", "domain"))
 
 })
+
+test_that("email_stream returns an arrow table",{
+  expect_class(email_stream_stubbed(),"ArrowTabular")
+})
+
+test_that("email_stream labels multiple opens as a forward",{
+
+})
+test_that("email_stream adds subtype counts/min/max",{
+  expect_names(colnames(email_stream_stubbed()),
+               must.include = data.table::CJ("email",
+                                             c("send","open","click","hard","soft","unsub","forward"),
+                                             c("count","timestamp_min","timestamp_max"),
+                                             sep="_") %>%
+                 do.call(what=paste))
+})
+
 

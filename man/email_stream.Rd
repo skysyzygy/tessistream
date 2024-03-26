@@ -3,38 +3,59 @@
 \name{email_stream}
 \alias{email_stream}
 \alias{email_data}
+\alias{email_data_append}
 \title{email_stream}
 \usage{
 email_data(...)
+
+email_data_append(email_stream, ...)
+
+email_stream(...)
 }
 \arguments{
 \item{...}{
-  Arguments passed on to \code{\link[tessilake:read_sql]{tessilake::read_sql}}
+  Arguments passed on to \code{\link[tessilake:read_sql]{tessilake::read_sql}}, \code{\link[tessilake:read_sql]{tessilake::read_sql}}
   \describe{
     \item{\code{freshness}}{the returned data will be at least this fresh}
   }}
 }
+\value{
+\link[arrow:Table-class]{arrow::Table} of email data
+}
 \description{
+Combined dataset of email sends/clicks/opens from Tessitura / WordFly and data from Prospect2 \link{p2_stream}.
+Features included are:
 \itemize{
-\item group_customer_no
+\item group_customer_no, customer_no
 \item timestamp : date of email event
-\item event_type : Email
-\item event_subtype : Open|Click|Unsubscribe|Hard Bounce|Forward
--* event_subtype2 : Onsale|Newsletter|Film|Fundraising-
-\item campaign_no
-\item appeal_no
-\item source_no
-\item extraction_desc
-\item source_desc
-\item address
-\item domain
-\item email[subtype]TimestampMin
-\item email[subtype]TimestampMax
--* email[subtype][subtype2]Count-
+\item event_type : "Email"
+\item event_subtype : "Open", "Click", "Unsubscribe', "Hard Bounce", "Forward", etc.
+\item campaign_no, appeal_no, source_no
+\item extraction_desc, source_desc
+\item eaddress : email address
+\item domain : domain of email (everything after the \code{@})
+\item email_[subtype]_count
+\item email_[subtype]_timestamp_min
+\item email_[subtype]_timestamp_max
 }
 }
 \section{Functions}{
 \itemize{
 \item \code{email_data()}: load Tessitura email send/response data
 
+\item \code{email_data_append()}: adjusts timestamps based on known response data,
+fills in missing email addresses, domains, and campaign/appeal/source information
+
+\item \code{email_stream()}: appends p2 data, counts multiple opens as a forward,
+adds windowed open/click/send features and outputs to cache
+
 }}
+\note{
+\code{email_stream()} is essentially equivalent to
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   email_data() \%>\%
+   email_data_append() \%>\%
+   bind_rows(p2_stream())
+
+}\if{html}{\out{</div>}}
+}

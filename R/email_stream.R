@@ -1,21 +1,29 @@
 #' @title email_stream
 #' @description
-#' * group_customer_no
+#'
+#' Combined dataset of email sends/clicks/opens from Tessitura / WordFly and data from [p2_stream].
+#' Features included are:
+#'
+#' * group_customer_no, customer_no
 #' * timestamp : date of email event
-#' * event_type : Email
-#' * event_subtype : Open|Click|Unsubscribe|Hard Bounce|Forward
-#' -* event_subtype2 : Onsale|Newsletter|Film|Fundraising-
-#' * campaign_no
-#' * appeal_no
-#' * source_no
-#' * extraction_desc
-#' * source_desc
-#' * address
-#' * domain
-#' * email\[subtype\]TimestampMin
-#' * email\[subtype\]TimestampMax
-#' -* email\[subtype\]\[subtype2\]Count-
+#' * event_type : "Email"
+#' * event_subtype : "Open", "Click", "Unsubscribe', "Hard Bounce", "Forward", etc.
+#' * campaign_no, appeal_no, source_no
+#' * extraction_desc, source_desc
+#' * eaddress : email address
+#' * domain : domain of email (everything after the `@`)
+#' * email_\[subtype\]_count
+#' * email_\[subtype\]_timestamp_min
+#' * email_\[subtype\]_timestamp_max
+#' @note `email_stream()` is mostly equivalent to
+#' ```
+#'    email_data() %>%
+#'    email_data_append() %>%
+#'    bind_rows(p2_stream())
+#'
+#' ```
 #' @name email_stream
+#' @returns [arrow::Table] of email data
 NULL
 
 
@@ -24,6 +32,7 @@ NULL
 #' @importFrom dplyr filter compute collect
 #' @importFrom data.table tstrsplit
 #' @inheritDotParams tessilake::read_sql freshness
+#' @importFrom arrow concat_tables
 email_data <- function(...) {
 
   ### Promotions
@@ -46,11 +55,13 @@ email_data <- function(...) {
 
   ### Assemble email_stream
 
-  email_stream <- arrow::concat_tables(promotions, promotion_responses, unify_schemas = TRUE)
+  email_stream <- concat_tables(promotions, promotion_responses, unify_schemas = TRUE)
 
 }
 
 #' @importFrom dplyr mutate
+#' @describeIn email_stream adjusts timestamps based on known response data,
+#'          fills in missing email addresses, domains, and campaign/appeal/source information
 email_data_append <- function(email_stream, ...) {
 
   ### Response descriptions
@@ -124,10 +135,14 @@ email_data_append <- function(email_stream, ...) {
 
 #' @importFrom tessistream p2_stream
 #' @importFrom dplyr arrange
-email_stream <- function() {
+#' @importFrom arrow as_arrow_table concat_tables
+#' @inheritDotParams tessilake::read_sql freshness
+#' @describeIn email_stream appends p2 data, counts multiple opens as a forward,
+#'                adds windowed open/click/send features and outputs to cache
+email_stream <- function(...) {
 
-  email_stream <- email_data() %>% email_data_append() #%>%
-    #arrow::concat_tables(p2_stream(),unify_schema = TRUE)
+  email_stream <- email_data(...) %>% email_data_append(...) %>%
+    concat_tables(p2_stream() %>% as_arrow_table(), unify_schemas = TRUE)
 
   # Build time-varying customer data
   email_stream <- arrange(email_stream, group_customer_no, timestamp)

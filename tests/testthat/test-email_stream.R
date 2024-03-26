@@ -147,7 +147,7 @@ email_stream_stubbed <- function() {
   stub(email_stream,"email_data",email_data_stubbed)
   stub(email_stream,"email_data_append",email_data_append_stubbed)
   stub(email_stream,"write_cache",\(...){})
-  stub(email_stream,"p2_stream",arrow::arrow_table(customer_no=integer(0)))
+  stub(email_stream,"p2_stream",data.table(customer_no=integer(0)))
 
   email_stream()
 }

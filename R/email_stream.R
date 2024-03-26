@@ -147,7 +147,8 @@ email_stream <- function() {
     # email[subtype]Count
 
     cols = paste("email",gsub("\\s","_",tolower(subtype)),c("timestamp_min", "timestamp_max", "count"),sep="_")
-    email_subtypes[event_subtype==subtype, (cols) := list(min(timestamp),timestamp,seq_len(.N)),
+    email_subtypes[event_subtype==subtype,
+                   (cols) := list(min(timestamp),timestamp,seq_len(.N)),
                    by=group_customer_no]
     #Fill down, respecting customer boundaries
     setnafill(email_subtypes,

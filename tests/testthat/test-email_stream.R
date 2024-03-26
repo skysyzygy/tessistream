@@ -189,12 +189,17 @@ test_that("email_stream labels multiple opens as a forward",{
 })
 
 test_that("email_stream adds subtype counts/min/max",{
-  expect_names(colnames(email_stream_stubbed()),
+  email_stream <- email_stream_stubbed() %>% collect %>% setDT
+  expect_names(colnames(email_stream),
                must.include = data.table::CJ("email",
                                              gsub("\\s","_",tolower(c("Send","Forward",.responses))),
                                              c("count","timestamp_min","timestamp_max"),
                                              sep="_") %>%
                  do.call(what=paste))
+
+  expect_true(email_stream[event_subtype == "Send", all(timestamp >= email_send_timestamp_min)])
+  expect_true(email_stream[event_subtype == "Send", all(timestamp == email_send_timestamp_max)])
+  expect_true(all(email_stream[event_subtype == "Send", email_send_count == 1:.N, by = "customer_no"]))
 })
 
 

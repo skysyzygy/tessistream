@@ -185,6 +185,7 @@ email_subtype_features <- function(email_stream, ...) {
 #'    email_subtype_features(...) %>%
 #'    arrange(group_customer_no, timestamp)
 #' ```
+#' @export
 email_stream <- function(...) {
 
   email_stream <- email_data(...) %>% email_data_append(...) %>%

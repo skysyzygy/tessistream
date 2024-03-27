@@ -15,13 +15,7 @@
 #' * email_\[subtype\]_count
 #' * email_\[subtype\]_timestamp_min
 #' * email_\[subtype\]_timestamp_max
-#' @note `email_stream()` is mostly equivalent to
-#' ```
-#'    email_data() %>%
-#'    email_data_append() %>%
-#'    bind_rows(p2_stream())
-#'
-#' ```
+
 #' @name email_stream
 #' @returns [arrow::Table] of email data
 NULL
@@ -29,7 +23,7 @@ NULL
 
 #' @describeIn email_stream load Tessitura email send/response data
 #' @importFrom tessilake read_sql read_tessi
-#' @importFrom dplyr filter compute collect
+#' @importFrom dplyr filter compute collect summarise
 #' @importFrom data.table tstrsplit
 #' @inheritDotParams tessilake::read_sql freshness
 #' @importFrom arrow concat_tables
@@ -51,6 +45,10 @@ email_data <- function(...) {
     transmute(group_customer_no,customer_no,
               response, timestamp = response_dt,
               source_no, url_no) %>%
+    left_join(summarise(promotions,
+                        appeal_no = max(appeal_no),
+                        campaign_no = max(campaign_no),
+                        .by = source_no)) %>%
     compute
 
   ### Assemble email_stream
@@ -59,9 +57,7 @@ email_data <- function(...) {
 
 }
 
-#' @importFrom dplyr mutate
-#' @describeIn email_stream adjusts timestamps based on known response data,
-#'          fills in missing email addresses, domains, and campaign/appeal/source information
+#' @describeIn email_stream adds descriptive campaign/appeal/source information from Tessitura
 email_data_append <- function(email_stream, ...) {
 
   ### Response descriptions
@@ -84,13 +80,18 @@ email_data_append <- function(email_stream, ...) {
     left_join(sources, by = "source_no") %>%
     left_join(extractions, by = "source_no") %>%
     compute
+}
 
+#' @importFrom dplyr mutate summarise left_join coalesce collect
+#' @describeIn email_stream recalculates timestamps for sends because `promote_dt` is often long before
+#' the actual email send date.
+email_fix_timestamp <- function(email_stream, ...) {
   ### Fix timestamp for sends/promotions
 
   # recalculate timestamps because promotion often happens long before the actual send
   # NOTE: Have to bring this into R because window aggregation not implemented in Arrow
-  first_response <- email_stream %>% dplyr::summarise(first_response_dt = min(timestamp, na.rm = TRUE),
-                                                      .by = source_no) %>%
+  first_response <- email_stream %>% filter(!is.na(timestamp)) %>%
+    summarise(first_response_dt = min(timestamp, na.rm = TRUE),.by = source_no) %>%
     collect
 
   email_stream <- email_stream %>% left_join(first_response, by = "source_no") %>%
@@ -98,7 +99,12 @@ email_data_append <- function(email_stream, ...) {
     # 2. use acq_dt from the source code because this is sometimes set manually as a replacement for acq_dt
     # 3. use promote_dt
     mutate(timestamp = coalesce(timestamp,first_response_dt,acq_dt,promote_dt))
+}
 
+#' @importFrom dplyr select collect compute
+#' @describeIn email_stream fills in email address based on time of send and the current email address for the customer,
+#' using email data from [stream_from_audit]
+email_fix_eaddress <- function(email_stream, ...) {
   ### Email addresses
 
   emails <- stream_from_audit("emails") %>%
@@ -115,40 +121,25 @@ email_data_append <- function(email_stream, ...) {
   email_matches[,eaddress := stringr::str_trim(tolower(coalesce(eaddress, address, i.address)))] %>%
     .[,domain := stringr::str_replace(eaddress, ".+@", "")]
 
-  # Fill up earliest email address
-  # data.table::setorder(email_matches, customer_no, timestamp) %>%
-  #   setnafill("nocb", cols = c("eaddress","domain"), by = "customer_no") %>%
-  #   setkey(row)
-
   # provide event_type and event_subtype and remove columns
   email_stream <- email_stream %>% select(-eaddress) %>% compute %>%
     cbind(eaddress = email_matches$eaddress,
-          domain = email_matches$domain) %>%
-    transmute(group_customer_no,customer_no,timestamp,
-                                             event_type = "Email",
-                                             event_subtype = coalesce(event_subtype,"Send"),
-                                             source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-                                             response, url_no, eaddress, domain) %>%
-    compute
+          domain = email_matches$domain)
 
 }
 
-#' @importFrom tessistream p2_stream
-#' @importFrom dplyr arrange
-#' @importFrom arrow as_arrow_table concat_tables
-#' @inheritDotParams tessilake::read_sql freshness
-#' @describeIn email_stream appends p2 data, counts multiple opens as a forward,
-#'                adds windowed open/click/send features and outputs to cache
-email_stream <- function(...) {
-
-  email_stream <- email_data(...) %>% email_data_append(...) %>%
-    concat_tables(p2_stream() %>% as_arrow_table(), unify_schemas = TRUE)
-
-  # Build time-varying customer data
-  email_stream <- arrange(email_stream, group_customer_no, timestamp)
+#' @importFrom dplyr select collect compute
+#' @importFrom data.table setorder
+#' @describeIn email_stream sets multiple `event_subtype == "open"` as `"forward"` and builds windowed features
+#' for each `event_subtype`
+email_subtype_features <- function(email_stream, ...) {
   email_subtypes <- email_stream %>%
     select(group_customer_no, timestamp, source_no, event_subtype) %>%
-    collect %>% setDT
+    collect %>% setDT %>% .[,row:=.I]
+
+  setorder(email_subtypes, group_customer_no, timestamp)
+
+  email_subtypes[is.na(event_subtype), event_subtype := "Send"]
 
   # Label multiple opens of a source as a forward
   email_subtypes[email_subtypes[grepl("open",event_subtype,ignore.case=T),
@@ -173,8 +164,38 @@ email_stream <- function(...) {
 
   }
 
-  email_stream <- cbind(email_stream %>% select(-event_subtype) %>% compute,
-                        email_subtypes[,.SD,.SDcols = -c("timestamp", "group_customer_no", "source_no")])
+  setorder(email_subtypes, row)
+
+  email_stream %>% select(-event_subtype) %>% compute %>%
+    cbind(email_subtypes[,.SD,.SDcols = -c("group_customer_no", "timestamp", "source_no")])
+
+}
+
+#' @importFrom dplyr arrange
+#' @importFrom arrow concat_tables
+#' @inheritDotParams tessilake::read_sql freshness
+#' @describeIn email_stream appends p2 data and outputs to cache
+#' @note `email_stream()` is essentially
+#' ```
+#' email_data(...) %>%
+#'    email_data_append(...) %>%
+#'    email_fix_timestamp(...) %>%
+#'    email_fix_eaddress(...) %>%
+#'    concat_tables(read_cache("p2_stream", "stream"), unify_schemas = TRUE) %>%
+#'    email_subtype_features(...) %>%
+#'    arrange(group_customer_no, timestamp)
+#' ```
+email_stream <- function(...) {
+
+  email_stream <- email_data(...) %>% email_data_append(...) %>%
+    email_fix_timestamp(...) %>% email_fix_eaddress(...) %>%
+    transmute(group_customer_no,customer_no,timestamp,
+              event_type = "Email", event_subtype,
+              source_no, appeal_no, campaign_no, source_desc, extraction_desc,
+              response, url_no, eaddress, domain) %>% compute %>%
+    concat_tables(read_cache("p2_stream", "stream"), unify_schemas = TRUE) %>%
+    email_subtype_features(...) %>%
+    arrange(group_customer_no, timestamp) %>% compute
 
   write_cache(email_stream, "email_stream", "stream")
 

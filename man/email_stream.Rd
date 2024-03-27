@@ -4,11 +4,20 @@
 \alias{email_stream}
 \alias{email_data}
 \alias{email_data_append}
+\alias{email_fix_timestamp}
+\alias{email_fix_eaddress}
+\alias{email_subtype_features}
 \title{email_stream}
 \usage{
 email_data(...)
 
 email_data_append(email_stream, ...)
+
+email_fix_timestamp(email_stream, ...)
+
+email_fix_eaddress(email_stream, ...)
+
+email_subtype_features(email_stream, ...)
 
 email_stream(...)
 }
@@ -23,7 +32,7 @@ email_stream(...)
 \link[arrow:Table-class]{arrow::Table} of email data
 }
 \description{
-Combined dataset of email sends/clicks/opens from Tessitura / WordFly and data from Prospect2 \link{p2_stream}.
+Combined dataset of email sends/clicks/opens from Tessitura / WordFly and data from \link{p2_stream}.
 Features included are:
 \itemize{
 \item group_customer_no, customer_no
@@ -43,19 +52,29 @@ Features included are:
 \itemize{
 \item \code{email_data()}: load Tessitura email send/response data
 
-\item \code{email_data_append()}: adjusts timestamps based on known response data,
-fills in missing email addresses, domains, and campaign/appeal/source information
+\item \code{email_data_append()}: adds descriptive campaign/appeal/source information from Tessitura
 
-\item \code{email_stream()}: appends p2 data, counts multiple opens as a forward,
-adds windowed open/click/send features and outputs to cache
+\item \code{email_fix_timestamp()}: recalculates timestamps for sends because \code{promote_dt} is often long before
+the actual email send date.
+
+\item \code{email_fix_eaddress()}: fills in email address based on time of send and the current email address for the customer,
+using email data from \link{stream_from_audit}
+
+\item \code{email_subtype_features()}: sets multiple \code{event_subtype == "open"} as \code{"forward"} and builds windowed features
+for each \code{event_subtype}
+
+\item \code{email_stream()}: appends p2 data and outputs to cache
 
 }}
 \note{
-\code{email_stream()} is essentially equivalent to
+\code{email_stream()} is essentially
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   email_data() \%>\%
-   email_data_append() \%>\%
-   bind_rows(p2_stream())
-
+\if{html}{\out{<div class="sourceCode">}}\preformatted{email_data(...) \%>\%
+   email_data_append(...) \%>\%
+   email_fix_timestamp(...) \%>\%
+   email_fix_eaddress(...) \%>\%
+   concat_tables(read_cache("p2_stream", "stream"), unify_schemas = TRUE) \%>\%
+   email_subtype_features(...) \%>\%
+   arrange(group_customer_no, timestamp)
 }\if{html}{\out{</div>}}
 }

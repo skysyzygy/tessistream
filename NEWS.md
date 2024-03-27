@@ -1,3 +1,7 @@
+# tessistream 0.4.0
+
+* Working email_stream implementation
+
 # tessistream 0.3.1
 
 * Faster p2_unnest which means faster load and update times

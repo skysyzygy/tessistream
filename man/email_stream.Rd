@@ -27,6 +27,8 @@ email_stream(...)
   \describe{
     \item{\code{freshness}}{the returned data will be at least this fresh}
   }}
+
+\item{email_stream}{email data from previous step}
 }
 \value{
 \link[arrow:Table-class]{arrow::Table} of email data

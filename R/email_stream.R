@@ -58,6 +58,7 @@ email_data <- function(...) {
 }
 
 #' @describeIn email_stream adds descriptive campaign/appeal/source information from Tessitura
+#' @param email_stream email data from previous step
 email_data_append <- function(email_stream, ...) {
 
   ### Response descriptions

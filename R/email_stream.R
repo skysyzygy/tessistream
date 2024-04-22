@@ -172,8 +172,9 @@ email_subtype_features <- function(email_stream, ...) {
 
 }
 
-#' @importFrom dplyr arrange
-#' @importFrom arrow concat_tables
+#' @importFrom dplyr arrange across
+#' @importFrom arrow concat_tables large_utf8
+#' @importFrom tidyselect where
 #' @inheritDotParams tessilake::read_sql freshness
 #' @describeIn email_stream appends p2 data and outputs to cache
 #' @note `email_stream()` is essentially
@@ -194,8 +195,15 @@ email_stream <- function(...) {
     transmute(group_customer_no,customer_no,timestamp,
               event_type = "Email", event_subtype,
               source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-              response, url_no, eaddress, domain) %>% compute %>%
-    concat_tables(read_cache("p2_stream", "stream"), unify_schemas = TRUE) %>%
+              response, url_no, eaddress, domain) %>%
+    mutate(across(where(is.character), ~.$cast(large_utf8()))) %>%
+    compute
+
+  p2_stream <- read_cache("p2_stream", "stream") %>%
+    mutate(across(where(is.character), ~.$cast(large_utf8()))) %>%
+    compute
+
+  email_stream <- concat_tables(email_stream, p2_stream, unify_schemas = TRUE) %>%
     email_subtype_features(...) %>%
     arrange(group_customer_no, timestamp) %>% compute
 

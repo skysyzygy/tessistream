@@ -1,20 +1,7 @@
 withr::local_package("mockery")
 withr::local_package("checkmate")
 
-.acq_dt <- lubridate::as_datetime(lubridate::today())
-.responses <- c("Opened Email","Click Through","Hard Bounce","Soft Bounce","UnSubscribe")
-
 # email_data --------------------------------------------------------------
-
-email_data_stubbed <- function() {
-  promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE)
-  promotion_responses <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"), as_data_frame = FALSE)
-  read_tessi <- mock(promotions, promotion_responses)
-
-  stub(email_data, "read_tessi", read_tessi)
-
-  email_data()
-}
 
 test_that("email_data loads from promotions and promotion_responses and returns an arrow table", {
   promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE)
@@ -24,20 +11,6 @@ test_that("email_data loads from promotions and promotion_responses and returns 
 })
 
 # email_data_append -------------------------------------------------------
-
-email_data_append_stubbed <- function(email_data) {
-  responses <- arrow::arrow_table(response = 1:5, event_subtype = .responses)
-  sources <- arrow::arrow_table(source_no = 1:1000, source_desc = cli::hash_md5(1:1000), acq_dt = .acq_dt)
-  extractions <- arrow::arrow_table(source_no = 1:1000, extraction_desc = cli::hash_md5(paste("extraction",1:1000)))
-
-  read_sql <- mock(responses, extractions)
-  read_tessi <- mock(sources)
-
-  stub(email_data_append, "read_tessi", read_tessi)
-  stub(email_data_append, "read_sql", read_sql)
-
-  email_data_append(email_data)
-}
 
 test_that("email_data_append appends descriptive info for responses, sources, and extractions", {
   withr::local_package("dplyr")
@@ -87,14 +60,6 @@ test_that("email_fix_timestamp recalculates send timestamps based on earliest pr
 })
 
 # email_fix_eaddress ------------------------------------------------------
-
-email_fix_eaddress_stubbed <- function(email_stream) {
-  emails <- readRDS(rprojroot::find_testthat_root_file("email_stream-emails.Rds")) %>% setDT
-  stream_from_audit <- mock(emails)
-  stub(email_fix_eaddress, "stream_from_audit", stream_from_audit)
-
-  email_fix_eaddress(email_stream)
-}
 
 test_that("email_fix_eaddress fills in customer emails based on the send date", {
   email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed() %>%

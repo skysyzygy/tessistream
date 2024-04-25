@@ -183,7 +183,7 @@ email_stream_stubbed <- function() {
   stub(email_stream,"email_data_append",email_data_append_stubbed)
   stub(email_stream,"email_fix_eaddress",email_fix_eaddress_stubbed)
   stub(email_stream,"write_cache",\(...){})
-  stub(email_stream,"read_cache",arrow::arrow_table(customer_no=0L))
+  stub(email_stream,"read_cache",arrow::arrow_table(customer_no=0L,campaignid=0L))
 
   email_stream()
 }
@@ -199,7 +199,7 @@ test_that("email_stream is sane", {
   # all rows have time information
   expect_equal(email_stream[is.na(timestamp),.N],1)
   # all rows have campaign/source/appeal info
-  expect_equal(email_stream[is.na(source_no),.N],1)
+  expect_equal(email_stream[is.na(source_no),.N],0)
   expect_equal(email_stream[is.na(campaign_no),.N],1)
   expect_equal(email_stream[is.na(appeal_no),.N],1)
 

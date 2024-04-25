@@ -198,7 +198,11 @@ email_stream <- function(...) {
               source_no, appeal_no, campaign_no, source_desc, extraction_desc,
               response, url_no, eaddress, domain) %>% collect
 
-  p2_stream <- read_cache("p2_stream", "stream") %>% collect
+  p2_stream <- read_cache("p2_stream", "stream") %>% collect %>% setDT
+  # Needed because p2_stream doesn't have source_no, which is used in
+  # email_subtype_features for sequential features.
+  # Indirectly addresses issue #18 by reducing the size of groups
+  p2_stream[,source_no := -campaignid]
 
   email_stream <- rbindlist(list(email_stream, p2_stream), fill = T) %>%
     as_arrow_table() %>%

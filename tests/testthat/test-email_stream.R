@@ -114,9 +114,14 @@ test_that("email_fix_eaddress cleans the email address and extracts the domain",
 # email_subtype_features ---------------------------------------------------
 
 test_that("email_subtype_features labels multiple opens as a forward",{
-  email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed() %>%
-    email_fix_timestamp %>% collect %>% setDT
-  email_subtype_features <- email_subtype_features(email_fix_timestamp) %>% collect %>% setDT
+  email_stream <- email_data_stubbed() %>% email_data_append_stubbed() %>%
+    email_fix_timestamp() %>% email_fix_eaddress_stubbed() %>%
+    transmute(group_customer_no,customer_no,timestamp,
+              event_type = "Email", event_subtype,
+              source_no, appeal_no, campaign_no, source_desc, extraction_desc,
+              response, url_no, eaddress, domain) %>% compute
+
+  email_subtype_features <- email_subtype_features(email_stream) %>% collect %>% setDT
 
   # There are no customer_no/source_no combinations with more than one open
   expect_equal(email_subtype_features[grepl("open",event_subtype,ignore.case=T),

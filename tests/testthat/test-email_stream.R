@@ -10,6 +10,13 @@ test_that("email_data loads from promotions and promotion_responses and returns 
   expect_equal(nrow(email_data_stubbed()), nrow(promotions) + nrow(promotion_responses))
 })
 
+test_that("email_data loads from promotions and promotion_responses and returns an arrow table", {
+  promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE)
+  promotion_responses <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"), as_data_frame = FALSE)
+  expect_class(email_data_stubbed(), "ArrowTabular")
+  expect_equal(nrow(email_data_stubbed()), nrow(promotions) + nrow(promotion_responses))
+})
+
 # email_data_append -------------------------------------------------------
 
 test_that("email_data_append appends descriptive info for responses, sources, and extractions", {
@@ -176,40 +183,35 @@ test_that("email_subtype_features adds subtype counts/min/max",{
 })
 
 
-# email_stream ------------------------------------------------------------
+# email_stream_chunk ------------------------------------------------------------
 
-email_stream_stubbed <- function() {
-  stub(email_stream,"email_data",email_data_stubbed)
-  stub(email_stream,"email_data_append",email_data_append_stubbed)
-  stub(email_stream,"email_fix_eaddress",email_fix_eaddress_stubbed)
-  stub(email_stream,"write_cache",\(...){})
-  stub(email_stream,"read_cache",arrow::arrow_table(customer_no=0L,campaignid=0L))
+test_that("email_stream_chunk is sane", {
+  tessilake:::local_cache_dirs()
+  primary_keys = c("source_no", "customer_no", "timestamp", "response")
 
-  email_stream()
-}
-
-test_that("email_stream is sane", {
-
-  email_stream <- email_stream_stubbed() %>% collect %>% setDT()
+  email_stream_chunk <- email_stream_chunk_stubbed() %>% collect %>% setDT
+  email_stream_debounced <- email_data_stubbed() %>% collect %>% setDT %>%
+    setorderv(primary_keys) %>%
+    stream_debounce(primary_keys)
 
   # no rows have been added or removed (except the p2 one)
-  expect_equal(email_stream[,.N],email_data_stubbed() %>% collect %>% nrow() + 1)
+  expect_equal(email_stream_chunk[,.N],email_stream_debounced %>% nrow() + 1)
   # all rows have a customer
-  expect_equal(email_stream[is.na(group_customer_no),.N],1)
+  expect_equal(email_stream_chunk[is.na(customer_no),.N],0)
   # all rows have time information
-  expect_equal(email_stream[is.na(timestamp),.N],1)
-  # all rows have campaign/source/appeal info
-  expect_equal(email_stream[is.na(source_no),.N],0)
-  expect_equal(email_stream[is.na(campaign_no),.N],1)
-  expect_equal(email_stream[is.na(appeal_no),.N],1)
+  expect_equal(email_stream_chunk[is.na(timestamp),.N],0)
+  # all rows have campaign/source/appeal info (except the p2 one)
+  expect_equal(email_stream_chunk[is.na(source_no),.N],0)
+  expect_equal(email_stream_chunk[is.na(campaign_no),.N],1)
+  expect_equal(email_stream_chunk[is.na(appeal_no),.N],1)
 
-  expect_names(colnames(email_stream),
+  expect_names(colnames(email_stream_chunk),
                must.include =
                c("group_customer_no", "customer_no", "timestamp", "event_type",
                "event_subtype", "source_no", "appeal_no", "campaign_no", "source_desc",
                "extraction_desc", "response", "url_no", "eaddress", "domain"))
 
-  expect_names(colnames(email_stream),
+  expect_names(colnames(email_stream_chunk),
                must.include = data.table::CJ("email",
                                              gsub("\\s","_",tolower(c("Send","Forward",.responses))),
                                              c("count","timestamp_min","timestamp_max"),
@@ -217,8 +219,10 @@ test_that("email_stream is sane", {
                  do.call(what=paste))
 })
 
-test_that("email_stream returns an arrow table",{
-  expect_class(email_stream_stubbed(),"ArrowTabular")
+test_that("email_stream_chunk returns an arrow table",{
+  tessilake:::local_cache_dirs()
+
+  expect_class(email_stream_chunk_stubbed(),"ArrowTabular")
 })
 
 

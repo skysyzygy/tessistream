@@ -27,12 +27,18 @@ NULL
 #' @importFrom data.table tstrsplit
 #' @inheritDotParams tessilake::read_sql freshness
 #' @importFrom arrow concat_tables
-email_data <- function(...) {
+#' @param from_date earliest date/time for which data will be returned
+#' @param to_date latest date/time for which data will be returned
+email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now()) {
+
+  media_type <- promote_dt <- group_customer_no <- customer_no <- eaddress <-
+    appeal_no <- campaign_no <- source_no <- response_dt <- response <- url_no <- NULL
 
   ### Promotions
 
   promotions = read_tessi("promotions", ...) %>%
     filter(media_type == 3) %>%
+    filter(promote_dt >= from_date & promote_dt < to_date) %>%
     select(group_customer_no,customer_no,eaddress,
            promote_dt,appeal_no,campaign_no,source_no) %>%
     compute
@@ -40,8 +46,7 @@ email_data <- function(...) {
   ### Promotion responses
 
   promotion_responses = read_tessi("promotion_responses", ...) %>%
-    # Get rid of erroneous 1970 responses !!
-    filter(response_dt > as.Date('2000-01-01')) %>%
+    filter(response_dt >= from_date & response_dt < to_date) %>%
     transmute(group_customer_no,customer_no,
               response, timestamp = response_dt,
               source_no, url_no) %>%
@@ -61,6 +66,8 @@ email_data <- function(...) {
 #' @param email_stream email data from previous step
 email_data_append <- function(email_stream, ...) {
 
+  source_no <- source_desc <- acq_dt <- NULL
+
   ### Response descriptions
 
   responses = read_sql("select email_response response,
@@ -74,7 +81,7 @@ email_data_append <- function(email_stream, ...) {
   extractions = read_sql("select distinct source_no,
                           description extraction_desc from BIExtract.tw_keycode_detail kd
                           join BIExtract.t_ka_header ka on kd.ka_no=ka.ka_no and
-                          source_no is not null")
+                          source_no is not null", ...)
 
   email_stream <- email_stream %>%
     left_join(responses, by = "response") %>%
@@ -86,7 +93,10 @@ email_data_append <- function(email_stream, ...) {
 #' @importFrom dplyr mutate summarise left_join coalesce collect
 #' @describeIn email_stream recalculates timestamps for sends because `promote_dt` is often long before
 #' the actual email send date.
-email_fix_timestamp <- function(email_stream, ...) {
+email_fix_timestamp <- function(email_stream) {
+
+  timestamp <- source_no <- first_response_dt <- acq_dt <- promote_dt <- NULL
+
   ### Fix timestamp for sends/promotions
 
   # recalculate timestamps because promotion often happens long before the actual send
@@ -105,9 +115,10 @@ email_fix_timestamp <- function(email_stream, ...) {
 #' @importFrom dplyr select collect compute
 #' @describeIn email_stream fills in email address based on time of send and the current email address for the customer,
 #' using email data from [stream_from_audit]
-email_fix_eaddress <- function(email_stream, ...) {
-  ### Email addresses
+email_fix_eaddress <- function(email_stream) {
+  . <- address <- primary_ind <- customer_no <- group_customer_no <- timestamp <- eaddress <- i.address <- domain <- NULL
 
+  ### Email addresses
   emails <- stream_from_audit("emails") %>%
     .[!is.na(address) & address>0 & primary_ind=="Y"]
 
@@ -129,15 +140,51 @@ email_fix_eaddress <- function(email_stream, ...) {
 
 }
 
+#' stream_customer_history
+#'
+#' Loads the last row from `stream` per `group_customer_no` before `before_date` and returns columns
+#' matching `pattern`
+#'
+#' @param stream data.frameish stream
+#' @param pattern character vector. If length > 1, the union of the matches is taken.
+#' @inheritDotParams tidyselect::matches ignore.case perl
+#' @param before_date POSIXct only look at customer history before this date
+#' @importFrom tidyselect matches
+#' @importFrom data.table setorderv
+#' @importFrom dplyr filter select collect
+stream_customer_history <- function(stream, before_date, pattern, ...) {
+  timestamp <- NULL
+
+  stream %>%
+    filter(timestamp < before_date) %>%
+    select(c("group_customer_no","timestamp",matches(pattern,...))) %>%
+    # have to pull this into R in order to do windowed slices, i.e. debouncing
+    collect %>% setDT %>%
+    setorderv("timestamp") %>%
+    stream_debounce("group_customer_no")
+}
+
 #' @importFrom dplyr select collect compute
 #' @importFrom data.table setorder
 #' @describeIn email_stream sets multiple `event_subtype == "open"` as `"forward"` and builds windowed features
 #' for each `event_subtype`
-email_subtype_features <- function(email_stream, prev_chunk = NULL, ...) {
+email_subtype_features <- function(email_stream) {
+
+  group_customer_no <- timestamp <- source_no <- event_subtype <- . <- NULL
 
   email_subtypes <- email_stream %>%
     select(group_customer_no, timestamp, source_no, event_subtype) %>%
     collect %>% setDT %>% .[,row:=.I]
+
+  history_stream <- if ("arrow_dplyr_query" %in% class(email_stream)) {
+    email_stream$.data
+  } else {
+    email_stream
+  }
+
+  customer_history <- stream_customer_history(history_stream,
+                                              min(email_subtypes$timestamp),
+                                              "count$")
 
   setorder(email_subtypes, group_customer_no, timestamp)
 
@@ -173,9 +220,59 @@ email_subtype_features <- function(email_stream, prev_chunk = NULL, ...) {
 
 }
 
+
+email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now()) {
+
+  customer_no <- timestamp <- event_subtype <- source_no <-
+    appeal_no <- campaign_no <- source_desc <- extraction_desc <- response <- url_no <- eaddress <- domain <- campaignid <- NULL
+
+  email_stream <- email_data(..., from_date, to_date) %>% email_data_append(...) %>%
+    email_fix_timestamp %>% email_fix_eaddress %>%
+    transmute(group_customer_no,customer_no,timestamp,
+              event_type = "Email", event_subtype,
+              source_no, appeal_no, campaign_no, source_desc, extraction_desc,
+              response, url_no, eaddress, domain) %>% collect %>% setDT
+
+  primary_keys = c("source_no", "customer_no", "timestamp", "event_subtype")
+
+  # ensure that `primary_keys` are valid primary keys
+  email_stream <- email_stream %>%
+    setorderv(primary_keys) %>%
+    stream_debounce(primary_keys)
+
+  # write partitioned dataset
+  write_cache(email_stream, "email_stream", "stream",
+              primary_keys = primary_keys,
+              incremental = TRUE, sync = FALSE)
+
+  if (cache_exists_any("p2_stream","stream")) {
+    p2_stream <- read_cache("p2_stream","stream") %>%
+    filter(timestamp >= from_date & timestamp < to_date) %>%
+    # mutation needed because p2_stream doesn't have source_no, which is used in
+    # email_subtype_features for sequential features.
+    mutate(source_no = -campaignid) %>% compute
+
+  # update the dataset with the p2 data
+    write_cache(p2_stream, "email_stream", "stream",
+                primary_keys = primary_keys,
+                incremental = TRUE, sync = FALSE)
+  }
+
+  email_stream <- read_cache("email_stream", "stream") %>%
+    filter(timestamp >= from_date & timestamp < to_date) %>%
+    email_subtype_features %>% compute
+
+  write_cache(email_stream, "email_stream", "stream", incremental = TRUE,
+              primary_keys = primary_keys)
+
+  email_stream
+
+}
+
 #' @importFrom dplyr arrange
 #' @importFrom arrow as_arrow_table
-#' @importFrom tidyselect where
+#' @importFrom tidyselect ends_with
+#' @importFrom tessilake cache_exists_any read_cache write_cache
 #' @inheritDotParams tessilake::read_sql freshness
 #' @describeIn email_stream appends p2 data and outputs to cache
 #' @note `email_stream()` is essentially
@@ -190,37 +287,6 @@ email_subtype_features <- function(email_stream, prev_chunk = NULL, ...) {
 #' ```
 #' @export
 email_stream <- function(...) {
-
-  email_stream <- email_data(...) %>% email_data_append(...) %>%
-    email_fix_timestamp(...) %>% email_fix_eaddress(...) %>%
-    transmute(group_customer_no,customer_no,timestamp,
-              event_type = "Email", event_subtype,
-              source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-              response, url_no, eaddress, domain) %>% collect
-
-
-  # write partitioned dataset to save memory
-  write_cache(email_stream, "email_stream", "stream",
-  # assumption: c("timestamp", "customer_no", "source_no", "event_subtype") are valid primary keys -- need to ensure
-              primary_keys = c("timestamp", "customer_no", "source_no", "event_subtype"))
-
-  # mutation needed because p2_stream doesn't have source_no, which is used in
-  # email_subtype_features for sequential features.
-  p2_stream <- read_cache("p2_stream","stream") %>% mutate(source_no = -campaignid) %>% compute
-  write_cache(p2_stream, "email_stream", "stream", incremental = TRUE)
-
-  prev_chunk = NULL
-  email_stream <- read_cache("email_stream", "stream", include_partition = TRUE)
-  for (partition in email_stream$partition_timestamp) {
-    curr_chunk = email_stream %>% filter(partition_timestamp == partition) %>%
-      email_subtype_features(prev_chunk = prev_chunk)
-
-    write_cache(curr_chunk, "email_stream", "stream", incremental = TRUE)
-    prev_chunk = curr_chunk
-  }
-
-  email_stream
-
+  email_stream_chunk(...)
 }
-
 

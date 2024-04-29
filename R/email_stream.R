@@ -133,7 +133,7 @@ email_fix_eaddress <- function(email_stream, ...) {
 #' @importFrom data.table setorder
 #' @describeIn email_stream sets multiple `event_subtype == "open"` as `"forward"` and builds windowed features
 #' for each `event_subtype`
-email_subtype_features <- function(email_stream, ...) {
+email_subtype_features <- function(email_stream, prev_chunk = NULL, ...) {
 
   email_subtypes <- email_stream %>%
     select(group_customer_no, timestamp, source_no, event_subtype) %>%
@@ -198,18 +198,26 @@ email_stream <- function(...) {
               source_no, appeal_no, campaign_no, source_desc, extraction_desc,
               response, url_no, eaddress, domain) %>% collect
 
-  p2_stream <- read_cache("p2_stream", "stream") %>% collect %>% setDT
-  # Needed because p2_stream doesn't have source_no, which is used in
+
+  # write partitioned dataset to save memory
+  write_cache(email_stream, "email_stream", "stream",
+  # assumption: c("timestamp", "customer_no", "source_no", "event_subtype") are valid primary keys -- need to ensure
+              primary_keys = c("timestamp", "customer_no", "source_no", "event_subtype"))
+
+  # mutation needed because p2_stream doesn't have source_no, which is used in
   # email_subtype_features for sequential features.
-  # Indirectly addresses issue #18 by reducing the size of groups
-  p2_stream[,source_no := -campaignid]
+  p2_stream <- read_cache("p2_stream","stream") %>% mutate(source_no = -campaignid) %>% compute
+  write_cache(p2_stream, "email_stream", "stream", incremental = TRUE)
 
-  email_stream <- rbindlist(list(email_stream, p2_stream), fill = T) %>%
-    as_arrow_table() %>%
-    email_subtype_features(...) %>%
-    arrange(group_customer_no, timestamp) %>% compute
+  prev_chunk = NULL
+  email_stream <- read_cache("email_stream", "stream", include_partition = TRUE)
+  for (partition in email_stream$partition_timestamp) {
+    curr_chunk = email_stream %>% filter(partition_timestamp == partition) %>%
+      email_subtype_features(prev_chunk = prev_chunk)
 
-  write_cache(email_stream, "email_stream", "stream")
+    write_cache(curr_chunk, "email_stream", "stream", incremental = TRUE)
+    prev_chunk = curr_chunk
+  }
 
   email_stream
 

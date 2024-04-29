@@ -286,8 +286,8 @@ setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
 
 #' stream_customer_history
 #'
-#' Loads the last row from `stream` after sorting by `timestamp` per group defined by the entries in columns `cols`,
-#' but only looking at timestamps before `before` and returns only columns matching `pattern`
+#' Loads the last row from `stream` after sorting by `timestamp` and grouping by the entries in columns `by`,
+#' but only looking at timestamps before `before` and returning only columns matching `pattern`
 #'
 #' @param stream data.frameish stream
 #' @param pattern character vector. If length > 1, the union of the matches is taken.
@@ -299,16 +299,16 @@ setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
 #' @importFrom data.table setorderv
 #' @importFrom dplyr filter select collect
 #' @importFrom checkmate assert_names
-stream_customer_history <- function(stream, cols, before = Inf, pattern = ".", ...) {
+stream_customer_history <- function(stream, by, before = Inf, pattern = ".", ...) {
   timestamp <- NULL
-  assert_names(colnames(stream), must.include = c("timestamp", cols))
+  assert_names(colnames(stream), must.include = c("timestamp", by))
 
   stream %>%
     filter(timestamp < before) %>%
-    select(c(cols,"timestamp",matches(pattern,...))) %>%
+    select(c(by,"timestamp",matches(pattern,...))) %>%
     # have to pull this into R in order to do windowed slices, i.e. debouncing
     collect %>% setDT %>%
     setorderv("timestamp") %>%
-    stream_debounce(cols)
+    stream_debounce(by)
 }
 

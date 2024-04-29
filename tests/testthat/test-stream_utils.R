@@ -339,9 +339,9 @@ test_that("stream_customer_history loads the last row from stream per column",{
                      feature_1 = seq(num_rows),
                      feature_2 = rep(LETTERS, length.out = num_rows))
 
-  history <- stream_customer_history(data, cols = c("group_1", "group_2"))
+  history <- stream_customer_history(data, by = c("group_1", "group_2"))
 
-  expect_equal(nrow(history), uniqueN(data, by=c("group_1", "group_2")))
+  expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
   expect_setequal(history$timestamp, data[,max(timestamp),by = c("group_1", "group_2")]$V1)
 })
 
@@ -354,10 +354,10 @@ test_that("stream_customer_history only returns rows before before_date",{
                      feature_1 = seq(num_rows),
                      feature_2 = rep(LETTERS, length.out = num_rows))
 
-  history <- stream_customer_history(data, cols = c("group_1", "group_2"), before = as.POSIXct("2010-01-01"))
+  history <- stream_customer_history(data, by = c("group_1", "group_2"), before = as.POSIXct("2010-01-01"))
   data <- data[timestamp < as.POSIXct("2010-01-01")]
 
-  expect_equal(nrow(history), uniqueN(data, by=c("group_1", "group_2")))
+  expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
   expect_setequal(history$timestamp, data[,max(timestamp),by = c("group_1", "group_2")]$V1)
 })
 
@@ -369,9 +369,9 @@ test_that("stream_customer_history only returns columns matching pattern",{
                      feature_1 = seq(num_rows),
                      feature_2 = rep(LETTERS, length.out = num_rows))
 
-  history <- stream_customer_history(data, cols = c("group_1", "group_2"), pattern = "2$")
+  history <- stream_customer_history(data, by = c("group_1", "group_2"), pattern = "2$")
 
-  expect_equal(nrow(history), uniqueN(data, by=c("group_1", "group_2")))
+  expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
   expect_setequal(history$timestamp, data[,max(timestamp),by = c("group_1", "group_2")]$V1)
   expect_names(colnames(history), permutation.of = colnames(data)[-4])
 

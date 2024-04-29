@@ -140,29 +140,6 @@ email_fix_eaddress <- function(email_stream) {
 
 }
 
-#' stream_customer_history
-#'
-#' Loads the last row from `stream` per `group_customer_no` before `before_date` and returns columns
-#' matching `pattern`
-#'
-#' @param stream data.frameish stream
-#' @param pattern character vector. If length > 1, the union of the matches is taken.
-#' @inheritDotParams tidyselect::matches ignore.case perl
-#' @param before_date POSIXct only look at customer history before this date
-#' @importFrom tidyselect matches
-#' @importFrom data.table setorderv
-#' @importFrom dplyr filter select collect
-stream_customer_history <- function(stream, before_date, pattern, ...) {
-  timestamp <- NULL
-
-  stream %>%
-    filter(timestamp < before_date) %>%
-    select(c("group_customer_no","timestamp",matches(pattern,...))) %>%
-    # have to pull this into R in order to do windowed slices, i.e. debouncing
-    collect %>% setDT %>%
-    setorderv("timestamp") %>%
-    stream_debounce("group_customer_no")
-}
 
 #' @importFrom dplyr select collect compute
 #' @importFrom data.table setorder

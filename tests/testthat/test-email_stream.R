@@ -10,11 +10,14 @@ test_that("email_data loads from promotions and promotion_responses and returns 
   expect_equal(nrow(email_data_stubbed()), nrow(promotions) + nrow(promotion_responses))
 })
 
-test_that("email_data loads from promotions and promotion_responses and returns an arrow table", {
-  promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE)
-  promotion_responses <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"), as_data_frame = FALSE)
-  expect_class(email_data_stubbed(), "ArrowTabular")
-  expect_equal(nrow(email_data_stubbed()), nrow(promotions) + nrow(promotion_responses))
+test_that("email_data only loads data between the given dates", {
+  from_date <- as.POSIXct("2010-01-01")
+  to_date <- as.POSIXct("2020-01-01")
+  promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE) %>%
+    filter(promote_dt >= from_date & promote_dt < to_date) %>% collect
+  promotion_responses <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"), as_data_frame = FALSE) %>%
+    filter(response_dt >= from_date & response_dt < to_date) %>% collect
+  expect_equal(nrow(email_data_stubbed(from_date = from_date, to_date = to_date)), nrow(promotions) + nrow(promotion_responses))
 })
 
 # email_data_append -------------------------------------------------------

@@ -151,9 +151,7 @@ email_fix_eaddress <- function(email_stream) {
 
 
 #' @importFrom dplyr select collect compute
-#' @importFrom lubridate as_datetime
 #' @importFrom tidyr any_of
-#' @importFrom data.table setorder shift
 #' @describeIn email_stream sets multiple `event_subtype == "open"` as `"forward"` and builds windowed features
 #' for each `event_subtype`
 email_subtype_features <- function(email_stream) {

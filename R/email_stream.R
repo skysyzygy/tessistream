@@ -113,7 +113,7 @@ email_fix_timestamp <- function(email_stream) {
     # 3. use promote_dt
     mutate(timestamp = coalesce(timestamp,first_response_dt,acq_dt,promote_dt),
     # Arrow uses int64 for timestamps; R uses double precision floating points.
-    # to avoid precision loss and failed joins, create a timestamp_id for joining on
+    # to avoid precision loss and failed joins, create a timestamp_id for joins
            timestamp_id = arrow:::cast(timestamp, arrow::int64()))
 }
 
@@ -221,7 +221,7 @@ email_subtype_features <- function(email_stream) {
   email_subtypes <- email_subtypes[timestamp >= min_timestamp] %>%
     stream_debounce(c("group_customer_no", "timestamp", "source_no", "event_subtype"))
 
-  email_stream %>% select(!any_of(feature_cols)) %>%
+  email_stream %>% select(!any_of(c("timestamp",feature_cols))) %>%
     left_join(email_subtypes,
               by=c("group_customer_no", "timestamp_id", "source_no", "event_subtype"))
 
@@ -259,7 +259,10 @@ email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_dat
 
   email_stream <- read_cache("email_stream", "stream") %>%
     filter(timestamp >= from_date & timestamp < to_date) %>%
-    email_subtype_features
+    # Arrow uses int64 for timestamps; R uses double precision floating points.
+    # to avoid precision loss and failed joins, create a timestamp_id for joins
+    mutate(timestamp_id = arrow:::cast(timestamp, arrow::int64())) %>%
+    email_subtype_features %>% compute
 
   email_stream_write_partition(email_stream, primary_keys)
 

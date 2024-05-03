@@ -7,6 +7,7 @@
 \alias{email_fix_timestamp}
 \alias{email_fix_eaddress}
 \alias{email_subtype_features}
+\alias{email_stream_write_partition}
 \title{email_stream}
 \usage{
 email_data(..., from_date = as.POSIXct("1900-01-01"), to_date = now())
@@ -18,6 +19,8 @@ email_fix_timestamp(email_stream)
 email_fix_eaddress(email_stream)
 
 email_subtype_features(email_stream)
+
+email_stream_write_partition(email_stream, primary_keys)
 
 email_stream(...)
 }
@@ -33,6 +36,8 @@ email_stream(...)
 \item{to_date}{latest date/time for which data will be returned}
 
 \item{email_stream}{email data from previous step}
+
+\item{primary_keys}{character vector of primary keys to use}
 }
 \value{
 \link[arrow:Table-class]{arrow::Table} of email data
@@ -68,6 +73,8 @@ using email data from \link{stream_from_audit}
 
 \item \code{email_subtype_features()}: sets multiple \code{event_subtype == "open"} as \code{"forward"} and builds windowed features
 for each \code{event_subtype}
+
+\item \code{email_stream_write_partition()}: write one partition of the stream to disk
 
 \item \code{email_stream()}: appends p2 data and outputs to cache
 

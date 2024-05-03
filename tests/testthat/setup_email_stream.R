@@ -40,7 +40,7 @@ email_stream_chunk_stubbed <- function() {
   stub(email_stream_chunk,"email_data",email_data_stubbed)
   stub(email_stream_chunk,"email_data_append",email_data_append_stubbed)
   stub(email_stream_chunk,"email_fix_eaddress",email_fix_eaddress_stubbed)
-  write_cache(data.frame(customer_no=0L,campaignid=0L,timestamp=Sys.time(),event_subtype="Send"),"p2_stream","stream")
+  write_cache(data.frame(group_customer_no=0L,campaignid=0L,timestamp=Sys.time(),event_subtype="Send"),"p2_stream","stream")
 
   email_stream_chunk()
 }

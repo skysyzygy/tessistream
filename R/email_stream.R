@@ -85,6 +85,8 @@ email_data_append <- function(email_stream, ...) {
 
   email_stream <- email_stream %>%
     left_join(responses, by = "response") %>%
+    # set un-labeled events as sends
+    mutate(event_subtype = coalesce(event_subtype,"Send")) %>%
     left_join(sources, by = "source_no") %>%
     left_join(extractions, by = "source_no") %>%
     compute
@@ -109,7 +111,10 @@ email_fix_timestamp <- function(email_stream) {
     # 1. use first recorded response for source
     # 2. use acq_dt from the source code because this is sometimes set manually as a replacement for acq_dt
     # 3. use promote_dt
-    mutate(timestamp = coalesce(timestamp,first_response_dt,acq_dt,promote_dt))
+    mutate(timestamp = coalesce(timestamp,first_response_dt,acq_dt,promote_dt),
+    # Arrow uses int64 for timestamps; R uses double precision floating points.
+    # to avoid precision loss and failed joins, create a timestamp_id for joining on
+           timestamp_id = arrow:::cast(timestamp, arrow::int64()))
 }
 
 #' @importFrom dplyr select collect compute
@@ -124,76 +129,103 @@ email_fix_eaddress <- function(email_stream) {
 
   # Match email address based on customer_no (or group_customer_no) and send date using a rolling join
   # NOTE: Have to bring this into R because inequality joins and rolling joins not implemented in Arrow
-  email_matches <- email_stream %>% select(customer_no, group_customer_no, timestamp, eaddress) %>%
-    collect %>% setDT %>% .[,row:=.I]
+  email_matches <- email_stream %>%
+    transmute(customer_no, group_customer_no, timestamp, timestamp_id, eaddress) %>%
+    collect %>% setDT %>% stream_debounce("customer_no", "timestamp")
 
   email_matches <- emails[,.(customer_no,timestamp,address)][email_matches,on=c("customer_no","timestamp"),roll=T]
   email_matches <- emails[,.(group_customer_no,timestamp,address)][email_matches,on=c("group_customer_no","timestamp"),roll=T]
+
   # clean email address and extract domain
-  email_matches[,eaddress := stringr::str_trim(tolower(coalesce(eaddress, address, i.address)))] %>%
+  email_matches[,eaddress := stringr::str_trim(tolower(coalesce(eaddress, address, i.address)))]
+  emails_cleaned <- data.table(eaddress = unique(email_matches$eaddress)) %>%
     .[,domain := stringr::str_replace(eaddress, ".+@", "")]
+  setleftjoin(email_matches, emails_cleaned, by = "eaddress")
 
   # provide event_type and event_subtype and remove columns
   email_stream <- email_stream %>% select(-eaddress) %>% compute %>%
-    cbind(eaddress = email_matches$eaddress,
-          domain = email_matches$domain)
+    left_join(email_matches[,.(customer_no,timestamp_id,eaddress,domain)],
+              by = c("customer_no","timestamp_id"))
 
 }
 
 
 #' @importFrom dplyr select collect compute
-#' @importFrom data.table setorder
+#' @importFrom lubridate as_datetime
+#' @importFrom tidyr any_of
+#' @importFrom data.table setorder shift
 #' @describeIn email_stream sets multiple `event_subtype == "open"` as `"forward"` and builds windowed features
 #' for each `event_subtype`
 email_subtype_features <- function(email_stream) {
-
   group_customer_no <- timestamp <- source_no <- event_subtype <- . <- NULL
 
+  # must be an arrow query in order to extract customer history from the full dataset
+  assert_multi_class(email_stream, c("arrow_dplyr_query","ArrowTabular"))
+
+  # working data.table
   email_subtypes <- email_stream %>%
-    select(group_customer_no, timestamp, source_no, event_subtype) %>%
-    collect %>% setDT %>% .[,row:=.I]
+    select(group_customer_no, timestamp, timestamp_id, source_no, event_subtype) %>%
+    collect %>% setDT
 
-  history_stream <- if ("arrow_dplyr_query" %in% class(email_stream)) {
-    email_stream$.data
+  min_timestamp <- email_subtypes[,min(timestamp)]
+  subtypes = unique(na.omit(email_subtypes$event_subtype))
+  feature_cols = paste("email",gsub("\\s","_",tolower(subtypes)),
+                       rep(c("timestamp_min", "timestamp_max", "count"), each = length(subtypes)),
+                       sep="_")
+
+  group_customer_nos <- distinct(email_subtypes[,.(group_customer_no)])
+
+  # generate customer history from the overall dataset
+  customer_history <- if ("arrow_dplyr_query" %in% class(email_stream)) {
+     email_stream$.data %>%
+      filter(group_customer_no %in% group_customer_nos$group_customer_no) %>%
+      stream_customer_history("group_customer_no",
+                              before = min_timestamp,
+                              pattern = "count|min|max$")
   } else {
-    email_stream
+    group_customer_nos
   }
 
-  customer_history <- stream_customer_history(history_stream,
-                                              min(email_subtypes$timestamp),
-                                              "count$")
+  # make customer_history have one row per group_customer_no
+  customer_history <- customer_history[group_customer_nos,on="group_customer_no"]
+  email_subtypes <- rbind(customer_history, email_subtypes, fill = T) %>%
+    setkey(group_customer_no, timestamp)
 
-  setorder(email_subtypes, group_customer_no, timestamp)
+  for( subtype in subtypes ) {
+    # email_[subtype]_timestamp_min
+    # email_[subtype]_timestamp_max
+    # email_[subtype]_count
 
-  email_subtypes[is.na(event_subtype), event_subtype := "Send"]
+    cols = paste("email",gsub("\\s","_",tolower(subtype)),
+                 c("timestamp_min", "timestamp_max", "count"),sep="_")
+    i_cols = paste0("i.",cols)
+    customer_history[,event_subtype := subtype]
 
-  # Label multiple opens of a source as a forward
-  email_subtypes[email_subtypes[grepl("open",event_subtype,ignore.case=T),
-                                tail(.I,-1),
-                                by=c("group_customer_no","source_no")]$V1,
-                 event_subtype:="Forward"]
-
-  for( subtype in unique(email_subtypes$event_subtype) ) {
-    # email[subtype]TimestampMin
-    # email[subtype]TimestampMax
-    # email[subtype]Count
-
-    cols = paste("email",gsub("\\s","_",tolower(subtype)),c("timestamp_min", "timestamp_max", "count"),sep="_")
-    email_subtypes[event_subtype==subtype,
-                   (cols) := list(min(timestamp),timestamp,seq_len(.N)),
-                   by=group_customer_no]
-    #Fill down, respecting customer boundaries
-    setnafill(email_subtypes,
-              type = "locf",
-              cols = cols,
-              by = "group_customer_no")
-
+    # extrema features
+    email_subtypes[customer_history,
+                   (i_cols) := mget(i_cols, ifnotfound = NA),
+                   on=c("group_customer_no","event_subtype")] %>%
+      .[event_subtype == subtype,
+                   (cols) := list(coalesce(get(i_cols[1]), timestamp[1]),
+                                  timestamp,
+                                  coalesce(get(i_cols[3]),0) + seq_len(.N)),
+                   by="group_customer_no"] %>%
+      .[,(i_cols) := NULL]
   }
 
-  setorder(email_subtypes, row)
+  # Fill down, respecting customer boundaries
+  setnafill(email_subtypes,
+            type = "locf",
+            cols = feature_cols,
+            by = "group_customer_no")
 
-  email_stream %>% select(-event_subtype) %>% compute %>%
-    cbind(email_subtypes[,.SD,.SDcols = -c("group_customer_no", "timestamp", "source_no")])
+  # remove added customer history and debounce so that it can be left-joined
+  email_subtypes <- email_subtypes[timestamp >= min_timestamp] %>%
+    stream_debounce(c("group_customer_no", "timestamp", "source_no", "event_subtype"))
+
+  email_stream %>% select(!any_of(feature_cols)) %>%
+    left_join(email_subtypes,
+              by=c("group_customer_no", "timestamp_id", "source_no", "event_subtype"))
 
 }
 
@@ -201,49 +233,57 @@ email_subtype_features <- function(email_stream) {
 email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now()) {
 
   customer_no <- timestamp <- event_subtype <- source_no <-
-    appeal_no <- campaign_no <- source_desc <- extraction_desc <- response <- url_no <- eaddress <- domain <- campaignid <- NULL
+    appeal_no <- campaign_no <- source_desc <- extraction_desc <-
+    response <- url_no <- eaddress <- domain <- campaignid <- NULL
 
   email_stream <- email_data(..., from_date, to_date) %>% email_data_append(...) %>%
     email_fix_timestamp %>% email_fix_eaddress %>%
     transmute(group_customer_no,customer_no,timestamp,
               event_type = "Email", event_subtype,
               source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-              response, url_no, eaddress, domain) %>% collect %>% setDT
+              response, url_no, eaddress, domain,
+              year = as.character(year(timestamp))) %>% compute
 
-  primary_keys = c("source_no", "customer_no", "timestamp", "event_subtype")
+  primary_keys = c("group_customer_no", "timestamp", "source_no", "event_subtype")
 
-  # ensure that `primary_keys` are valid primary keys
-  email_stream <- email_stream %>%
-    setorderv(primary_keys) %>%
-    stream_debounce(primary_keys)
-
-  # write partitioned dataset
-  write_cache(email_stream, "email_stream", "stream",
-              primary_keys = primary_keys,
-              incremental = TRUE, sync = FALSE)
+  email_stream_write_partition(email_stream, primary_keys)
 
   if (cache_exists_any("p2_stream","stream")) {
     p2_stream <- read_cache("p2_stream","stream") %>%
-    filter(timestamp >= from_date & timestamp < to_date) %>%
-    # mutation needed because p2_stream doesn't have source_no, which is used in
-    # email_subtype_features for sequential features.
-    mutate(source_no = -campaignid) %>% compute
+      filter(timestamp >= from_date & timestamp < to_date) %>%
+      # mutation needed because p2_stream doesn't have source_no, which is used in
+      # email_subtype_features for sequential features.
+      mutate(source_no = -campaignid)
 
-  # update the dataset with the p2 data
-    write_cache(p2_stream, "email_stream", "stream",
-                primary_keys = primary_keys,
-                incremental = TRUE, sync = FALSE)
+    # update the dataset with the p2 data
+    email_stream_write_partition(p2_stream, primary_keys)
   }
 
   email_stream <- read_cache("email_stream", "stream") %>%
     filter(timestamp >= from_date & timestamp < to_date) %>%
-    email_subtype_features %>% compute
+    email_subtype_features
 
-  write_cache(email_stream, "email_stream", "stream", incremental = TRUE,
-              primary_keys = primary_keys)
+  email_stream_write_partition(email_stream, primary_keys)
 
   email_stream
 
+}
+
+#' @param primary_keys character vector of primary keys to use
+#' @describeIn email_stream write one partition of the stream to disk
+email_stream_write_partition <- function(email_stream, primary_keys) {
+  # ensure that `primary_keys` are valid primary keys...
+  # have to pull this into R because we can't slice groups in arrow
+  email_stream <- email_stream %>%
+    mutate(year = year(timestamp)) %>%
+    collect %>% setDT %>%
+    setorderv(primary_keys) %>%
+    stream_debounce(primary_keys)
+
+  # write partitioned dataset
+  write_cache(email_stream,"email_stream", "stream",
+              primary_keys = c("year", primary_keys),
+              incremental = TRUE, sync = FALSE)
 }
 
 #' @importFrom dplyr arrange

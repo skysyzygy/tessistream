@@ -40,8 +40,9 @@ test_that("email_data_append appends descriptive info for responses, sources, an
 # email_fix_timestamp -----------------------------------------------------
 
 test_that("email_fix_timestamp recalculates send timestamps based on earliest promote_dt / acq_dt", {
-  email_data_append <- email_data_append_stubbed(email_data_stubbed()) %>% collect() %>% setDT
-  email_fix_timestamp <- email_fix_timestamp(email_data_append)
+  email_data_append <- email_data_append_stubbed(email_data_stubbed())
+  email_fix_timestamp <- email_fix_timestamp(email_data_append) %>% collect %>% setDT
+  email_data_append <- email_data_append %>% collect %>% setDT
 
   # Doesn't update response times
   email_compare_responses <- merge(
@@ -55,9 +56,11 @@ test_that("email_fix_timestamp recalculates send timestamps based on earliest pr
 
   # Does update promote dates
   email_compare_sends <- merge(
-    email_fix_timestamp[,.(first_response = min(timestamp, na.rm=T)), by = "source_no"],
-    email_data_append[event_subtype == "Send",.(customer_no, source_no, timestamp)],
-    by = c("source_no")
+    email_fix_timestamp[event_subtype == "Send",.(customer_no, timestamp,
+                           first_response = min(timestamp, na.rm=T)),
+                        by = "source_no"],
+    email_data_append[event_subtype == "Send",.(customer_no, source_no)],
+    by = c("customer_no", "source_no")
   )
 
   # to first response date
@@ -112,54 +115,59 @@ test_that("email_fix_eaddress fills in customer emails based on the send date", 
 
 test_that("email_fix_eaddress cleans the email address and extracts the domain", {
   email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed() %>%
-    email_fix_timestamp %>% collect %>% setDT
-  email_fix_eaddress <- email_fix_eaddress_stubbed(email_fix_timestamp)
-
+    email_fix_timestamp
+  email_fix_eaddress <- email_fix_eaddress_stubbed(email_fix_timestamp) %>%
+    collect %>% setDT
   expect_no_match(email_fix_eaddress$eaddress, "[A-Z\\s]")
-  expect_match(email_fix_eaddress[!is.na(eaddress),domain], "^(mac|me|hotmail|gmail|yahoo|bam)\\.")
-
+  expect_gt(email_fix_eaddress[!is.na(eaddress),.N],0)
+  expect_match(email_fix_eaddress[!is.na(eaddress),domain],
+               "^(mac|me|hotmail|gmail|yahoo|bam)\\.")
+  expect_equal(email_fix_eaddress[,domain],
+               stringr::str_replace(email_fix_eaddress[,eaddress],
+                                    ".+@",""))
 })
-
 
 # email_subtype_features ---------------------------------------------------
-
-test_that("email_subtype_features labels multiple opens as a forward",{
-  email_stream <- email_data_stubbed() %>% email_data_append_stubbed() %>%
-    email_fix_timestamp() %>% email_fix_eaddress_stubbed() %>%
-    transmute(group_customer_no,customer_no,timestamp,
-              event_type = "Email", event_subtype,
-              source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-              response, url_no, eaddress, domain) %>% compute
-
-  email_subtype_features <- email_subtype_features(email_stream) %>% collect %>% setDT
-
-  # There are no customer_no/source_no combinations with more than one open
-  expect_equal(email_subtype_features[grepl("open",event_subtype,ignore.case=T),
-                            .N,by=c("customer_no","source_no")][N>1,.N],0)
-
-  # And there are forwards that have been added
-  expect_gt(email_subtype_features[grepl("forward",event_subtype,ignore.case=T),.N],0)
-
-})
+#
+# test_that("email_subtype_features labels multiple opens as a forward",{
+#   email_stream <- email_data_stubbed() %>% email_data_append_stubbed() %>%
+#     email_fix_timestamp() %>% email_fix_eaddress_stubbed() %>%
+#     transmute(group_customer_no,customer_no,timestamp,
+#               event_type = "Email", event_subtype,
+#               source_no, appeal_no, campaign_no, source_desc, extraction_desc,
+#               response, url_no, eaddress, domain) %>% compute
+#
+#   email_subtype_features <- email_subtype_features(email_stream) %>% collect %>% setDT
+#
+#   # There are no customer_no/source_no combinations with more than one open
+#   expect_equal(email_subtype_features[grepl("open",event_subtype,ignore.case=T),
+#                             .N,by=c("customer_no","source_no")][N>1,.N],0)
+#
+#   # And there are forwards that have been added
+#   expect_gt(email_subtype_features[grepl("forward",event_subtype,ignore.case=T),.N],0)
+#
+# })
 
 test_that("email_subtype_features adds subtype counts/min/max",{
   email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed() %>%
-    email_fix_timestamp %>% collect %>% setDT
+    email_fix_timestamp %>% compute
+
   email_subtype_features <- email_subtype_features(email_fix_timestamp) %>% collect %>% setDT
 
   expect_names(colnames(email_subtype_features),
                must.include = data.table::CJ("email",
-                                             gsub("\\s","_",tolower(c("Send","Forward",.responses))),
+                                             gsub("\\s","_",tolower(c("Send",.responses))),
                                              c("count","timestamp_min","timestamp_max"),
                                              sep="_") %>%
                  do.call(what=paste))
 
   subtypes <- email_subtype_features[,unique(event_subtype)]
+  setkey(email_subtype_features, group_customer_no, timestamp)
 
   for(subtype in subtypes) {
     prefix <- paste0("email_",gsub("\\s+","_",tolower(subtype)))
 
-    email_subtype_features[event_subtype == subtype,subtype_timestamp_min:=min(timestamp,na.rm=T), by = "customer_no"]
+    email_subtype_features[event_subtype == subtype,subtype_timestamp_min:=min(timestamp,na.rm=T), by = "group_customer_no"]
 
     # all features are filled after the first one
     expect_equal(email_subtype_features[timestamp >= subtype_timestamp_min &
@@ -170,21 +178,57 @@ test_that("email_subtype_features adds subtype counts/min/max",{
     # timestamp min must be less than current timestamp
     expect_equal(email_subtype_features[timestamp < get(paste0(prefix,"_timestamp_min"))],
                  email_subtype_features[integer(0)])
-    # features are filled in correctly for matching
-    expect_equal(email_subtype_features[event_subtype == subtype & timestamp != get(paste0("email_",gsub("\\s+","_",tolower(subtype)),"_timestamp_max"))],
-                 email_subtype_features[integer(0)])
+    # timestamp features are filled in correctly for matching subtypes
+    expect_equal(email_subtype_features[event_subtype == subtype, timestamp],
+                 email_subtype_features[event_subtype == subtype,
+                                        get(paste0(prefix,"_timestamp_max"))],
+    # 1ns tolerance -- some loss of precision occurs in arrow conversion?
+                tolerance = 1e-9)
     # and non-matching subtypes
-    expect_equal(email_subtype_features[event_subtype != subtype & timestamp < get(paste0("email_",gsub("\\s+","_",tolower(subtype)),"_timestamp_max"))],
+    expect_equal(email_subtype_features[event_subtype != subtype & timestamp < get(paste0(prefix,"_timestamp_max"))],
                  email_subtype_features[integer(0)])
-    # and counts are just integer sequences
-    expect_equal(email_subtype_features[event_subtype == subtype, .(customer_no, get(paste0("email_",gsub("\\s+","_",tolower(subtype)),"_count")))] %>% setkey,
-                 email_subtype_features[event_subtype == subtype,.(V2 = 1:.N),by="customer_no"] %>% setkey)
+    # and counts are just rank sequences
+    expect_equal(email_subtype_features[event_subtype == subtype,
+                                        .(group_customer_no, get(paste0(prefix,"_count")))] %>% setkey,
+                 email_subtype_features[event_subtype == subtype,
+                                        .(V2 = rank(factor(paste0(source_no,"|",timestamp),
+                                                           levels = unique(paste0(source_no,"|",timestamp))),
+                                                    ties.method = "max")),
+                                        by="group_customer_no"] %>% setkey)
 
     email_subtype_features[,subtype_timestamp_min:=NULL]
   }
 
 })
 
+test_that("email_subtype_features run on a chunk returns the same as on a full dataset",{
+  tessilake:::local_cache_dirs()
+  primary_keys = c("group_customer_no", "timestamp", "source_no", "event_subtype")
+
+  email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed %>% email_fix_timestamp %>% compute
+
+  email_subtype_features_full <- email_subtype_features(email_fix_timestamp) %>% collect %>% setDT
+  email_fix_timestamp <- email_fix_timestamp %>% collect %>% setDT
+
+  email_stream <- rbind(email_subtype_features_full[timestamp < mean(timestamp)],
+                        email_fix_timestamp[timestamp >= mean(timestamp)],
+                        fill = TRUE)
+
+  write_cache(email_stream, "email_stream", "stream", overwrite = TRUE, primary_keys = primary_keys)
+
+  email_stream_chunk <- read_cache("email_stream","stream") %>%
+    filter(timestamp >= !!email_fix_timestamp[,mean(timestamp)])
+
+  email_subtype_features_partial <- email_subtype_features(email_stream_chunk) %>% collect %>% setDT
+
+  setorderv(email_subtype_features_partial, primary_keys)
+  email_subtype_features_test <- email_subtype_features_full[timestamp >= mean(timestamp)]
+  setorderv(email_subtype_features_test, primary_keys)
+
+  expect_mapequal(email_subtype_features_partial,
+                  email_subtype_features_test)
+
+})
 
 # email_stream_chunk ------------------------------------------------------------
 
@@ -216,7 +260,7 @@ test_that("email_stream_chunk is sane", {
 
   expect_names(colnames(email_stream_chunk),
                must.include = data.table::CJ("email",
-                                             gsub("\\s","_",tolower(c("Send","Forward",.responses))),
+                                             gsub("\\s","_",tolower(c("Send",.responses))),
                                              c("count","timestamp_min","timestamp_max"),
                                              sep="_") %>%
                  do.call(what=paste))

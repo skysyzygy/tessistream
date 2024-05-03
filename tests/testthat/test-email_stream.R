@@ -237,12 +237,12 @@ test_that("email_stream_chunk is sane", {
   primary_keys = c("source_no", "customer_no", "timestamp", "response")
 
   email_stream_chunk <- email_stream_chunk_stubbed() %>% collect %>% setDT
-  email_stream_debounced <- email_data_stubbed() %>% collect %>% setDT %>%
+  email_data <- email_data_stubbed() %>% collect %>% setDT %>%
     setorderv(primary_keys) %>%
     stream_debounce(primary_keys)
 
   # no rows have been added or removed (except the p2 one)
-  expect_equal(email_stream_chunk[,.N],email_stream_debounced %>% nrow() + 1)
+  expect_equal(email_stream_chunk[,.N],email_data %>% nrow() + 1)
   # all rows have a customer
   expect_equal(email_stream_chunk[is.na(customer_no),.N],0)
   # all rows have time information

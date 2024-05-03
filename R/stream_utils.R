@@ -301,7 +301,7 @@ setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
 #' @importFrom checkmate assert_names
 stream_customer_history <- function(stream, by, before = Inf, pattern = ".", ...) {
   timestamp <- NULL
-  assert_names(colnames(stream), must.include = c("timestamp", by))
+  assert_names(names(stream), must.include = c("timestamp", by))
 
   stream %>%
     filter(timestamp < before) %>%

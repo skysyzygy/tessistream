@@ -256,7 +256,7 @@ test_that("email_stream_chunk is sane", {
                must.include =
                c("group_customer_no", "customer_no", "timestamp", "event_type",
                "event_subtype", "source_no", "appeal_no", "campaign_no", "source_desc",
-               "extraction_desc", "response", "url_no", "eaddress", "domain"))
+               "extraction_desc", "response", "url_no", "email", "domain"))
 
   expect_names(colnames(email_stream_chunk),
                must.include = data.table::CJ("email",

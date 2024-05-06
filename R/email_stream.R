@@ -239,7 +239,7 @@ email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_dat
     transmute(group_customer_no,customer_no,timestamp,
               event_type = "Email", event_subtype,
               source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-              response, url_no, eaddress, domain,
+              response, url_no, email = eaddress, domain,
               year = as.character(year(timestamp))) %>% compute
 
   primary_keys = c("group_customer_no", "timestamp", "source_no", "event_subtype")

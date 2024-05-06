@@ -252,7 +252,7 @@ email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_dat
       # mutation needed because p2_stream doesn't have source_no, which is used in
       # email_subtype_features for sequential features.
       mutate(source_no = -campaignid)
-
+    debugonce(email_stream_write_partition)
     # update the dataset with the p2 data
     email_stream_write_partition(p2_stream, primary_keys)
   }
@@ -265,6 +265,7 @@ email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_dat
     email_subtype_features %>% compute
 
   email_stream_write_partition(email_stream, primary_keys)
+  sync_cache("email_stream", "stream")
 
   email_stream
 
@@ -273,18 +274,18 @@ email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_dat
 #' @param primary_keys character vector of primary keys to use
 #' @describeIn email_stream write one partition of the stream to disk
 email_stream_write_partition <- function(email_stream, primary_keys) {
-  # ensure that `primary_keys` are valid primary keys...
-  # have to pull this into R because we can't slice groups in arrow
+  # add year column for partitioning
   email_stream <- email_stream %>%
     mutate(year = year(timestamp)) %>%
-    collect %>% setDT %>%
-    setorderv(primary_keys) %>%
-    stream_debounce(primary_keys)
+    compute
 
   # write partitioned dataset
-  write_cache(email_stream,"email_stream", "stream",
-              primary_keys = c("year", primary_keys),
-              incremental = TRUE, sync = FALSE)
+  write_cache(email_stream, "email_stream", "stream",
+              partition = "year",
+              date_column = "timestamp",
+              prefer = "from",
+              incremental = TRUE,
+              sync = FALSE)
 }
 
 #' @importFrom dplyr arrange

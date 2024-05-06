@@ -43,7 +43,7 @@ Imports:
     RSQLite,
     sf,
     stringr,
-    tessilake (>= 0.4.2),
+    tessilake (>= 0.4.3),
     tidycensus,
     tidygeocoder,
     tidyr,

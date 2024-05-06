@@ -182,8 +182,8 @@ test_that("email_subtype_features adds subtype counts/min/max",{
     expect_equal(email_subtype_features[event_subtype == subtype, timestamp],
                  email_subtype_features[event_subtype == subtype,
                                         get(paste0(prefix,"_timestamp_max"))],
-    # 1ns tolerance -- some loss of precision occurs in arrow conversion?
-                tolerance = 1e-9)
+    # 1us tolerance -- arrow timestamp is microsecond precision
+                tolerance = 1e-6)
     # and non-matching subtypes
     expect_equal(email_subtype_features[event_subtype != subtype & timestamp < get(paste0(prefix,"_timestamp_max"))],
                  email_subtype_features[integer(0)])

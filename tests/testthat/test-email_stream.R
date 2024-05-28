@@ -1,6 +1,6 @@
 withr::local_package("mockery")
 withr::local_package("checkmate")
-
+# if(FALSE){
 # email_data --------------------------------------------------------------
 
 test_that("email_data loads from promotions and promotion_responses and returns an arrow table", {
@@ -229,17 +229,20 @@ test_that("email_subtype_features run on a chunk returns the same as on a full d
                   email_subtype_features_test)
 
 })
-
+# }
 # email_stream_chunk ------------------------------------------------------------
 
 test_that("email_stream_chunk is sane", {
   tessilake:::local_cache_dirs()
   primary_keys = c("source_no", "customer_no", "timestamp", "response")
 
-  email_stream_chunk <- email_stream_chunk_stubbed() %>% collect %>% setDT
-  email_data <- email_data_stubbed() %>% collect %>% setDT %>%
-    setorderv(primary_keys) %>%
-    stream_debounce(primary_keys)
+  expect_warning(email_stream_chunk <- email_stream_chunk_stubbed(),
+                 "primary_keys not given but date_column given")
+  email_data <- email_data_stubbed() %>% collect %>% setDT
+
+  # returns an arrow table
+  expect_class(email_stream_chunk,"ArrowTabular")
+  email_stream_chunk <- email_stream_chunk %>% collect %>% setDT
 
   # no rows have been added or removed (except the p2 one)
   expect_equal(email_stream_chunk[,.N],email_data %>% nrow() + 1)
@@ -266,10 +269,9 @@ test_that("email_stream_chunk is sane", {
                  do.call(what=paste))
 })
 
-test_that("email_stream_chunk returns an arrow table",{
+test_that("email_stream_chunk returns the same result when run with one or many chunks",{
   tessilake:::local_cache_dirs()
 
-  expect_class(email_stream_chunk_stubbed(),"ArrowTabular")
 })
 
 

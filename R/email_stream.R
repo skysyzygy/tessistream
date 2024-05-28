@@ -221,7 +221,8 @@ email_subtype_features <- function(email_stream) {
   email_subtypes <- email_subtypes[timestamp >= min_timestamp] %>%
     stream_debounce(c("group_customer_no", "timestamp", "source_no", "event_subtype"))
 
-  email_stream %>% select(!any_of(c("timestamp",feature_cols))) %>%
+  email_stream %>%
+    select(!any_of(c("timestamp",feature_cols))) %>%
     left_join(email_subtypes,
               by=c("group_customer_no", "timestamp_id", "source_no", "event_subtype"))
 
@@ -236,32 +237,27 @@ email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_dat
 
   email_stream <- email_data(..., from_date, to_date) %>% email_data_append(...) %>%
     email_fix_timestamp %>% email_fix_eaddress %>%
-    transmute(group_customer_no,customer_no,timestamp,
-              event_type = "Email", event_subtype,
+    transmute(group_customer_no = as.integer(group_customer_no), customer_no,
+              timestamp = lubridate::force_tz(timestamp,"America/New_York"),
+              timestamp_id, event_type = "Email", event_subtype,
               source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-              response, url_no, email = eaddress, domain,
-              year = as.character(year(timestamp))) %>% compute
-
-  primary_keys = c("group_customer_no", "timestamp", "source_no", "event_subtype")
-
-  email_stream_write_partition(email_stream, primary_keys)
+              response, url_no, email = eaddress, domain) %>% compute
 
   if (cache_exists_any("p2_stream","stream")) {
     p2_stream <- read_cache("p2_stream","stream") %>%
       filter(timestamp >= from_date & timestamp < to_date) %>%
       # mutation needed because p2_stream doesn't have source_no, which is used in
       # email_subtype_features for sequential features.
-      mutate(source_no = -campaignid)
-    debugonce(email_stream_write_partition)
+      mutate(source_no = -campaignid,
+             timestamp_id = arrow:::cast(timestamp, arrow::int64())) %>% compute
     # update the dataset with the p2 data
-    email_stream_write_partition(p2_stream, primary_keys)
+    email_stream <- arrow::concat_tables(email_stream,p2_stream,unify_schemas = T)
   }
 
-  email_stream <- read_cache("email_stream", "stream") %>%
+  email_stream_write_partition(email_stream, primary_keys)
+
+  email_stream <- read_cache("email_stream","stream") %>%
     filter(timestamp >= from_date & timestamp < to_date) %>%
-    # Arrow uses int64 for timestamps; R uses double precision floating points.
-    # to avoid precision loss and failed joins, create a timestamp_id for joins
-    mutate(timestamp_id = arrow:::cast(timestamp, arrow::int64())) %>%
     email_subtype_features %>% compute
 
   email_stream_write_partition(email_stream, primary_keys)

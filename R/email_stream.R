@@ -246,9 +246,11 @@ email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_dat
   if (cache_exists_any("p2_stream","stream")) {
     p2_stream <- read_cache("p2_stream","stream") %>%
       filter(timestamp >= from_date & timestamp < to_date) %>%
-      # mutation needed because p2_stream doesn't have source_no, which is used in
+      # p2_stream doesn't have source_no, which is used in
       # email_subtype_features for sequential features.
       mutate(source_no = -campaignid,
+     # Arrow uses int64 for timestamps; R uses double precision floating points.
+     # to avoid precision loss and failed joins, create a timestamp_id for joins
              timestamp_id = arrow:::cast(timestamp, arrow::int64())) %>% compute
     # update the dataset with the p2 data
     email_stream <- arrow::concat_tables(email_stream,p2_stream,unify_schemas = T)

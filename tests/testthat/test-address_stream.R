@@ -10,7 +10,7 @@ addresses <- readRDS(test_path("addresses.Rds"))
 # address_stream ----------------------------------------------------------
 
 test_that("address_stream_build combines data from address_parse, address_census, address_geocode, and read_tessi and returns all rows and a subset of columns", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   address_stream_original <- readRDS(rprojroot::find_testthat_root_file("address_stream.Rds"))
   stub(address_stream_build, "address_create_stream", address_stream_original)
@@ -50,7 +50,7 @@ test_that("address_stream_build combines data from address_parse, address_census
 })
 
 test_that("address_stream writes a full file containing additional data", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
   stub(address_stream, "address_stream_build", .address_stream)
   stub(address_stream, "sync_cache", TRUE)
 
@@ -69,7 +69,7 @@ test_that("address_stream writes a full file containing additional data", {
 })
 
 test_that("address_stream copies the address database", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   withr::local_package("checkmate")
   stub(address_stream, "address_stream_build", .address_stream)
@@ -314,7 +314,7 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
 
 
 # address_cache -----------------------------------------------------------
-tessilake:::local_cache_dirs()
+tessilake::local_cache_dirs()
 
 address_stream <- data.table(street1 = paste(1:100, "example lane"), something = "extra") %>% rbind(setNames(rep(list(character(0)),6),address_cols),
                                                                                                     fill = TRUE)

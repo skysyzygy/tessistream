@@ -193,7 +193,7 @@ test_that("email_subtype_features adds subtype counts/min/max",{
 })
 
 test_that("email_subtype_features run on a chunk returns the same as on a full dataset",{
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
   primary_keys = c("group_customer_no", "timestamp", "source_no", "event_subtype")
 
   email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed %>% email_fix_timestamp %>% compute
@@ -225,7 +225,7 @@ test_that("email_subtype_features run on a chunk returns the same as on a full d
 email_stream_chunk <- NULL
 
 test_that("email_stream_chunk returns arrow table", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
   primary_keys = c("source_no", "customer_no", "timestamp", "response")
   email_stream_chunk <<- email_stream_chunk_stubbed()
   # returns an arrow table
@@ -274,7 +274,7 @@ test_that("email_stream_chunk returns all of the expected features", {
 })
 
 test_that("email_stream_chunk returns the same result when run with one or many chunks",{
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   email_data <- email_stream_chunk %>% select(timestamp) %>% collect %>% setDT
   setkey(email_data,timestamp)

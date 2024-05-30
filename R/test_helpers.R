@@ -1,5 +1,5 @@
 address_geocode_prepare_fixtures <- function() {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   address_stream <- data.table(
     street1 = c("30 Lafayette Ave", "321 Ashland Pl", "30 Churchill Pl"),
@@ -45,7 +45,7 @@ address_census_prepare_fixtures <- function() {
 
 address_prepare_fixtures <- function() {
   . <- N <- table_name <- alternate_key <- address_no <- NULL
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   # only take customers with lots of changes
   audit <- read_tessi("audit") %>%

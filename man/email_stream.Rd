@@ -7,10 +7,11 @@
 \alias{email_fix_timestamp}
 \alias{email_fix_eaddress}
 \alias{email_subtype_features}
+\alias{email_stream_chunk}
 \alias{email_stream_write_partition}
 \title{email_stream}
 \usage{
-email_data(..., from_date = as.POSIXct("1900-01-01"), to_date = now())
+email_data(...)
 
 email_data_append(email_stream, ...)
 
@@ -20,9 +21,11 @@ email_fix_eaddress(email_stream)
 
 email_subtype_features(email_stream)
 
+email_stream_chunk(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...)
+
 email_stream_write_partition(email_stream, primary_keys)
 
-email_stream(...)
+email_stream(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...)
 }
 \arguments{
 \item{...}{
@@ -31,11 +34,11 @@ email_stream(...)
     \item{\code{freshness}}{the returned data will be at least this fresh}
   }}
 
+\item{email_stream}{email data from previous step}
+
 \item{from_date}{earliest date/time for which data will be returned}
 
 \item{to_date}{latest date/time for which data will be returned}
-
-\item{email_stream}{email data from previous step}
 
 \item{primary_keys}{character vector of primary keys to use}
 }
@@ -74,6 +77,8 @@ using email data from \link{stream_from_audit}
 \item \code{email_subtype_features()}: sets multiple \code{event_subtype == "open"} as \code{"forward"} and builds windowed features
 for each \code{event_subtype}
 
+\item \code{email_stream_chunk()}: produce one chunk of email_stream between \code{from_date} and \code{to_date}
+
 \item \code{email_stream_write_partition()}: write one partition of the stream to disk
 
 \item \code{email_stream()}: appends p2 data and outputs to cache
@@ -87,7 +92,6 @@ for each \code{event_subtype}
    email_fix_timestamp(...) \%>\%
    email_fix_eaddress(...) \%>\%
    concat_tables(read_cache("p2_stream", "stream"), unify_schemas = TRUE) \%>\%
-   email_subtype_features(...) \%>\%
-   arrange(group_customer_no, timestamp)
+   email_subtype_features(...)
 }\if{html}{\out{</div>}}
 }

@@ -62,7 +62,7 @@ email_data <- function(...) {
 #' @param email_stream email data from previous step
 email_data_append <- function(email_stream, ...) {
 
-  source_no <- source_desc <- acq_dt <- NULL
+  source_no <- source_desc <- acq_dt <- event_subtype <- NULL
 
   ### Response descriptions
 
@@ -93,7 +93,7 @@ email_data_append <- function(email_stream, ...) {
 #' the actual email send date.
 email_fix_timestamp <- function(email_stream) {
 
-  timestamp <- source_no <- first_response_dt <- acq_dt <- promote_dt <- NULL
+  timestamp <- source_no <- first_response_dt <- acq_dt <- promote_dt <- timestamp_id <- NULL
 
   ### Fix timestamp for sends/promotions
 
@@ -117,7 +117,8 @@ email_fix_timestamp <- function(email_stream) {
 #' @describeIn email_stream fills in email address based on time of send and the current email address for the customer,
 #' using email data from [stream_from_audit]
 email_fix_eaddress <- function(email_stream) {
-  . <- address <- primary_ind <- customer_no <- group_customer_no <- timestamp <- eaddress <- i.address <- domain <- NULL
+  . <- address <- primary_ind <- customer_no <- group_customer_no <- timestamp <- timestamp_id <-
+    eaddress <- i.address <- domain <- NULL
 
   ### Email addresses
   emails <- stream_from_audit("emails") %>%
@@ -148,10 +149,11 @@ email_fix_eaddress <- function(email_stream) {
 
 #' @importFrom dplyr select collect compute
 #' @importFrom tidyr any_of
+#' @importFrom checkmate assert_multi_class
 #' @describeIn email_stream sets multiple `event_subtype == "open"` as `"forward"` and builds windowed features
 #' for each `event_subtype`
 email_subtype_features <- function(email_stream) {
-  group_customer_no <- timestamp <- source_no <- event_subtype <- . <- NULL
+  group_customer_no <- timestamp <- timestamp_id <- source_no <- event_subtype <- . <- NULL
 
   # must be an arrow query in order to extract customer history from the full dataset
   assert_multi_class(email_stream, c("arrow_dplyr_query","ArrowTabular"))
@@ -235,6 +237,8 @@ email_subtype_features <- function(email_stream) {
 #' @param from_date earliest date/time for which data will be returned
 #' @param to_date latest date/time for which data will be returned
 email_stream_chunk <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...) {
+
+  group_customer_no <- timestamp_id <- primary_keys <- timestamp <- NULL
 
   assert_posixct(c(from_date, to_date), sorted = TRUE)
 

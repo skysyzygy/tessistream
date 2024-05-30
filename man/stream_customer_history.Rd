@@ -9,6 +9,8 @@ stream_customer_history(stream, by, before = Inf, pattern = ".", ...)
 \arguments{
 \item{stream}{data.frameish stream}
 
+\item{by}{character column name to group by}
+
 \item{before}{POSIXct only look at customer history before this date}
 
 \item{pattern}{character vector. If length > 1, the union of the matches is taken.}
@@ -20,8 +22,6 @@ stream_customer_history(stream, by, before = Inf, pattern = ".", ...)
 names.}
     \item{\code{perl}}{Should Perl-compatible regexps be used?}
   }}
-
-\item{cols}{character vector of column names to group by}
 }
 \description{
 Loads the last row from \code{stream} after sorting by \code{timestamp} and grouping by the entries in columns \code{by},

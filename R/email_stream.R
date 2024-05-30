@@ -27,9 +27,7 @@ NULL
 #' @importFrom data.table tstrsplit
 #' @inheritDotParams tessilake::read_sql freshness
 #' @importFrom arrow concat_tables
-#' @param from_date earliest date/time for which data will be returned
-#' @param to_date latest date/time for which data will be returned
-email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now()) {
+email_data <- function(...) {
 
   media_type <- promote_dt <- group_customer_no <- customer_no <- eaddress <-
     appeal_no <- campaign_no <- source_no <- response_dt <- response <- url_no <- NULL
@@ -38,7 +36,6 @@ email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now(
 
   promotions = read_tessi("promotions", ...) %>%
     filter(media_type == 3) %>%
-    filter(promote_dt >= from_date & promote_dt < to_date) %>%
     select(group_customer_no,customer_no,eaddress,
            promote_dt,appeal_no,campaign_no,source_no) %>%
     compute
@@ -46,7 +43,6 @@ email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now(
   ### Promotion responses
 
   promotion_responses = read_tessi("promotion_responses", ...) %>%
-    filter(response_dt >= from_date & response_dt < to_date) %>%
     transmute(group_customer_no,customer_no,
               response, timestamp = response_dt,
               source_no, url_no) %>%
@@ -229,17 +225,27 @@ email_subtype_features <- function(email_stream) {
 }
 
 
-email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now()) {
+#' @importFrom dplyr arrange
+#' @importFrom arrow as_arrow_table
+#' @importFrom tidyselect ends_with
+#' @importFrom tessilake cache_exists_any read_cache
+#' @importFrom checkmate assert_posixct
+#' @inheritDotParams tessilake::read_sql freshness
+#' @describeIn email_stream produce one chunk of email_stream between `from_date` and `to_date`
+#' @param from_date earliest date/time for which data will be returned
+#' @param to_date latest date/time for which data will be returned
+email_stream_chunk <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...) {
+
+  assert_posixct(c(from_date, to_date), sorted = TRUE)
 
   customer_no <- timestamp <- event_subtype <- source_no <-
     appeal_no <- campaign_no <- source_desc <- extraction_desc <-
     response <- url_no <- eaddress <- domain <- campaignid <- NULL
 
-  email_stream <- email_data(..., from_date, to_date) %>% email_data_append(...) %>%
-    email_fix_timestamp %>% email_fix_eaddress %>%
+  email_stream <- email_data(...) %>% email_data_append(...) %>% email_fix_timestamp %>%
+    filter(timestamp >= from_date & timestamp < to_date) %>% email_fix_eaddress %>%
     transmute(group_customer_no = as.integer(group_customer_no), customer_no,
-              timestamp = lubridate::force_tz(timestamp,"America/New_York"),
-              timestamp_id, event_type = "Email", event_subtype,
+              timestamp, timestamp_id, event_type = "Email", event_subtype,
               source_no, appeal_no, campaign_no, source_desc, extraction_desc,
               response, url_no, email = eaddress, domain) %>% compute
 
@@ -262,8 +268,7 @@ email_stream_chunk <- function(..., from_date = as.POSIXct("1900-01-01"), to_dat
     filter(timestamp >= from_date & timestamp < to_date) %>%
     email_subtype_features %>% compute
 
-  email_stream_write_partition(email_stream, primary_keys)
-  sync_cache("email_stream", "stream")
+  suppressWarnings(email_stream_write_partition(email_stream, primary_keys))
 
   email_stream
 
@@ -286,11 +291,6 @@ email_stream_write_partition <- function(email_stream, primary_keys) {
               sync = FALSE)
 }
 
-#' @importFrom dplyr arrange
-#' @importFrom arrow as_arrow_table
-#' @importFrom tidyselect ends_with
-#' @importFrom tessilake cache_exists_any read_cache write_cache
-#' @inheritDotParams tessilake::read_sql freshness
 #' @describeIn email_stream appends p2 data and outputs to cache
 #' @note `email_stream()` is essentially
 #' ```
@@ -299,11 +299,21 @@ email_stream_write_partition <- function(email_stream, primary_keys) {
 #'    email_fix_timestamp(...) %>%
 #'    email_fix_eaddress(...) %>%
 #'    concat_tables(read_cache("p2_stream", "stream"), unify_schemas = TRUE) %>%
-#'    email_subtype_features(...) %>%
-#'    arrange(group_customer_no, timestamp)
+#'    email_subtype_features(...)
 #' ```
 #' @export
-email_stream <- function(...) {
-  email_stream_chunk(...)
+email_stream <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...) {
+  assert_posixct(c(from_date, to_date), sorted = TRUE)
+
+  from_year <- year(from_date)
+  to_year <- year(to_date)
+
+  for (year in seq(from_year, to_year)) {
+    from_date_inner = max(from_date, lubridate::make_datetime(year))
+    to_date_inner = min(to_date, lubridate::make_datetime(year+1) - .001)
+    email_stream_chunk(from_date = from_date_inner, to_date = to_date_inner)
+  }
+
+  sync_cache("email_stream","stream")
 }
 

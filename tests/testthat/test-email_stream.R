@@ -1,6 +1,6 @@
 withr::local_package("mockery")
 withr::local_package("checkmate")
-# if(FALSE){
+
 # email_data --------------------------------------------------------------
 
 test_that("email_data loads from promotions and promotion_responses and returns an arrow table", {
@@ -10,15 +10,6 @@ test_that("email_data loads from promotions and promotion_responses and returns 
   expect_equal(nrow(email_data_stubbed()), nrow(promotions) + nrow(promotion_responses))
 })
 
-test_that("email_data only loads data between the given dates", {
-  from_date <- as.POSIXct("2010-01-01")
-  to_date <- as.POSIXct("2020-01-01")
-  promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE) %>%
-    filter(promote_dt >= from_date & promote_dt < to_date) %>% collect
-  promotion_responses <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"), as_data_frame = FALSE) %>%
-    filter(response_dt >= from_date & response_dt < to_date) %>% collect
-  expect_equal(nrow(email_data_stubbed(from_date = from_date, to_date = to_date)), nrow(promotions) + nrow(promotion_responses))
-})
 
 # email_data_append -------------------------------------------------------
 
@@ -229,19 +220,20 @@ test_that("email_subtype_features run on a chunk returns the same as on a full d
                   email_subtype_features_test)
 
 })
-# }
-# email_stream_chunk ------------------------------------------------------------
 
-test_that("email_stream_chunk is sane", {
+# email_stream_chunk ------------------------------------------------------------
+email_stream_chunk <- NULL
+
+test_that("email_stream_chunk returns arrow table", {
   tessilake:::local_cache_dirs()
   primary_keys = c("source_no", "customer_no", "timestamp", "response")
-
-  expect_warning(email_stream_chunk <- email_stream_chunk_stubbed(),
-                 "primary_keys not given but date_column given")
-  email_data <- email_data_stubbed() %>% collect %>% setDT
-
+  email_stream_chunk <<- email_stream_chunk_stubbed()
   # returns an arrow table
   expect_class(email_stream_chunk,"ArrowTabular")
+})
+
+test_that("email_stream_chunk returns all rows with basic info",{
+  email_data <- email_data_stubbed() %>% collect %>% setDT
   email_stream_chunk <- email_stream_chunk %>% collect %>% setDT
 
   # no rows have been added or removed (except the p2 one)
@@ -257,22 +249,83 @@ test_that("email_stream_chunk is sane", {
 
   expect_names(colnames(email_stream_chunk),
                must.include =
-               c("group_customer_no", "customer_no", "timestamp", "event_type",
-               "event_subtype", "source_no", "appeal_no", "campaign_no", "source_desc",
-               "extraction_desc", "response", "url_no", "email", "domain"))
+                 c("group_customer_no", "customer_no", "timestamp", "event_type",
+                   "event_subtype", "source_no", "appeal_no", "campaign_no", "source_desc",
+                   "extraction_desc", "response", "url_no", "email", "domain"))
+
+})
+
+test_that("email_stream_chunk returns all of the expected features", {
+  email_stream_chunk <- email_stream_chunk %>% collect %>% setDT
+
+  feature_cols <- data.table::CJ("email",
+                                 gsub("\\s","_",tolower(c("Send",.responses))),
+                                 c("count","timestamp_min","timestamp_max"),
+                                 sep="_") %>% do.call(what=paste)
+
 
   expect_names(colnames(email_stream_chunk),
-               must.include = data.table::CJ("email",
-                                             gsub("\\s","_",tolower(c("Send",.responses))),
-                                             c("count","timestamp_min","timestamp_max"),
-                                             sep="_") %>%
-                 do.call(what=paste))
+               must.include = feature_cols)
+
+  for (col in feature_cols) {
+    expect_gt(email_stream_chunk[!is.na(get(col)),.N],email_stream_chunk[,.N]/20)
+  }
+
 })
 
 test_that("email_stream_chunk returns the same result when run with one or many chunks",{
   tessilake:::local_cache_dirs()
 
+  email_data <- email_stream_chunk %>% select(timestamp) %>% collect %>% setDT
+  setkey(email_data,timestamp)
+  email_data[,group := cut(seq(.N),breaks=5,labels=F)]
+
+  purrr::imap(split(email_data,by="group"),
+    \(group, i) {
+        expr <- quote(email_stream_chunk_stubbed(from_date = group[,min(timestamp,na.rm=T)],
+                                 to_date = group[,max(timestamp,na.rm=T)+1000]))
+      if (i == 1) {
+        eval(expr)
+      } else {
+        expect_warning(!!expr)
+      }
+    }
+  )
+
+  rows <- sample(nrow(email_data), 1000)
+
+  email_stream <- read_cache("email_stream","stream") %>% collect %>% setDT %>%
+    setkey(group_customer_no,timestamp,source_no,event_subtype)
+  email_stream_expected <- email_stream_chunk %>% collect %>% setDT %>%
+    setkey(group_customer_no,timestamp,source_no,event_subtype)
+
+  expect_equal(email_stream[rows,], email_stream_expected[rows,],
+               ignore_attr = c("partition_key", "sorted"),
+               list_as_map = TRUE)
+
 })
 
+
+# email_stream ------------------------------------------------------------
+
+test_that("email_stream executes email_stream_chunk by year up while honoring from_date and to_date", {
+  withr::local_package("lubridate")
+  email_stream_chunk <- mock()
+  stub(email_stream,"email_stream_chunk",email_stream_chunk)
+  stub(email_stream,"sync_cache",TRUE)
+
+  email_stream(from_date = make_datetime(2020,7,1), to_date = make_datetime(2024,5,30))
+
+  expect_length(mock_args(email_stream_chunk), 5)
+  expect_equal(mock_args(email_stream_chunk)[[1]][["from_date"]], make_datetime(2020,7,1))
+  for (i in seq(2,5)) {
+    expect_equal(mock_args(email_stream_chunk)[[i]][["from_date"]], make_datetime(2019+i))
+  }
+  for (i in seq(1,4)) {
+    expect_equal(mock_args(email_stream_chunk)[[i]][["to_date"]], make_datetime(2020+i)-.001)
+  }
+  expect_equal(mock_args(email_stream_chunk)[[5]][["to_date"]], make_datetime(2024,5,30))
+
+})
 
 

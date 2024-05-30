@@ -292,12 +292,13 @@ setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
 #' @param stream data.frameish stream
 #' @param pattern character vector. If length > 1, the union of the matches is taken.
 #' @inheritDotParams tidyselect::matches ignore.case perl
-#' @param cols character vector of column names to group by
 #' @param before POSIXct only look at customer history before this date
+#' @param by character column name to group by
+#' @param ...
 #'
 #' @importFrom tidyselect matches
 #' @importFrom data.table setorderv
-#' @importFrom dplyr filter select collect
+#' @importFrom dplyr filter select collect all_of
 #' @importFrom checkmate assert_names
 stream_customer_history <- function(stream, by, before = Inf, pattern = ".", ...) {
   timestamp <- NULL
@@ -305,7 +306,7 @@ stream_customer_history <- function(stream, by, before = Inf, pattern = ".", ...
 
   stream %>%
     filter(timestamp < before) %>%
-    select(c(by,"timestamp",matches(pattern,...))) %>%
+    select(all_of(c(by,"timestamp")),matches(pattern,...)) %>%
     # have to pull this into R in order to do windowed slices, i.e. debouncing
     collect %>% setDT %>%
     setorderv("timestamp") %>%

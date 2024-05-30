@@ -10,5 +10,22 @@ p2_stream()
 stream as a data.table
 }
 \description{
-Update and build the p2 parquet files
+Combined dataset of email sends/clicks/opens/unsubscribes from Prospect2.
+Features included are:
+\itemize{
+\item group_customer_no, customer_no
+\item subscriberid : Prospect2 customer id
+\item timestamp : date of email event
+\item email : email address
+\item event_type : "Email"
+\item event_subtype : "Open", "Click", "Unsubscribe', "Hard Bounce", "Soft Bounce", etc.
+\item campaignid, messageid, listid, linkid : Prospect2 internal ids
+\item ip, ua, uasrc, referer, isread, times : Email open data
+\item status : List subscription status
 }
+}
+\section{Functions}{
+\itemize{
+\item \code{p2_stream()}: Update and build the p2 parquet files
+
+}}

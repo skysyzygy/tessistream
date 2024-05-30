@@ -1,3 +1,22 @@
+#' @title p2_stream
+#' @description
+#'
+#' Combined dataset of email sends/clicks/opens/unsubscribes from Prospect2.
+#' Features included are:
+#'
+#' * group_customer_no, customer_no
+#' * subscriberid : Prospect2 customer id
+#' * timestamp : date of email event
+#' * email : email address
+#' * event_type : "Email"
+#' * event_subtype : "Open", "Click", "Unsubscribe', "Hard Bounce", "Soft Bounce", etc.
+#' * campaignid, messageid, listid, linkid : Prospect2 internal ids
+#' * ip, ua, uasrc, referer, isread, times : Email open data
+#' * status : List subscription status
+#'
+#' @name p2_stream
+NULL
+
 api_url <- "https://brooklynacademyofmusic.api-us1.com"
 
 
@@ -541,9 +560,7 @@ p2_stream_enrich <- function(p2_stream) {
 }
 
 
-#' p2_stream
-#'
-#' Update and build the p2 parquet files
+#' @describeIn p2_stream Update and build the p2 parquet files
 #'
 #' @return stream as a data.table
 #' @importFrom tessilake write_cache sync_cache

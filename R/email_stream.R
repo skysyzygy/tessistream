@@ -281,6 +281,8 @@ email_stream_chunk <- function(from_date = as.POSIXct("1900-01-01"), to_date = n
 #' @param primary_keys character vector of primary keys to use
 #' @describeIn email_stream write one partition of the stream to disk
 email_stream_write_partition <- function(email_stream, primary_keys) {
+  timestamp <- NULL
+
   # add year column for partitioning
   email_stream <- email_stream %>%
     mutate(year = year(timestamp)) %>%

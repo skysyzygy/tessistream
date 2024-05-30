@@ -1,3 +1,7 @@
+# tessistream 0.4.1
+
+* email_stream now can be built incrementally, for more efficiency
+
 # tessistream 0.4.0
 
 * Working email_stream implementation

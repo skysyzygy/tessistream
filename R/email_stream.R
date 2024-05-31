@@ -237,14 +237,12 @@ email_subtype_features <- function(email_stream) {
 #' @param from_date earliest date/time for which data will be returned
 #' @param to_date latest date/time for which data will be returned
 email_stream_chunk <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...) {
-
-  group_customer_no <- timestamp_id <- primary_keys <- timestamp <- NULL
-
   assert_posixct(c(from_date, to_date), sorted = TRUE)
 
   customer_no <- timestamp <- event_subtype <- source_no <-
-    appeal_no <- campaign_no <- source_desc <- extraction_desc <-
-    response <- url_no <- eaddress <- domain <- campaignid <- NULL
+    group_customer_no <- timestamp_id <- appeal_no <- campaign_no <-
+    source_desc <- extraction_desc <- response <- url_no <- eaddress <-
+    domain <- campaignid <- NULL
 
   email_stream <- email_data(...) %>% email_data_append(...) %>% email_fix_timestamp %>%
     filter(timestamp >= from_date & timestamp < to_date) %>% email_fix_eaddress %>%
@@ -266,21 +264,20 @@ email_stream_chunk <- function(from_date = as.POSIXct("1900-01-01"), to_date = n
     email_stream <- arrow::concat_tables(email_stream,p2_stream,unify_schemas = T)
   }
 
-  email_stream_write_partition(email_stream, primary_keys)
+  email_stream_write_partition(email_stream)
 
   email_stream <- read_cache("email_stream","stream") %>%
     filter(timestamp >= from_date & timestamp < to_date) %>%
     email_subtype_features %>% compute
 
-  suppressWarnings(email_stream_write_partition(email_stream, primary_keys))
+  suppressWarnings(email_stream_write_partition(email_stream))
 
   email_stream
 
 }
 
-#' @param primary_keys character vector of primary keys to use
 #' @describeIn email_stream write one partition of the stream to disk
-email_stream_write_partition <- function(email_stream, primary_keys) {
+email_stream_write_partition <- function(email_stream) {
   timestamp <- NULL
 
   # add year column for partitioning

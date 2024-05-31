@@ -23,7 +23,7 @@ email_subtype_features(email_stream)
 
 email_stream_chunk(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...)
 
-email_stream_write_partition(email_stream, primary_keys)
+email_stream_write_partition(email_stream)
 
 email_stream(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...)
 }
@@ -39,8 +39,6 @@ email_stream(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...)
 \item{from_date}{earliest date/time for which data will be returned}
 
 \item{to_date}{latest date/time for which data will be returned}
-
-\item{primary_keys}{character vector of primary keys to use}
 }
 \value{
 \link[arrow:Table-class]{arrow::Table} of email data

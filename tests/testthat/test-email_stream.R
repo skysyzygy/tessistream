@@ -194,7 +194,6 @@ test_that("email_subtype_features adds subtype counts/min/max",{
 
 test_that("email_subtype_features run on a chunk returns the same as on a full dataset",{
   tessilake::local_cache_dirs()
-  primary_keys = c("group_customer_no", "timestamp", "source_no", "event_subtype")
 
   email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed %>% email_fix_timestamp %>% compute
 
@@ -205,16 +204,16 @@ test_that("email_subtype_features run on a chunk returns the same as on a full d
                         email_fix_timestamp[timestamp >= mean(timestamp)],
                         fill = TRUE)
 
-  write_cache(email_stream, "email_stream", "stream", overwrite = TRUE, primary_keys = primary_keys)
+  write_cache(email_stream, "email_stream", "stream", overwrite = TRUE)
 
   email_stream_chunk <- read_cache("email_stream","stream") %>%
     filter(timestamp >= !!email_fix_timestamp[,mean(timestamp)])
 
   email_subtype_features_partial <- email_subtype_features(email_stream_chunk) %>% collect %>% setDT
 
-  setorderv(email_subtype_features_partial, primary_keys)
+  setorder(email_subtype_features_partial, group_customer_no,timestamp_id,source_no,event_subtype)
   email_subtype_features_test <- email_subtype_features_full[timestamp >= mean(timestamp)]
-  setorderv(email_subtype_features_test, primary_keys)
+  setorder(email_subtype_features_test, group_customer_no,timestamp_id,source_no,event_subtype)
 
   expect_mapequal(email_subtype_features_partial,
                   email_subtype_features_test)
@@ -226,7 +225,6 @@ email_stream_chunk <- NULL
 
 test_that("email_stream_chunk returns arrow table", {
   tessilake::local_cache_dirs()
-  primary_keys = c("source_no", "customer_no", "timestamp", "response")
   email_stream_chunk <<- email_stream_chunk_stubbed()
   # returns an arrow table
   expect_class(email_stream_chunk,"ArrowTabular")

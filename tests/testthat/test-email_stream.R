@@ -295,9 +295,9 @@ test_that("email_stream_chunk returns the same result when run with one or many 
   rows <- sample(nrow(email_data), 1000)
 
   email_stream <- read_cache("email_stream","stream") %>% collect %>% setDT %>%
-    setkey(group_customer_no,timestamp,source_no,event_subtype, appeal_no, campaign_no)
+    setkey(group_customer_no,timestamp_id,source_no,event_subtype,appeal_no,campaign_no,promote_dt,eaddress)
   email_stream_expected <- email_stream_chunk %>% collect %>% setDT %>%
-    setkey(group_customer_no,timestamp,source_no,event_subtype, appeal_no, campaign_no)
+    setkey(group_customer_no,timestamp_id,source_no,event_subtype,appeal_no,campaign_no,promote_dt,eaddress)
 
   expect_equal(email_stream[rows,], email_stream_expected[rows,],
                ignore_attr = c("partition_key", "sorted"),

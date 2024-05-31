@@ -244,8 +244,9 @@ email_stream_chunk <- function(from_date = as.POSIXct("1900-01-01"), to_date = n
     source_desc <- extraction_desc <- response <- url_no <- eaddress <-
     domain <- campaignid <- NULL
 
-  email_stream <- email_data(...) %>% email_data_append(...) %>% email_fix_timestamp %>%
-    filter(timestamp >= from_date & timestamp < to_date) %>% email_fix_eaddress %>%
+  email_stream <- email_data(...) %>% email_data_append(...) %>%
+    email_fix_timestamp %>% email_fix_eaddress %>%
+    filter(timestamp >= from_date & timestamp < to_date) %>%
     transmute(group_customer_no = as.integer(group_customer_no), customer_no,
               timestamp, timestamp_id, event_type = "Email", event_subtype,
               source_no, appeal_no, campaign_no, source_desc, extraction_desc,

@@ -211,9 +211,9 @@ test_that("email_subtype_features run on a chunk returns the same as on a full d
 
   email_subtype_features_partial <- email_subtype_features(email_stream_chunk) %>% collect %>% setDT
 
-  setorder(email_subtype_features_partial, group_customer_no,timestamp_id,source_no,event_subtype)
+  setkey(email_subtype_features_partial, group_customer_no,timestamp_id,source_no,event_subtype)
   email_subtype_features_test <- email_subtype_features_full[timestamp >= mean(timestamp)]
-  setorder(email_subtype_features_test, group_customer_no,timestamp_id,source_no,event_subtype)
+  setkey(email_subtype_features_test, group_customer_no,timestamp_id,source_no,event_subtype)
 
   expect_mapequal(email_subtype_features_partial,
                   email_subtype_features_test)
@@ -290,7 +290,7 @@ test_that("email_stream_chunk returns the same result when run with one or many 
     }
   )
 
-  rows <- sample(nrow(email_data), 1000)
+  rows <- seq(1,by=100,length.out=1000)
 
   email_stream <- read_cache("email_stream","stream") %>% collect %>% setDT %>%
     setkey(group_customer_no,timestamp_id,source_no,event_subtype,appeal_no,campaign_no)

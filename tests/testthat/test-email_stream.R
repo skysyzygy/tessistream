@@ -119,25 +119,6 @@ test_that("email_fix_eaddress cleans the email address and extracts the domain",
 })
 
 # email_subtype_features ---------------------------------------------------
-#
-# test_that("email_subtype_features labels multiple opens as a forward",{
-#   email_stream <- email_data_stubbed() %>% email_data_append_stubbed() %>%
-#     email_fix_timestamp() %>% email_fix_eaddress_stubbed() %>%
-#     transmute(group_customer_no,customer_no,timestamp,
-#               event_type = "Email", event_subtype,
-#               source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-#               response, url_no, eaddress, domain) %>% compute
-#
-#   email_subtype_features <- email_subtype_features(email_stream) %>% collect %>% setDT
-#
-#   # There are no customer_no/source_no combinations with more than one open
-#   expect_equal(email_subtype_features[grepl("open",event_subtype,ignore.case=T),
-#                             .N,by=c("customer_no","source_no")][N>1,.N],0)
-#
-#   # And there are forwards that have been added
-#   expect_gt(email_subtype_features[grepl("forward",event_subtype,ignore.case=T),.N],0)
-#
-# })
 
 test_that("email_subtype_features adds subtype counts/min/max",{
   email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed() %>%
@@ -210,17 +191,19 @@ test_that("email_subtype_features run on a chunk returns the same as on a full d
     filter(timestamp >= !!email_fix_timestamp[,mean(timestamp)])
 
   email_subtype_features_partial <- email_subtype_features(email_stream_chunk) %>% collect %>% setDT
-
-  setkey(email_subtype_features_partial, group_customer_no,timestamp_id,source_no,event_subtype)
   email_subtype_features_test <- email_subtype_features_full[timestamp >= mean(timestamp)]
-  setkey(email_subtype_features_test, group_customer_no,timestamp_id,source_no,event_subtype)
 
-  expect_mapequal(email_subtype_features_partial,
-                  email_subtype_features_test)
+  setkey(email_subtype_features_partial, group_customer_no,timestamp,source_no,event_subtype,promote_dt)
+  setkey(email_subtype_features_test, group_customer_no,timestamp,source_no,event_subtype,promote_dt)
+
+  expect_equal(email_subtype_features_partial,
+               email_subtype_features_test,
+               list_as_map = TRUE)
 
 })
 
 # email_stream_chunk ------------------------------------------------------------
+
 email_stream_chunk <- NULL
 
 test_that("email_stream_chunk returns arrow table", {
@@ -293,11 +276,13 @@ test_that("email_stream_chunk returns the same result when run with one or many 
   rows <- seq(1,by=100,length.out=1000)
 
   email_stream <- read_cache("email_stream","stream") %>% collect %>% setDT %>%
-    setkey(group_customer_no,timestamp_id,source_no,event_subtype,appeal_no,campaign_no)
+    distinct %>%
+    setkey(group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no)
   email_stream_expected <- email_stream_chunk %>% collect %>% setDT %>%
-    setkey(group_customer_no,timestamp_id,source_no,event_subtype,appeal_no,campaign_no)
+    distinct %>%
+    setkey(group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no)
 
-  expect_equal(email_stream[rows,], email_stream_expected[rows,],
+  expect_equal(email_stream, email_stream_expected,
                ignore_attr = c("partition_key", "sorted"),
                list_as_map = TRUE)
 

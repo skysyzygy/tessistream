@@ -126,6 +126,8 @@ setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
 #' @export
 #'
 #' @importFrom rlang list2
+#' @importFrom data.table haskey
+#' @importFrom checkmate assert_data_table
 #'
 #' @examples
 #' stream <- data.table::data.table(
@@ -135,6 +137,9 @@ setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
 stream_debounce <- function(stream, ...) {
 
   cols <- sapply(rlang::enquos(...), rlang::eval_tidy)
+
+  assert_data_table(stream)
+  assert_true(haskey(stream))
 
   # Debounce, take the last change per group per day
   stream[, .SD[.N], by = cols][]
@@ -220,6 +225,8 @@ stream_from_audit <- function(table_name, cols = NULL, ...) {
     collect() %>%
     setDT()
 
+  setkey(audit, timestamp)
+
   audit <- stream_debounce(audit,setdiff(colnames(audit),"new_value"))
 
   audit_changes <- audit %>%
@@ -248,6 +255,8 @@ stream_from_audit <- function(table_name, cols = NULL, ...) {
   setnafill(stream, "locf", cols = names(cols), by = pk_name)
   # And then fill back up for non-changes
   setnafill(stream, "nocb", cols = names(cols), by = pk_name)
+
+  setkeyv(stream, c(pk_name, "event_subtype", "timestamp"))
 
   stream_debounce(stream,!!pk_name,"timestamp")
 
@@ -309,7 +318,7 @@ stream_customer_history <- function(stream, by, before = Inf, pattern = ".", ...
     select(all_of(c(by,"timestamp")),matches(pattern,...)) %>%
     # have to pull this into R in order to do windowed slices, i.e. debouncing
     collect %>% setDT %>%
-    setorderv("timestamp") %>%
+    setkeyv("timestamp") %>%
     stream_debounce(by)
 }
 

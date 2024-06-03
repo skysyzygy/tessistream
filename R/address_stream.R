@@ -112,6 +112,7 @@ address_create_stream <- function(...) {
 
   stream_from_audit("addresses", cols = cols, ...) %>%
     .[,timestamp := as_date(timestamp)] %>%
+    setkey(address_no,timestamp) %>%
     stream_debounce(c("address_no","timestamp"))
 
 }

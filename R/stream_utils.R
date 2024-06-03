@@ -133,7 +133,8 @@ setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
 #' stream <- data.table::data.table(
 #'   x = 0:48, y = rep(0:4, 12)
 #' )
-#' stream_debounce(stream)
+#' data.table::setkey(stream, x)
+#' stream_debounce(stream, "y")
 stream_debounce <- function(stream, ...) {
 
   cols <- sapply(rlang::enquos(...), rlang::eval_tidy)
@@ -163,7 +164,7 @@ stream_debounce <- function(stream, ...) {
 #' @importFrom rlang sym syms
 #'
 stream_from_audit <- function(table_name, cols = NULL, ...) {
-  . <- primary_keys <- group_customer_no <- customer_no <- action <-
+  . <- primary_keys <- group_customer_no <- customer_no <- action <- timestamp <-
     new_value <- old_value <- alternate_key <- userid <- column_updated <-
     create_dt <- created_by <- last_update_dt <- last_updated_by <- event_subtype <- NULL
 

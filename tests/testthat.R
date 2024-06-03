@@ -9,4 +9,4 @@
 library(testthat)
 library(tessistream)
 
-test_check("tessistream",filter="email")
+test_check("tessistream")

@@ -278,6 +278,10 @@ test_that("email_stream_base is deterministic for row reorderings", {
 
 })
 
+test_that("email_stream_base runs successfully and returns an empty table when there's nothing to do",{
+  expect_equal(nrow(email_stream_base_stubbed(from_date = as.POSIXct("1900-01-01"), to_date = as.POSIXct("1900-01-02"))),0)
+})
+
 # email_stream_chunk ------------------------------------------------------------
 
 email_stream_chunk <- NULL
@@ -366,6 +370,19 @@ test_that("email_stream_chunk returns the same result when run with one or many 
 })
 
 
+test_that("email_stream_chunk runs successfully when there's nothing to do",{
+  tessilake::local_cache_dirs()
+
+  expect_equal(nrow(email_stream_chunk_stubbed(from_date = as.POSIXct("1900-01-01"), to_date = as.POSIXct("1900-01-02"))),0)
+
+  # also works when there's nothing from stream_base, but there is from p2_stream
+  stub(email_stream_chunk_stubbed, "email_stream_base_stubbed",
+       email_stream_base_stubbed(from_date = as.POSIXct("1900-01-01"), to_date = as.POSIXct("1900-01-02")))
+
+  expect_equal(nrow(email_stream_chunk_stubbed()),1)
+})
+
+
 # email_stream ------------------------------------------------------------
 
 test_that("email_stream executes email_stream_chunk by year while honoring from_date and to_date", {
@@ -382,7 +399,7 @@ test_that("email_stream executes email_stream_chunk by year while honoring from_
     expect_equal(mock_args(email_stream_chunk)[[i]][["from_date"]], make_datetime(2019+i))
   }
   for (i in seq(1,4)) {
-    expect_equal(mock_args(email_stream_chunk)[[i]][["to_date"]], make_datetime(2020+i)-.001)
+    expect_equal(mock_args(email_stream_chunk)[[i]][["to_date"]], make_datetime(2020+i))
   }
   expect_equal(mock_args(email_stream_chunk)[[5]][["to_date"]], make_datetime(2024,5,30))
 

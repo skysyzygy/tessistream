@@ -46,8 +46,8 @@ email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now(
   ### Promotions
 
   promotions = read_tessi("promotions", ...) %>%
-    filter(media_type == 3) %>%
-    filter(promote_dt >= from_date & promote_dt < to_date) %>%
+    filter(promote_dt >= from_date & promote_dt < to_date &
+            media_type == 3) %>%
     select(group_customer_no,customer_no,eaddress,
            promote_dt,appeal_no,campaign_no,source_no) %>%
     compute
@@ -55,7 +55,8 @@ email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now(
   ### Promotion responses by source (because promotion timestamps may be modified by source)
 
   promotion_responses2 = read_tessi("promotion_responses", ...) %>%
-    filter(source_no %in% promotions$source_no & !(response_dt >= from_date & response_dt < to_date)) %>%
+    filter(source_no %in% promotions$source_no &
+             !(response_dt >= from_date & response_dt < to_date)) %>%
     transmute(group_customer_no,customer_no,
               response, timestamp = response_dt,
               source_no, url_no) %>%
@@ -64,8 +65,9 @@ email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now(
   ### Promotions by source (because promotion timestamps may be modified by source)
 
   promotions2 = read_tessi("promotions", ...) %>%
-    filter(media_type == 3) %>%
-    filter(source_no %in% promotion_responses$source_no & !(promote_dt >= from_date & promote_dt < to_date)) %>%
+    filter(source_no %in% promotion_responses$source_no &
+             !(promote_dt >= from_date & promote_dt < to_date) &
+             media_type == 3) %>%
     select(group_customer_no,customer_no,eaddress,
            promote_dt,appeal_no,campaign_no,source_no) %>%
     compute
@@ -194,6 +196,10 @@ email_subtype_features <- function(email_stream) {
   # must be an arrow query in order to extract customer history from the full dataset
   assert_multi_class(email_stream, c("arrow_dplyr_query","ArrowTabular"))
 
+  if(nrow(email_stream) == 0) {
+    return(email_stream)
+  }
+
   # working data.table
   email_subtypes <- email_stream %>%
     select(group_customer_no, timestamp, timestamp_id, source_no, event_subtype) %>%
@@ -271,13 +277,18 @@ email_stream_base <- function(from_date = as.POSIXct("1900-01-01"), to_date = no
     source_no <- appeal_no <- campaign_no <- source_desc <- extraction_desc <-
     response <- url_no <- eaddress <- domain <- NULL
 
-  email_stream <- email_data(from_date = from_date, to_date = to_date, ...) %>%
-    email_data_append(...) %>% email_fix_timestamp %>% email_fix_eaddress %>%
-    filter(timestamp >= from_date & timestamp < to_date) %>%
-    transmute(group_customer_no = as.integer(group_customer_no), customer_no,
-              timestamp, timestamp_id, event_type = "Email", event_subtype,
-              source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-              response, url_no, email = eaddress, domain) %>% compute
+  email_stream <- email_data(from_date = from_date, to_date = to_date, ...)
+
+  if (nrow(email_stream) == 0) {
+    return(arrow::arrow_table(group_customer_no=integer(0)))
+  }
+
+  email_stream %>% email_data_append(...) %>% email_fix_timestamp %>% email_fix_eaddress %>%
+  filter(timestamp >= from_date & timestamp < to_date) %>%
+  transmute(group_customer_no = as.integer(group_customer_no), customer_no,
+            timestamp, timestamp_id, event_type = "Email", event_subtype,
+            source_no, appeal_no, campaign_no, source_desc, extraction_desc,
+            response, url_no, email = eaddress, domain) %>% compute
 }
 
 
@@ -309,9 +320,11 @@ email_stream_chunk <- function(from_date = as.POSIXct("1900-01-01"), to_date = n
 
   email_stream_write_partition(email_stream)
 
-  email_stream <- read_cache("email_stream","stream") %>%
-    filter(timestamp >= from_date & timestamp < to_date) %>%
-    email_subtype_features %>% compute
+  if(cache_exists_any("email_stream","stream")) {
+    email_stream <- read_cache("email_stream","stream") %>%
+      filter(timestamp >= from_date & timestamp < to_date) %>%
+      email_subtype_features %>% compute
+  }
 
   suppressWarnings(email_stream_write_partition(email_stream))
 
@@ -322,6 +335,10 @@ email_stream_chunk <- function(from_date = as.POSIXct("1900-01-01"), to_date = n
 #' @describeIn email_stream write one partition of the stream to disk
 email_stream_write_partition <- function(email_stream) {
   timestamp <- NULL
+
+  if(nrow(email_stream) == 0) {
+    return(invisible())
+  }
 
   # add year column for partitioning
   email_stream <- email_stream %>%
@@ -356,7 +373,7 @@ email_stream <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), 
 
   for (year in seq(from_year, to_year)) {
     from_date_inner = max(from_date, lubridate::make_datetime(year))
-    to_date_inner = min(to_date, lubridate::make_datetime(year+1) - .001)
+    to_date_inner = min(to_date, lubridate::make_datetime(year+1))
     email_stream_chunk(from_date = from_date_inner, to_date = to_date_inner)
   }
 

@@ -38,7 +38,7 @@ email_[subtype]_timestamp_max
     
     <a class="navbar-brand me-2" href="../index.html">tessistream</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -94,17 +94,23 @@ Features included are:</p><ul><li><p>group_customer_no, customer_no</p></li>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">email_data</span><span class="op">(</span><span class="va">...</span><span class="op">)</span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">email_data</span><span class="op">(</span><span class="va">...</span>, from_date <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.POSIXlt.html" class="external-link">as.POSIXct</a></span><span class="op">(</span><span class="st">"1900-01-01"</span><span class="op">)</span>, to_date <span class="op">=</span> <span class="fu">now</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">email_data_append</span><span class="op">(</span><span class="va">email_stream</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">email_fix_timestamp</span><span class="op">(</span><span class="va">email_stream</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="fu">email_fix_timestamp</span><span class="op">(</span><span class="va">email_stream</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">email_fix_eaddress</span><span class="op">(</span><span class="va">email_stream</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="fu">email_fix_eaddress</span><span class="op">(</span><span class="va">email_stream</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">email_subtype_features</span><span class="op">(</span><span class="va">email_stream</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="fu">email_subtype_features</span><span class="op">(</span><span class="va">email_stream</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">email_stream</span><span class="op">(</span><span class="va">...</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">email_stream_base</span><span class="op">(</span>from_date <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.POSIXlt.html" class="external-link">as.POSIXct</a></span><span class="op">(</span><span class="st">"1900-01-01"</span><span class="op">)</span>, to_date <span class="op">=</span> <span class="fu">now</span><span class="op">(</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">email_stream_chunk</span><span class="op">(</span>from_date <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.POSIXlt.html" class="external-link">as.POSIXct</a></span><span class="op">(</span><span class="st">"1900-01-01"</span><span class="op">)</span>, to_date <span class="op">=</span> <span class="fu">now</span><span class="op">(</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">email_stream_write_partition</span><span class="op">(</span><span class="va">email_stream</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">email_stream</span><span class="op">(</span>from_date <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.POSIXlt.html" class="external-link">as.POSIXct</a></span><span class="op">(</span><span class="st">"1900-01-01"</span><span class="op">)</span>, to_date <span class="op">=</span> <span class="fu">now</span><span class="op">(</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -115,6 +121,14 @@ Features included are:</p><ul><li><p>group_customer_no, customer_no</p></li>
 
   
 </dl></dd>
+
+
+<dt>from_date</dt>
+<dd><p>earliest date/time for which data will be returned</p></dd>
+
+
+<dt>to_date</dt>
+<dd><p>latest date/time for which data will be returned</p></dd>
 
 
 <dt>email_stream</dt>
@@ -138,6 +152,9 @@ the actual email send date.</p></li>
 using email data from <a href="stream_from_audit.html">stream_from_audit</a></p></li>
 <li><p><code>email_subtype_features()</code>: sets multiple <code>event_subtype == "open"</code> as <code>"forward"</code> and builds windowed features
 for each <code>event_subtype</code></p></li>
+<li><p><code>email_stream_base()</code>: produce one chunk of the base email_stream (without p2_stream or subtype features)</p></li>
+<li><p><code>email_stream_chunk()</code>: produce one chunk of email_stream between <code>from_date</code> and <code>to_date</code></p></li>
+<li><p><code>email_stream_write_partition()</code>: write one partition of the stream to disk</p></li>
 <li><p><code>email_stream()</code>: appends p2 data and outputs to cache</p></li>
 </ul></div>
     <div class="section level2">
@@ -148,8 +165,7 @@ for each <code>event_subtype</code></p></li>
 <span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>   <span class="fu">email_fix_timestamp</span>(...) <span class="sc">%&gt;%</span></span>
 <span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>   <span class="fu">email_fix_eaddress</span>(...) <span class="sc">%&gt;%</span></span>
 <span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>   <span class="fu">concat_tables</span>(<span class="fu">read_cache</span>(<span class="st">"p2_stream"</span>, <span class="st">"stream"</span>), <span class="at">unify_schemas =</span> <span class="cn">TRUE</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>   <span class="fu">email_subtype_features</span>(...) <span class="sc">%&gt;%</span></span>
-<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>   <span class="fu">arrange</span>(group_customer_no, timestamp)</span></code></pre><p></p></div>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>   <span class="fu">email_subtype_features</span>(...)</span></code></pre><p></p></div>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>

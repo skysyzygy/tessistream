@@ -10,7 +10,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">tessistream</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -81,10 +81,15 @@
 <span class="r-in"><span>  x <span class="op">=</span> <span class="fl">0</span><span class="op">:</span><span class="fl">48</span>, y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">4</span>, <span class="fl">12</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Item 1 has 49 rows but longest item has 60; recycled with remainder.</span>
-<span class="r-in"><span><span class="fu">stream_debounce</span><span class="op">(</span><span class="va">stream</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        x     y</span>
+<span class="r-in"><span><span class="fu">data.table</span><span class="fu">::</span><span class="fu"><a href="https://rdatatable.gitlab.io/data.table/reference/setkey.html" class="external-link">setkey</a></span><span class="op">(</span><span class="va">stream</span>, <span class="va">x</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">stream_debounce</span><span class="op">(</span><span class="va">stream</span>, <span class="st">"y"</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        y     x</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    &lt;int&gt; &lt;int&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1:    10     4</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:     0    45</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:     4    44</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:     1    46</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4:     2    47</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5:     3    48</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>

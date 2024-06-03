@@ -52,7 +52,7 @@ email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now(
            promote_dt,appeal_no,campaign_no,source_no) %>%
     compute
 
-  ### Promotion responses by source
+  ### Promotion responses by source (because promotion timestamps may be modified by source)
 
   promotion_responses2 = read_tessi("promotion_responses", ...) %>%
     filter(source_no %in% promotions$source_no & !(response_dt >= from_date & response_dt < to_date)) %>%
@@ -61,7 +61,7 @@ email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now(
               source_no, url_no) %>%
     compute
 
-  ### Promotions by source
+  ### Promotions by source (because promotion timestamps may be modified by source)
 
   promotions2 = read_tessi("promotions", ...) %>%
     filter(media_type == 3) %>%
@@ -160,8 +160,8 @@ email_fix_eaddress <- function(email_stream) {
   # NOTE: Have to bring this into R because inequality joins and rolling joins not implemented in Arrow
   email_matches <- email_stream %>%
     transmute(customer_no, group_customer_no, timestamp, timestamp_id, eaddress) %>%
-    collect %>% setDT %>% setkey(customer_no, group_customer_no, timestamp_id, eaddress) %>%
-    stream_debounce("customer_no", "timestamp")
+    collect %>% setDT %>% setkey %>%
+    stream_debounce("customer_no", "timestamp_id")
 
   email_matches <- emails[,.(customer_no,timestamp,address)][
     email_matches,on=c("customer_no","timestamp"),roll=T]
@@ -293,7 +293,6 @@ email_stream_chunk <- function(from_date = as.POSIXct("1900-01-01"), to_date = n
   assert_posixct(c(from_date, to_date), sorted = TRUE)
 
   email_stream <- email_stream_base(from_date = from_date, to_date = to_date)
-  message(nrow(email_stream))
 
   if (cache_exists_any("p2_stream","stream")) {
     p2_stream <- read_cache("p2_stream","stream") %>%

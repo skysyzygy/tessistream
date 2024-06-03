@@ -7,7 +7,7 @@
 stream_customer_history(
   stream,
   by,
-  before = as.POSIXct("3000-01-01"),
+  before = as.POSIXct("2100-01-01"),
   pattern = ".",
   ...
 )

@@ -312,7 +312,7 @@ setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
 #' @importFrom data.table setorderv
 #' @importFrom dplyr filter select collect all_of semi_join
 #' @importFrom checkmate assert_names
-stream_customer_history <- function(stream, by, before = as.POSIXct("3000-01-01"), pattern = ".", ...) {
+stream_customer_history <- function(stream, by, before = as.POSIXct("2100-01-01"), pattern = ".", ...) {
   timestamp <- NULL
   assert_names(names(stream), must.include = c("timestamp", by))
 

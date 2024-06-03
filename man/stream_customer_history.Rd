@@ -4,7 +4,13 @@
 \alias{stream_customer_history}
 \title{stream_customer_history}
 \usage{
-stream_customer_history(stream, by, before = Inf, pattern = ".", ...)
+stream_customer_history(
+  stream,
+  by,
+  before = as.POSIXct("3000-01-01"),
+  pattern = ".",
+  ...
+)
 }
 \arguments{
 \item{stream}{data.frameish stream}

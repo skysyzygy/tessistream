@@ -219,8 +219,8 @@ test_that("email_subtype_features is deterministic for row reorderings", {
   email_subtype_features_1 <- email_subtype_features(email_fix_timestamp_1) %>% collect %>% setDT
 
   email_fix_timestamp_2 <- email_fix_timestamp_1 %>% collect %>%
-    mutate(row = runif(nrow(email_fix_timestamp_1))) %>% arrange(row) %>%
-    as_arrow_table()
+    mutate(row = runif(nrow(email_fix_timestamp_1))) %>% dplyr::arrange(row) %>%
+    arrow::as_arrow_table()
 
   email_subtype_features_2 <- email_subtype_features(email_fix_timestamp_2) %>%
     select(-row) %>%
@@ -265,8 +265,8 @@ test_that("email_stream_base is deterministic for row reorderings", {
 
 
   email_data <- email_data_stubbed() %>% collect
-  email_data <- email_data %>% mutate(row = runif(nrow(email_data))) %>% arrange(row) %>%
-    as_arrow_table()
+  email_data <- email_data %>% mutate(row = runif(nrow(email_data))) %>% dplyr::arrange(row) %>%
+    arrow::as_arrow_table()
   stub(email_stream_base_stubbed, "email_data", email_data)
 
   email_stream_base_2 <- email_stream_base_stubbed() %>% collect %>% setDT %>%

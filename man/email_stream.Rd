@@ -7,6 +7,7 @@
 \alias{email_fix_timestamp}
 \alias{email_fix_eaddress}
 \alias{email_subtype_features}
+\alias{email_stream_base}
 \alias{email_stream_chunk}
 \alias{email_stream_write_partition}
 \title{email_stream}
@@ -20,6 +21,8 @@ email_fix_timestamp(email_stream)
 email_fix_eaddress(email_stream)
 
 email_subtype_features(email_stream)
+
+email_stream_base(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...)
 
 email_stream_chunk(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...)
 
@@ -74,6 +77,8 @@ using email data from \link{stream_from_audit}
 
 \item \code{email_subtype_features()}: sets multiple \code{event_subtype == "open"} as \code{"forward"} and builds windowed features
 for each \code{event_subtype}
+
+\item \code{email_stream_base()}: produce one chunk of the base email_stream (without p2_stream or subtype features)
 
 \item \code{email_stream_chunk()}: produce one chunk of email_stream between \code{from_date} and \code{to_date}
 

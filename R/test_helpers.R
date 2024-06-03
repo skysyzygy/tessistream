@@ -198,13 +198,13 @@ email_prepare_fixtures <- function() {
 
   customer_no <- eaddress <- source_no <- group_customer_no <- . <- promote_dt <- NULL
 
-  n_rows = 100000
+  n_rows = 10000
   withr::local_package("lubridate")
 
   promotions = data.frame(
     media_type = 3,
     customer_no = sample(1:1000,n_rows,replace = TRUE),
-    promote_dt = lubridate::as_datetime(runif(n_rows, lubridate::ymd_hms("2000-01-01 00:00:00"), now())),
+    promote_dt = lubridate::as_datetime(runif(n_rows, lubridate::ymd_hms("2000-01-01 00:00:00"), lubridate::ymd_hms("2010-01-01 00:00:00"))),
     appeal_no = sample(1:10, n_rows, replace = TRUE),
     campaign_no = sample(1:10, n_rows, replace = TRUE),
     source_no = sample(1:100, n_rows, replace = TRUE)) %>%

@@ -150,7 +150,9 @@ stream_debounce <- function(stream, ...) {
 
 #' stream_from_audit
 #'
-#' Helper function to load data from the audit table and base table identified by `table_name`
+#' Helper function to load data from the audit table and base table identified by `table_name`.
+#' Produces a stream of creation/change/current state of all fields in the audit table in order
+#' to reconstruct the state of a given element at some time in the past.
 #'
 #' @param table_name character table name as in `tessilake::tessi_list_tables` `short_name` or `long_name`
 #' @param cols character vector of columns that will be used from the audit and base table.

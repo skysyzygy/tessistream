@@ -1,6 +1,6 @@
 withr::local_package("checkmate")
 withr::local_package("mockery")
-tessilake:::local_cache_dirs()
+tessilake::local_cache_dirs()
 
 # contribution_membership_match -------------------------------------------
 contributions <- readRDS(rprojroot::find_testthat_root_file("contribution_stream-contributions.Rds"))

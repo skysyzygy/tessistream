@@ -210,7 +210,7 @@ test_that("census_*_features return features whose sums are (mostly) consistent 
 # address_census ----------------------------------------------------------
 
 test_that("address_census adds census data to address_stream", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   address_stream <- data.table(
     street1 = c("30 Lafayette Ave","30 Churchill Pl"),
@@ -242,7 +242,7 @@ test_that("address_census adds census data to address_stream", {
 })
 
 test_that("address_census converts demographic labels to percentages", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
   withr::local_package("dplyr")
 
   address_stream <- data.table(
@@ -272,7 +272,7 @@ test_that("address_census converts demographic labels to percentages", {
 })
 
 test_that("address_census replaces 0s in income columns with NA", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   address_stream <- data.table(
     street1 = c("30 Lafayette Ave","30 Churchill Pl"),

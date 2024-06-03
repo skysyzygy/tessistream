@@ -1,6 +1,6 @@
 Package: tessistream
 Title: Datasets for Analytics and Machine Learning from Tessitura
-Version: 0.4.0
+Version: 0.4.1
 Authors@R: 
     person("Sky", "Syzygy", , "ssyzygy@bam.org", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
@@ -43,7 +43,7 @@ Imports:
     RSQLite,
     sf,
     stringr,
-    tessilake (>= 0.4.0),
+    tessilake (>= 0.4.4),
     tidycensus,
     tidygeocoder,
     tidyr,

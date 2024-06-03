@@ -223,7 +223,7 @@ test_that("p2_db_open complains if the cache path doesn't exist", {
   expect_equal(tessistream$p2_db, NULL)
 })
 
-tessilake:::local_cache_dirs()
+tessilake::local_cache_dirs()
 withr::defer(p2_db_close())
 test_that("p2_db_open creates a database if one doesn't exist", {
   expect_warning(p2_db_open(), "Creating path")

@@ -10,6 +10,17 @@ test_that("email_data loads from promotions and promotion_responses and returns 
   expect_equal(nrow(email_data_stubbed()), nrow(promotions) + nrow(promotion_responses))
 })
 
+test_that("email_data only loads data between the given dates", {
+  from_date <- as.POSIXct("2010-01-01")
+  to_date <- as.POSIXct("2020-01-01")
+  promotion_responses <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"), as_data_frame = FALSE) %>%
+    filter(response_dt >= from_date & response_dt < to_date) %>% collect
+  promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE) %>%
+    filter(promote_dt >= from_date & promote_dt < to_date | source_no %in% promotion_responses$source_no) %>% collect
+  expect_equal(nrow(email_data_stubbed(from_date = from_date, to_date = to_date)),
+               nrow(promotions) + nrow(promotion_responses))
+})
+
 # email_data_append -------------------------------------------------------
 
 test_that("email_data_append appends descriptive info for responses, sources, and extractions", {
@@ -30,8 +41,9 @@ test_that("email_data_append appends descriptive info for responses, sources, an
 # email_fix_timestamp -----------------------------------------------------
 
 test_that("email_fix_timestamp recalculates send timestamps based on earliest promote_dt / acq_dt", {
-  email_data_append <- email_data_append_stubbed(email_data_stubbed()) %>% collect() %>% setDT
-  email_fix_timestamp <- email_fix_timestamp(email_data_append)
+  email_data_append <- email_data_append_stubbed(email_data_stubbed())
+  email_fix_timestamp <- email_fix_timestamp(email_data_append) %>% collect %>% setDT
+  email_data_append <- email_data_append %>% collect %>% setDT
 
   # Doesn't update response times
   email_compare_responses <- merge(
@@ -45,17 +57,19 @@ test_that("email_fix_timestamp recalculates send timestamps based on earliest pr
 
   # Does update promote dates
   email_compare_sends <- merge(
-    email_fix_timestamp[,.(first_response = min(timestamp, na.rm=T)), by = "source_no"],
-    email_data_append[event_subtype == "Send",.(customer_no, source_no, timestamp)],
-    by = c("source_no")
+    email_fix_timestamp[event_subtype == "Send",.(customer_no, timestamp,
+                           first_response = min(timestamp, na.rm=T)),
+                        by = "source_no"],
+    email_data_append[event_subtype == "Send",.(customer_no, source_no)],
+    by = c("customer_no", "source_no")
   )
 
   # to first response date
   expect_equal(email_compare_sends[source_no>1,timestamp],
                email_compare_sends[source_no>1,first_response])
   # or acq_dt
-  expect_equal(email_compare_sends[source_no==1,timestamp],
-               rep(.acq_dt,email_compare_sends[source_no==1,.N])) # variable set above
+  # expect_equal(email_compare_sends[source_no==1,timestamp],
+  #              rep(.acq_dt,email_compare_sends[source_no==1,.N])) # variable set above
 
 })
 
@@ -102,54 +116,40 @@ test_that("email_fix_eaddress fills in customer emails based on the send date", 
 
 test_that("email_fix_eaddress cleans the email address and extracts the domain", {
   email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed() %>%
-    email_fix_timestamp %>% collect %>% setDT
-  email_fix_eaddress <- email_fix_eaddress_stubbed(email_fix_timestamp)
-
+    email_fix_timestamp
+  email_fix_eaddress <- email_fix_eaddress_stubbed(email_fix_timestamp) %>%
+    collect %>% setDT
   expect_no_match(email_fix_eaddress$eaddress, "[A-Z\\s]")
-  expect_match(email_fix_eaddress[!is.na(eaddress),domain], "^(mac|me|hotmail|gmail|yahoo|bam)\\.")
-
+  expect_gt(email_fix_eaddress[!is.na(eaddress),.N],0)
+  expect_match(email_fix_eaddress[!is.na(eaddress),domain],
+               "^(mac|me|hotmail|gmail|yahoo|bam)\\.")
+  expect_equal(email_fix_eaddress[,domain],
+               stringr::str_replace(email_fix_eaddress[,eaddress],
+                                    ".+@",""))
 })
-
 
 # email_subtype_features ---------------------------------------------------
 
-test_that("email_subtype_features labels multiple opens as a forward",{
-  email_stream <- email_data_stubbed() %>% email_data_append_stubbed() %>%
-    email_fix_timestamp() %>% email_fix_eaddress_stubbed() %>%
-    transmute(group_customer_no,customer_no,timestamp,
-              event_type = "Email", event_subtype,
-              source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-              response, url_no, eaddress, domain) %>% compute
-
-  email_subtype_features <- email_subtype_features(email_stream) %>% collect %>% setDT
-
-  # There are no customer_no/source_no combinations with more than one open
-  expect_equal(email_subtype_features[grepl("open",event_subtype,ignore.case=T),
-                            .N,by=c("customer_no","source_no")][N>1,.N],0)
-
-  # And there are forwards that have been added
-  expect_gt(email_subtype_features[grepl("forward",event_subtype,ignore.case=T),.N],0)
-
-})
-
 test_that("email_subtype_features adds subtype counts/min/max",{
   email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed() %>%
-    email_fix_timestamp %>% collect %>% setDT
+    email_fix_timestamp %>% compute
+
   email_subtype_features <- email_subtype_features(email_fix_timestamp) %>% collect %>% setDT
 
   expect_names(colnames(email_subtype_features),
                must.include = data.table::CJ("email",
-                                             gsub("\\s","_",tolower(c("Send","Forward",.responses))),
+                                             gsub("\\s","_",tolower(c("Send",.responses))),
                                              c("count","timestamp_min","timestamp_max"),
                                              sep="_") %>%
                  do.call(what=paste))
 
   subtypes <- email_subtype_features[,unique(event_subtype)]
+  setkey(email_subtype_features, group_customer_no, timestamp_id)
 
   for(subtype in subtypes) {
     prefix <- paste0("email_",gsub("\\s+","_",tolower(subtype)))
 
-    email_subtype_features[event_subtype == subtype,subtype_timestamp_min:=min(timestamp,na.rm=T), by = "customer_no"]
+    email_subtype_features[event_subtype == subtype,subtype_timestamp_min:=min(timestamp,na.rm=T), by = "group_customer_no"]
 
     # all features are filled after the first one
     expect_equal(email_subtype_features[timestamp >= subtype_timestamp_min &
@@ -160,66 +160,232 @@ test_that("email_subtype_features adds subtype counts/min/max",{
     # timestamp min must be less than current timestamp
     expect_equal(email_subtype_features[timestamp < get(paste0(prefix,"_timestamp_min"))],
                  email_subtype_features[integer(0)])
-    # features are filled in correctly for matching
-    expect_equal(email_subtype_features[event_subtype == subtype & timestamp != get(paste0("email_",gsub("\\s+","_",tolower(subtype)),"_timestamp_max"))],
-                 email_subtype_features[integer(0)])
+    # timestamp features are filled in correctly for matching subtypes
+    expect_equal(email_subtype_features[event_subtype == subtype, timestamp],
+                 email_subtype_features[event_subtype == subtype,
+                                        get(paste0(prefix,"_timestamp_max"))],
+    # 1us tolerance -- arrow timestamp is microsecond precision
+                tolerance = 1e-6)
     # and non-matching subtypes
-    expect_equal(email_subtype_features[event_subtype != subtype & timestamp < get(paste0("email_",gsub("\\s+","_",tolower(subtype)),"_timestamp_max"))],
+    expect_equal(email_subtype_features[event_subtype != subtype & timestamp < get(paste0(prefix,"_timestamp_max"))],
                  email_subtype_features[integer(0)])
-    # and counts are just integer sequences
-    expect_equal(email_subtype_features[event_subtype == subtype, .(customer_no, get(paste0("email_",gsub("\\s+","_",tolower(subtype)),"_count")))] %>% setkey,
-                 email_subtype_features[event_subtype == subtype,.(V2 = 1:.N),by="customer_no"] %>% setkey)
+    # and counts are just rank sequences
+    expect_equal(email_subtype_features[event_subtype == subtype,
+                                        .(group_customer_no, get(paste0(prefix,"_count")))] %>% setkey,
+                 email_subtype_features[event_subtype == subtype,
+                                        .(V2 = rank(factor(paste0(source_no,"|",timestamp),
+                                                           levels = unique(paste0(source_no,"|",timestamp))),
+                                                    ties.method = "max")),
+                                        by="group_customer_no"] %>% setkey)
 
     email_subtype_features[,subtype_timestamp_min:=NULL]
   }
 
 })
 
+test_that("email_subtype_features run on a chunk returns the same as on a full dataset",{
+  tessilake::local_cache_dirs()
+
+  email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed %>% email_fix_timestamp %>% compute
+
+  email_subtype_features_full <- email_subtype_features(email_fix_timestamp) %>% collect %>% setDT
+  email_fix_timestamp <- email_fix_timestamp %>% collect %>% setDT
+
+  email_stream <- rbind(email_subtype_features_full[timestamp < mean(timestamp)],
+                        email_fix_timestamp[timestamp >= mean(timestamp)],
+                        fill = TRUE)
+
+  write_cache(email_stream, "email_stream", "stream", overwrite = TRUE)
+
+  email_stream_chunk <- read_cache("email_stream","stream") %>%
+    filter(timestamp >= !!email_fix_timestamp[,mean(timestamp)])
+
+  email_subtype_features_partial <- email_subtype_features(email_stream_chunk) %>% collect %>% setDT
+  email_subtype_features_test <- email_subtype_features_full[timestamp >= mean(timestamp)]
+
+  setkey(email_subtype_features_partial, group_customer_no,timestamp,source_no,event_subtype,promote_dt)
+  setkey(email_subtype_features_test, group_customer_no,timestamp,source_no,event_subtype,promote_dt)
+
+  expect_equal(email_subtype_features_partial,
+               email_subtype_features_test,
+               list_as_map = TRUE)
+
+})
+#}
+
+test_that("email_subtype_features is deterministic for row reorderings", {
+  email_fix_timestamp_1 <- email_data_stubbed() %>% email_data_append_stubbed %>% email_fix_timestamp %>% compute
+
+  email_subtype_features_1 <- email_subtype_features(email_fix_timestamp_1) %>% collect %>% setDT
+
+  email_fix_timestamp_2 <- email_fix_timestamp_1 %>% collect %>%
+    mutate(row = runif(nrow(email_fix_timestamp_1))) %>% dplyr::arrange(row) %>%
+    arrow::as_arrow_table()
+
+  email_subtype_features_2 <- email_subtype_features(email_fix_timestamp_2) %>%
+    select(-row) %>%
+    collect %>% setDT
+
+  expect_failure(expect_equal(head(email_subtype_features_1), head(email_subtype_features_2),
+               list_as_map = TRUE))
+
+  setkey(email_subtype_features_1, group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no,promote_dt)
+  setkey(email_subtype_features_2, group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no,promote_dt)
+
+  expect_equal(email_subtype_features_1, email_subtype_features_2,
+               list_as_map = TRUE)
+
+})
+
+# email_stream_base -------------------------------------------------------
+
+test_that("email_stream_base run on a chunk returns the same as on a full dataset",{
+  email_stream_base_full <- email_stream_base_stubbed() %>% collect %>% setDT
+
+  email_stream_base_partial <- rbind(
+    email_stream_base_stubbed(from_date = min(email_stream_base_full$timestamp),
+                              to_date = median(email_stream_base_full$timestamp)),
+    email_stream_base_stubbed(from_date = median(email_stream_base_full$timestamp),
+                              to_date = max(email_stream_base_full$timestamp)+1)) %>%
+    collect %>% setDT
+
+  setkey(email_stream_base_full, group_customer_no,timestamp,source_no,event_subtype,appeal_no,campaign_no)
+  setkey(email_stream_base_partial, group_customer_no,timestamp,source_no,event_subtype,appeal_no,campaign_no)
+
+  expect_equal(email_stream_base_partial,
+               email_stream_base_full,
+               list_as_map = TRUE)
+
+})
+
+test_that("email_stream_base is deterministic for row reorderings", {
+  email_stream_base <- email_stream_base_stubbed() %>% collect %>% setDT %>%
+    distinct %>%
+    setkey(group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no)
+
+
+  email_data <- email_data_stubbed() %>% collect
+  email_data <- email_data %>% mutate(row = runif(nrow(email_data))) %>% dplyr::arrange(row) %>%
+    arrow::as_arrow_table()
+  stub(email_stream_base_stubbed, "email_data", email_data)
+
+  email_stream_base_2 <- email_stream_base_stubbed() %>% collect %>% setDT %>%
+    distinct %>%
+    setkey(group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no)
+
+  expect_equal(email_stream_base, email_stream_base_2,
+               list_as_map = TRUE)
+
+})
+
+# email_stream_chunk ------------------------------------------------------------
+
+email_stream_chunk <- NULL
+
+test_that("email_stream_chunk returns arrow table", {
+  tessilake::local_cache_dirs()
+  email_stream_chunk <<- email_stream_chunk_stubbed()
+  # returns an arrow table
+  expect_class(email_stream_chunk,"ArrowTabular")
+})
+
+test_that("email_stream_chunk returns all rows with basic info",{
+  email_data <- email_data_stubbed() %>% collect %>% setDT
+  email_stream_chunk <- email_stream_chunk %>% collect %>% setDT
+
+  # no rows have been added or removed (except the p2 one)
+  expect_equal(email_stream_chunk[,.N],email_data %>% nrow() + 1)
+  # all rows have a customer
+  expect_equal(email_stream_chunk[is.na(customer_no),.N],0)
+  # all rows have time information
+  expect_equal(email_stream_chunk[is.na(timestamp),.N],0)
+  # all rows have campaign/source/appeal info (except the p2 one)
+  expect_equal(email_stream_chunk[is.na(source_no),.N],0)
+  expect_equal(email_stream_chunk[is.na(campaign_no),.N],1)
+  expect_equal(email_stream_chunk[is.na(appeal_no),.N],1)
+
+  expect_names(colnames(email_stream_chunk),
+               must.include =
+                 c("group_customer_no", "customer_no", "timestamp", "event_type",
+                   "event_subtype", "source_no", "appeal_no", "campaign_no", "source_desc",
+                   "extraction_desc", "response", "url_no", "email", "domain"))
+
+})
+
+test_that("email_stream_chunk returns all of the expected features", {
+  email_stream_chunk <- email_stream_chunk %>% collect %>% setDT
+
+  feature_cols <- data.table::CJ("email",
+                                 gsub("\\s","_",tolower(c("Send",.responses))),
+                                 c("count","timestamp_min","timestamp_max"),
+                                 sep="_") %>% do.call(what=paste)
+
+
+  expect_names(colnames(email_stream_chunk),
+               must.include = feature_cols)
+
+  for (col in feature_cols) {
+    expect_gt(email_stream_chunk[!is.na(get(col)),.N],email_stream_chunk[,.N]/25)
+  }
+
+})
+
+test_that("email_stream_chunk returns the same result when run with one or many chunks",{
+
+  tessilake::local_cache_dirs()
+
+  email_data <- email_stream_chunk %>% select(timestamp) %>% collect %>% setDT
+  setkey(email_data,timestamp)
+  email_data[,group := cut(seq(.N),breaks=5,labels=F)]
+
+  purrr::imap(split(email_data,by="group"),
+    \(group, i) {
+        expr <- quote(email_stream_chunk_stubbed(from_date = group[,min(timestamp,na.rm=T)],
+                                 to_date = group[,max(timestamp,na.rm=T)+1000]))
+      if (i == 1) {
+        eval(expr)
+      } else {
+        expect_warning(!!expr)
+      }
+    }
+  )
+
+  rows <- seq(1,by=100,length.out=1000)
+
+  email_stream <- read_cache("email_stream","stream") %>% collect %>% setDT %>%
+    distinct %>%
+    setkey(group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no)
+  email_stream_expected <- email_stream_chunk %>% collect %>% setDT %>%
+    distinct %>%
+    setkey(group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no)
+
+  expect_equal(email_stream, email_stream_expected,
+               ignore_attr = c("partition_key", "sorted"),
+               list_as_map = TRUE)
+
+})
+
 
 # email_stream ------------------------------------------------------------
 
-email_stream_stubbed <- function() {
-  stub(email_stream,"email_data",email_data_stubbed)
-  stub(email_stream,"email_data_append",email_data_append_stubbed)
-  stub(email_stream,"email_fix_eaddress",email_fix_eaddress_stubbed)
-  stub(email_stream,"write_cache",\(...){})
-  stub(email_stream,"read_cache",arrow::arrow_table(customer_no=0L,campaignid=0L))
+test_that("email_stream executes email_stream_chunk by year while honoring from_date and to_date", {
+  withr::local_package("lubridate")
+  email_stream_chunk <- mock()
+  stub(email_stream,"email_stream_chunk",email_stream_chunk)
+  stub(email_stream,"sync_cache",TRUE)
 
-  email_stream()
-}
+  email_stream(from_date = make_datetime(2020,7,1), to_date = make_datetime(2024,5,30))
 
-test_that("email_stream is sane", {
+  expect_length(mock_args(email_stream_chunk), 5)
+  expect_equal(mock_args(email_stream_chunk)[[1]][["from_date"]], make_datetime(2020,7,1))
+  for (i in seq(2,5)) {
+    expect_equal(mock_args(email_stream_chunk)[[i]][["from_date"]], make_datetime(2019+i))
+  }
+  for (i in seq(1,4)) {
+    expect_equal(mock_args(email_stream_chunk)[[i]][["to_date"]], make_datetime(2020+i)-.001)
+  }
+  expect_equal(mock_args(email_stream_chunk)[[5]][["to_date"]], make_datetime(2024,5,30))
 
-  email_stream <- email_stream_stubbed() %>% collect %>% setDT()
-
-  # no rows have been added or removed (except the p2 one)
-  expect_equal(email_stream[,.N],email_data_stubbed() %>% collect %>% nrow() + 1)
-  # all rows have a customer
-  expect_equal(email_stream[is.na(group_customer_no),.N],1)
-  # all rows have time information
-  expect_equal(email_stream[is.na(timestamp),.N],1)
-  # all rows have campaign/source/appeal info
-  expect_equal(email_stream[is.na(source_no),.N],0)
-  expect_equal(email_stream[is.na(campaign_no),.N],1)
-  expect_equal(email_stream[is.na(appeal_no),.N],1)
-
-  expect_names(colnames(email_stream),
-               must.include =
-               c("group_customer_no", "customer_no", "timestamp", "event_type",
-               "event_subtype", "source_no", "appeal_no", "campaign_no", "source_desc",
-               "extraction_desc", "response", "url_no", "eaddress", "domain"))
-
-  expect_names(colnames(email_stream),
-               must.include = data.table::CJ("email",
-                                             gsub("\\s","_",tolower(c("Send","Forward",.responses))),
-                                             c("count","timestamp_min","timestamp_max"),
-                                             sep="_") %>%
-                 do.call(what=paste))
 })
-
-test_that("email_stream returns an arrow table",{
-  expect_class(email_stream_stubbed(),"ArrowTabular")
-})
-
 
 

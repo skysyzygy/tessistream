@@ -16,5 +16,7 @@ The names of the vector are the column names as identified in the audit table, t
 \item{...}{extra arguments passed on to \code{tessilake::read_tessi}}
 }
 \description{
-Helper function to load data from the audit table and base table identified by \code{table_name}
+Helper function to load data from the audit table and base table identified by \code{table_name}.
+Produces a stream of creation/change/current state of all fields in the audit table in order
+to reconstruct the state of a given element at some time in the past.
 }

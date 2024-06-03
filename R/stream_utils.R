@@ -126,15 +126,21 @@ setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
 #' @export
 #'
 #' @importFrom rlang list2
+#' @importFrom data.table haskey
+#' @importFrom checkmate assert_data_table
 #'
 #' @examples
 #' stream <- data.table::data.table(
 #'   x = 0:48, y = rep(0:4, 12)
 #' )
-#' stream_debounce(stream)
+#' data.table::setkey(stream, x)
+#' stream_debounce(stream, "y")
 stream_debounce <- function(stream, ...) {
 
   cols <- sapply(rlang::enquos(...), rlang::eval_tidy)
+
+  assert_data_table(stream)
+  assert_true(haskey(stream))
 
   # Debounce, take the last change per group per day
   stream[, .SD[.N], by = cols][]
@@ -144,7 +150,9 @@ stream_debounce <- function(stream, ...) {
 
 #' stream_from_audit
 #'
-#' Helper function to load data from the audit table and base table identified by `table_name`
+#' Helper function to load data from the audit table and base table identified by `table_name`.
+#' Produces a stream of creation/change/current state of all fields in the audit table in order
+#' to reconstruct the state of a given element at some time in the past.
 #'
 #' @param table_name character table name as in `tessilake::tessi_list_tables` `short_name` or `long_name`
 #' @param cols character vector of columns that will be used from the audit and base table.
@@ -158,7 +166,7 @@ stream_debounce <- function(stream, ...) {
 #' @importFrom rlang sym syms
 #'
 stream_from_audit <- function(table_name, cols = NULL, ...) {
-  . <- primary_keys <- group_customer_no <- customer_no <- action <-
+  . <- primary_keys <- group_customer_no <- customer_no <- action <- timestamp <-
     new_value <- old_value <- alternate_key <- userid <- column_updated <-
     create_dt <- created_by <- last_update_dt <- last_updated_by <- event_subtype <- NULL
 
@@ -220,6 +228,8 @@ stream_from_audit <- function(table_name, cols = NULL, ...) {
     collect() %>%
     setDT()
 
+  setkey(audit, timestamp)
+
   audit <- stream_debounce(audit,setdiff(colnames(audit),"new_value"))
 
   audit_changes <- audit %>%
@@ -248,6 +258,8 @@ stream_from_audit <- function(table_name, cols = NULL, ...) {
   setnafill(stream, "locf", cols = names(cols), by = pk_name)
   # And then fill back up for non-changes
   setnafill(stream, "nocb", cols = names(cols), by = pk_name)
+
+  setkeyv(stream, c(pk_name, "event_subtype", "timestamp"))
 
   stream_debounce(stream,!!pk_name,"timestamp")
 
@@ -283,3 +295,50 @@ setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
     data[, (cols_to_remove) := NULL]
 
 }
+
+#' stream_customer_history
+#'
+#' Loads the last row from `stream` after sorting by `timestamp` and grouping by the entries in columns `by`,
+#' but only looking at timestamps before `before` and returning only columns matching `pattern`
+#'
+#' @param stream data.frameish stream
+#' @param pattern character vector. If length > 1, the union of the matches is taken.
+#' @inheritDotParams tidyselect::matches ignore.case perl
+#' @param before POSIXct only look at customer history before this date
+#' @param by character column name to group by
+#' @param ...
+#'
+#' @importFrom tidyselect matches
+#' @importFrom data.table setorderv
+#' @importFrom dplyr filter select collect all_of semi_join
+#' @importFrom checkmate assert_names
+stream_customer_history <- function(stream, by, before = as.POSIXct("3000-01-01"), pattern = ".", ...) {
+  timestamp <- NULL
+  assert_names(names(stream), must.include = c("timestamp", by))
+
+  stream <- stream %>% filter(timestamp < before)
+  if (is.null(stream$timestamp_id)) {
+    if (inherits(stream, c("ArrowTabular", "arrow_dplyr_query"))) {
+      stream <- stream %>% mutate(timestamp_id = arrow:::cast(timestamp, arrow::int64()))
+    } else {
+      stream <- stream %>% mutate(timestamp_id = timestamp)
+    }
+  }
+  stream <- compute(stream)
+
+  stream_dates <- stream %>%
+    select(all_of(c(by,"timestamp", "timestamp_id"))) %>%
+    # have to pull this into R in order to do windowed slices, i.e. debouncing
+    collect %>% setDT %>%
+    setkeyv(c(by, "timestamp_id", "timestamp")) %>%
+    stream_debounce(by)
+
+  if (nrow(stream_dates) > 0) {
+    stream <- stream %>% semi_join(stream_dates, by=c(by, "timestamp_id"))
+  }
+
+  stream %>% select(all_of(c(by,"timestamp")),matches(pattern,...)) %>%
+    collect %>% setDT
+
+}
+

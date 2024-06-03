@@ -1,7 +1,7 @@
 withr::local_package("checkmate")
 withr::local_package("mockery")
 
-tessilake:::local_cache_dirs()
+tessilake::local_cache_dirs()
 
 do_geocoding <- T
 

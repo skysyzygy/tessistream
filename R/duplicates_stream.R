@@ -166,8 +166,7 @@ duplicates_exact_match <- function(data, match_cols) {
 #' @describeIn duplicates_stream Load data for [duplicates_stream]
 #' @usage NULL
 #' @importFrom tessilake read_tessi read_sql_table read_cache
-#' @importFrom dplyr filter collect
-#' @importFrom tidyselect all_of
+#' @importFrom dplyr filter collect all_of
 #' @note depends on [address_stream]
 #' @return data.table of data for deduplication
 #' @inheritDotParams tessilake::read_tessi freshness incremental

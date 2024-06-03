@@ -21,5 +21,6 @@ Takes the last row for each group identified by columns identified in \code{...}
 stream <- data.table::data.table(
   x = 0:48, y = rep(0:4, 12)
 )
-stream_debounce(stream)
+data.table::setkey(stream, x)
+stream_debounce(stream, "y")
 }

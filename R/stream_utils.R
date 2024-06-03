@@ -310,18 +310,35 @@ setunite <- function(data, col, ..., sep = "_", remove = TRUE, na.rm = FALSE) {
 #'
 #' @importFrom tidyselect matches
 #' @importFrom data.table setorderv
-#' @importFrom dplyr filter select collect all_of
+#' @importFrom dplyr filter select collect all_of semi_join
 #' @importFrom checkmate assert_names
-stream_customer_history <- function(stream, by, before = Inf, pattern = ".", ...) {
+stream_customer_history <- function(stream, by, before = as.POSIXct("3000-01-01"), pattern = ".", ...) {
   timestamp <- NULL
   assert_names(names(stream), must.include = c("timestamp", by))
 
-  stream %>%
-    filter(timestamp < before) %>%
-    select(all_of(c(by,"timestamp")),matches(pattern,...)) %>%
+  stream <- stream %>% filter(timestamp < before)
+  if (is.null(stream$timestamp_id)) {
+    if (inherits(stream, c("ArrowTabular", "arrow_dplyr_query"))) {
+      stream <- stream %>% mutate(timestamp_id = arrow:::cast(timestamp, arrow::int64()))
+    } else {
+      stream <- stream %>% mutate(timestamp_id = timestamp)
+    }
+  }
+  stream <- compute(stream)
+
+  stream_dates <- stream %>%
+    select(all_of(c(by,"timestamp", "timestamp_id"))) %>%
     # have to pull this into R in order to do windowed slices, i.e. debouncing
     collect %>% setDT %>%
-    setkeyv("timestamp") %>%
+    setkeyv(c(by, "timestamp_id", "timestamp")) %>%
     stream_debounce(by)
+
+  if (nrow(stream_dates) > 0) {
+    stream <- stream %>% semi_join(stream_dates, by=c(by, "timestamp_id"))
+  }
+
+  stream %>% select(all_of(c(by,"timestamp")),matches(pattern,...)) %>%
+    collect %>% setDT
+
 }
 

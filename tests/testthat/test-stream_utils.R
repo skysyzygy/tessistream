@@ -333,7 +333,7 @@ test_that("setunite keeps old columns around if remove = FALSE", {
 #
 test_that("stream_customer_history loads the last row from stream per column",{
   num_rows <- 10000
-  data <- data.table(timestamp = runif(num_rows, as.POSIXct("2000-01-01"), Sys.time()),
+  data <- data.table(timestamp = as.POSIXct(runif(num_rows, as.POSIXct("2000-01-01"), Sys.time())),
                      group_1 = sample(letters, num_rows, replace = TRUE),
                      group_2 = sample(letters, num_rows, replace = TRUE),
                      feature_1 = seq(num_rows),
@@ -343,12 +343,18 @@ test_that("stream_customer_history loads the last row from stream per column",{
 
   expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
   expect_setequal(history$timestamp, data[,max(timestamp),by = c("group_1", "group_2")]$V1)
+
+  history <- stream_customer_history(arrow::as_arrow_table(data), by = c("group_1", "group_2"))
+
+  expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
+  expect_equal(sort(history$timestamp), sort(data[,max(timestamp),by = c("group_1", "group_2")]$V1),
+               tolerance = 1e-6, ignore_attr = "tzone")
 })
 
 
 test_that("stream_customer_history only returns rows before before_date",{
   num_rows <- 10000
-  data <- data.table(timestamp = runif(num_rows, as.POSIXct("2000-01-01"), Sys.time()),
+  data <- data.table(timestamp = as.POSIXct(runif(num_rows, as.POSIXct("2000-01-01"), Sys.time())),
                      group_1 = sample(letters, num_rows, replace = TRUE),
                      group_2 = sample(letters, num_rows, replace = TRUE),
                      feature_1 = seq(num_rows),
@@ -359,11 +365,17 @@ test_that("stream_customer_history only returns rows before before_date",{
 
   expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
   expect_setequal(history$timestamp, data[,max(timestamp),by = c("group_1", "group_2")]$V1)
+
+  history <- stream_customer_history(arrow::as_arrow_table(data), by = c("group_1", "group_2"), before = as.POSIXct("2010-01-01"))
+
+  expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
+  expect_equal(sort(history$timestamp), sort(data[,max(timestamp),by = c("group_1", "group_2")]$V1),
+               tolerance = 1e-6, ignore_attr = "tzone")
 })
 
 test_that("stream_customer_history only returns columns matching pattern",{
   num_rows <- 10000
-  data <- data.table(timestamp = runif(num_rows, as.POSIXct("2000-01-01"), Sys.time()),
+  data <- data.table(timestamp = as.POSIXct(runif(num_rows, as.POSIXct("2000-01-01"), Sys.time())),
                      group_1 = sample(letters, num_rows, replace = TRUE),
                      group_2 = sample(letters, num_rows, replace = TRUE),
                      feature_1 = seq(num_rows),
@@ -373,6 +385,13 @@ test_that("stream_customer_history only returns columns matching pattern",{
 
   expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
   expect_setequal(history$timestamp, data[,max(timestamp),by = c("group_1", "group_2")]$V1)
+  expect_names(colnames(history), permutation.of = colnames(data)[-4])
+
+  history <- stream_customer_history(arrow::as_arrow_table(data), by = c("group_1", "group_2"), pattern = "2$")
+
+  expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
+  expect_equal(sort(history$timestamp), sort(data[,max(timestamp),by = c("group_1", "group_2")]$V1),
+               tolerance = 1e-6, ignore_attr = "tzone")
   expect_names(colnames(history), permutation.of = colnames(data)[-4])
 
 })

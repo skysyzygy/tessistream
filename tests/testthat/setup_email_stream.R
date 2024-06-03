@@ -6,7 +6,7 @@
 email_data_stubbed <- function(...) {
   promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE)
   promotion_responses <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"), as_data_frame = FALSE)
-  read_tessi <- mock(promotions, promotion_responses)
+  read_tessi <- mock(promotion_responses, promotions, cycle=T)
 
   stub(email_data, "read_tessi", read_tessi)
 
@@ -36,10 +36,16 @@ email_fix_eaddress_stubbed <- function(email_stream) {
 }
 
 
+email_stream_base_stubbed <- function(...) {
+  stub(email_stream_base,"email_data",email_data_stubbed)
+  stub(email_stream_base,"email_data_append",email_data_append_stubbed)
+  stub(email_stream_base,"email_fix_eaddress",email_fix_eaddress_stubbed)
+
+  email_stream_base(...)
+}
+
 email_stream_chunk_stubbed <- function(...) {
-  stub(email_stream_chunk,"email_data",email_data_stubbed)
-  stub(email_stream_chunk,"email_data_append",email_data_append_stubbed)
-  stub(email_stream_chunk,"email_fix_eaddress",email_fix_eaddress_stubbed)
+  stub(email_stream_chunk,"email_stream_base",email_stream_base_stubbed)
   write_cache(data.frame(group_customer_no=0L,
                          customer_no=0L,
                          campaignid=0L,

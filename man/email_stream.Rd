@@ -11,7 +11,7 @@
 \alias{email_stream_write_partition}
 \title{email_stream}
 \usage{
-email_data(...)
+email_data(..., from_date = as.POSIXct("1900-01-01"), to_date = now())
 
 email_data_append(email_stream, ...)
 
@@ -34,11 +34,11 @@ email_stream(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...)
     \item{\code{freshness}}{the returned data will be at least this fresh}
   }}
 
-\item{email_stream}{email data from previous step}
-
 \item{from_date}{earliest date/time for which data will be returned}
 
 \item{to_date}{latest date/time for which data will be returned}
+
+\item{email_stream}{email data from previous step}
 }
 \value{
 \link[arrow:Table-class]{arrow::Table} of email data

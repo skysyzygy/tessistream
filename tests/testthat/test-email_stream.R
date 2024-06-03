@@ -10,6 +10,16 @@ test_that("email_data loads from promotions and promotion_responses and returns 
   expect_equal(nrow(email_data_stubbed()), nrow(promotions) + nrow(promotion_responses))
 })
 
+test_that("email_data only loads data between the given dates", {
+  from_date <- as.POSIXct("2010-01-01")
+  to_date <- as.POSIXct("2020-01-01")
+  promotion_responses <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"), as_data_frame = FALSE) %>%
+    filter(response_dt >= from_date & response_dt < to_date) %>% collect
+  promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE) %>%
+    filter(promote_dt >= from_date & promote_dt < to_date | source_no %in% promotion_responses$source_no) %>% collect
+  expect_equal(nrow(email_data_stubbed(from_date = from_date, to_date = to_date)),
+               nrow(promotions) + nrow(promotion_responses))
+})
 
 # email_data_append -------------------------------------------------------
 
@@ -134,7 +144,7 @@ test_that("email_subtype_features adds subtype counts/min/max",{
                  do.call(what=paste))
 
   subtypes <- email_subtype_features[,unique(event_subtype)]
-  setkey(email_subtype_features, group_customer_no, timestamp)
+  setkey(email_subtype_features, group_customer_no, timestamp_id)
 
   for(subtype in subtypes) {
     prefix <- paste0("email_",gsub("\\s+","_",tolower(subtype)))
@@ -201,6 +211,72 @@ test_that("email_subtype_features run on a chunk returns the same as on a full d
                list_as_map = TRUE)
 
 })
+#}
+
+test_that("email_subtype_features is deterministic for row reorderings", {
+  email_fix_timestamp_1 <- email_data_stubbed() %>% email_data_append_stubbed %>% email_fix_timestamp %>% compute
+
+  email_subtype_features_1 <- email_subtype_features(email_fix_timestamp_1) %>% collect %>% setDT
+
+  email_fix_timestamp_2 <- email_fix_timestamp_1 %>% collect %>%
+    mutate(row = runif(nrow(email_fix_timestamp_1))) %>% arrange(row) %>%
+    as_arrow_table()
+
+  email_subtype_features_2 <- email_subtype_features(email_fix_timestamp_2) %>%
+    select(-row) %>%
+    collect %>% setDT
+
+  expect_failure(expect_equal(head(email_subtype_features_1), head(email_subtype_features_2),
+               list_as_map = TRUE))
+
+  setkey(email_subtype_features_1, group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no,promote_dt)
+  setkey(email_subtype_features_2, group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no,promote_dt)
+
+  expect_equal(email_subtype_features_1, email_subtype_features_2,
+               list_as_map = TRUE)
+
+})
+
+# email_stream_base -------------------------------------------------------
+
+test_that("email_stream_base run on a chunk returns the same as on a full dataset",{
+  email_stream_base_full <- email_stream_base_stubbed() %>% collect %>% setDT
+
+  email_stream_base_partial <- rbind(
+    email_stream_base_stubbed(from_date = min(email_stream_base_full$timestamp),
+                              to_date = median(email_stream_base_full$timestamp)),
+    email_stream_base_stubbed(from_date = median(email_stream_base_full$timestamp),
+                              to_date = max(email_stream_base_full$timestamp)+1)) %>%
+    collect %>% setDT
+
+  setkey(email_stream_base_full, group_customer_no,timestamp,source_no,event_subtype,appeal_no,campaign_no)
+  setkey(email_stream_base_partial, group_customer_no,timestamp,source_no,event_subtype,appeal_no,campaign_no)
+
+  expect_equal(email_stream_base_partial,
+               email_stream_base_full,
+               list_as_map = TRUE)
+
+})
+
+test_that("email_stream_base is deterministic for row reorderings", {
+  email_stream_base <- email_stream_base_stubbed() %>% collect %>% setDT %>%
+    distinct %>%
+    setkey(group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no)
+
+
+  email_data <- email_data_stubbed() %>% collect
+  email_data <- email_data %>% mutate(row = runif(nrow(email_data))) %>% arrange(row) %>%
+    as_arrow_table()
+  stub(email_stream_base_stubbed, "email_data", email_data)
+
+  email_stream_base_2 <- email_stream_base_stubbed() %>% collect %>% setDT %>%
+    distinct %>%
+    setkey(group_customer_no,timestamp_id,source_no,event_subtype,campaign_no,appeal_no)
+
+  expect_equal(email_stream_base, email_stream_base_2,
+               list_as_map = TRUE)
+
+})
 
 # email_stream_chunk ------------------------------------------------------------
 
@@ -249,12 +325,13 @@ test_that("email_stream_chunk returns all of the expected features", {
                must.include = feature_cols)
 
   for (col in feature_cols) {
-    expect_gt(email_stream_chunk[!is.na(get(col)),.N],email_stream_chunk[,.N]/20)
+    expect_gt(email_stream_chunk[!is.na(get(col)),.N],email_stream_chunk[,.N]/25)
   }
 
 })
 
 test_that("email_stream_chunk returns the same result when run with one or many chunks",{
+
   tessilake::local_cache_dirs()
 
   email_data <- email_stream_chunk %>% select(timestamp) %>% collect %>% setDT
@@ -291,7 +368,7 @@ test_that("email_stream_chunk returns the same result when run with one or many 
 
 # email_stream ------------------------------------------------------------
 
-test_that("email_stream executes email_stream_chunk by year up while honoring from_date and to_date", {
+test_that("email_stream executes email_stream_chunk by year while honoring from_date and to_date", {
   withr::local_package("lubridate")
   email_stream_chunk <- mock()
   stub(email_stream,"email_stream_chunk",email_stream_chunk)

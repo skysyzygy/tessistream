@@ -27,36 +27,67 @@ NULL
 #' @importFrom data.table tstrsplit
 #' @inheritDotParams tessilake::read_sql freshness
 #' @importFrom arrow concat_tables
-email_data <- function(...) {
+#' @param from_date earliest date/time for which data will be returned
+#' @param to_date latest date/time for which data will be returned
+email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now()) {
 
   media_type <- promote_dt <- group_customer_no <- customer_no <- eaddress <-
     appeal_no <- campaign_no <- source_no <- response_dt <- response <- url_no <- NULL
+
+  ### Promotion responses
+
+  promotion_responses = read_tessi("promotion_responses", ...) %>%
+    filter(response_dt >= from_date & response_dt < to_date) %>%
+    transmute(group_customer_no,customer_no,
+              response, timestamp = response_dt,
+              source_no, url_no) %>%
+    compute
 
   ### Promotions
 
   promotions = read_tessi("promotions", ...) %>%
     filter(media_type == 3) %>%
+    filter(promote_dt >= from_date & promote_dt < to_date) %>%
     select(group_customer_no,customer_no,eaddress,
            promote_dt,appeal_no,campaign_no,source_no) %>%
     compute
 
-  ### Promotion responses
+  ### Promotion responses by source
 
-  promotion_responses = read_tessi("promotion_responses", ...) %>%
+  promotion_responses2 = read_tessi("promotion_responses", ...) %>%
+    filter(source_no %in% promotions$source_no & !(response_dt >= from_date & response_dt < to_date)) %>%
     transmute(group_customer_no,customer_no,
               response, timestamp = response_dt,
               source_no, url_no) %>%
-    left_join(summarise(promotions,
-                        appeal_no = max(appeal_no),
-                        campaign_no = max(campaign_no),
-                        .by = source_no)) %>%
+    compute
+
+  ### Promotions by source
+
+  promotions2 = read_tessi("promotions", ...) %>%
+    filter(media_type == 3) %>%
+    filter(source_no %in% promotion_responses$source_no & !(promote_dt >= from_date & promote_dt < to_date)) %>%
+    select(group_customer_no,customer_no,eaddress,
+           promote_dt,appeal_no,campaign_no,source_no) %>%
     compute
 
   ### Assemble email_stream
 
-  email_stream <- concat_tables(promotions, promotion_responses, unify_schemas = TRUE)
+  promotions = concat_tables(promotions,promotions2)
+  promotion_responses = concat_tables(promotion_responses,promotion_responses2)
+
+  promotion_responses <- promotion_responses %>%
+    left_join(summarise(promotions,
+                        appeal_no = max(appeal_no),
+                        eaddress = max(eaddress),
+                        campaign_no = max(campaign_no),
+                        .by = source_no)) %>%
+    compute
+
+  email_stream <- concat_tables(promotions, promotion_responses, unify_schemas = TRUE) %>%
+    compute
 
 }
+
 
 #' @describeIn email_stream adds descriptive campaign/appeal/source information from Tessitura
 #' @param email_stream email data from previous step
@@ -98,19 +129,20 @@ email_fix_timestamp <- function(email_stream) {
   ### Fix timestamp for sends/promotions
 
   # recalculate timestamps because promotion often happens long before the actual send
-  # NOTE: Have to bring this into R because window aggregation not implemented in Arrow
+  # NOTE: Have to bring this into R because aggregation by group not implemented in Arrow
   first_response <- email_stream %>% filter(!is.na(timestamp)) %>%
-    summarise(first_response_dt = min(timestamp, na.rm = TRUE),.by = source_no) %>%
+    summarise(first_response_dt = min(timestamp, na.rm = TRUE), .by = source_no) %>%
     collect
 
   email_stream <- email_stream %>% left_join(first_response, by = "source_no") %>%
     # 1. use first recorded response for source
-    # 2. use acq_dt from the source code because this is sometimes set manually as a replacement for acq_dt
+    # TODO: 2. use acq_dt from the source code because this is sometimes set manually as a replacement for acq_dt
     # 3. use promote_dt
-    mutate(timestamp = coalesce(timestamp,first_response_dt,acq_dt,promote_dt),
+    mutate(timestamp = coalesce(timestamp,first_response_dt,promote_dt),
     # Arrow uses int64 for timestamps; R uses double precision floating points.
     # to avoid precision loss and failed joins, create a timestamp_id for joins
-           timestamp_id = arrow:::cast(timestamp, arrow::int64()))
+           timestamp_id = arrow:::cast(timestamp, arrow::int64())) %>%
+    compute
 }
 
 #' @importFrom dplyr select collect compute
@@ -128,10 +160,13 @@ email_fix_eaddress <- function(email_stream) {
   # NOTE: Have to bring this into R because inequality joins and rolling joins not implemented in Arrow
   email_matches <- email_stream %>%
     transmute(customer_no, group_customer_no, timestamp, timestamp_id, eaddress) %>%
-    collect %>% setDT %>% stream_debounce("customer_no", "timestamp")
+    collect %>% setDT %>% setkey(customer_no, group_customer_no, timestamp_id, eaddress) %>%
+    stream_debounce("customer_no", "timestamp")
 
-  email_matches <- emails[,.(customer_no,timestamp,address)][email_matches,on=c("customer_no","timestamp"),roll=T]
-  email_matches <- emails[,.(group_customer_no,timestamp,address)][email_matches,on=c("group_customer_no","timestamp"),roll=T]
+  email_matches <- emails[,.(customer_no,timestamp,address)][
+    email_matches,on=c("customer_no","timestamp"),roll=T]
+  email_matches <- emails[,.(group_customer_no,timestamp,address)][
+    email_matches,on=c("group_customer_no","timestamp"),roll=T]
 
   # clean email address and extract domain
   email_matches[,eaddress := stringr::str_trim(tolower(coalesce(eaddress, address, i.address)))]
@@ -142,7 +177,8 @@ email_fix_eaddress <- function(email_stream) {
   # provide event_type and event_subtype and remove columns
   email_stream <- email_stream %>% select(-eaddress) %>% compute %>%
     left_join(email_matches[,.(customer_no,timestamp_id,eaddress,domain)],
-              by = c("customer_no","timestamp_id"))
+              by = c("customer_no","timestamp_id")) %>%
+    compute
 
 }
 
@@ -192,8 +228,8 @@ email_subtype_features <- function(email_stream) {
     # email_[subtype]_timestamp_max
     # email_[subtype]_count
 
-    cols = paste("email",gsub("\\s","_",tolower(subtype)),
-                 c("timestamp_min", "timestamp_max", "count"),sep="_")
+    cols = grep(gsub("\\s","_",tolower(subtype)), feature_cols, value = T, fixed = TRUE)
+
     i_cols = paste0("i.",cols)
     customer_history[,event_subtype := subtype]
 
@@ -205,8 +241,9 @@ email_subtype_features <- function(email_stream) {
                    (cols) := list(coalesce(get(i_cols[1]), timestamp[1]),
                                   timestamp,
                                   coalesce(get(i_cols[3]),0) + seq_len(.N)),
-                   by="group_customer_no"] %>%
+                   by=c("group_customer_no")] %>%
       .[,(i_cols) := NULL]
+
   }
 
   # Fill down, respecting customer boundaries
@@ -215,21 +252,35 @@ email_subtype_features <- function(email_stream) {
             cols = feature_cols,
             by = "group_customer_no")
 
-  # remove added customer history and debounce so that it can be left-joined
+  # remove added customer history and debounce so it can be left joined
   email_subtypes <- email_subtypes[timestamp >= min_timestamp] %>%
-    stream_debounce(c("group_customer_no", "timestamp", "source_no", "event_subtype"))
+    setkey(group_customer_no, timestamp) %>%
+    stream_debounce(c("group_customer_no","timestamp_id"))
 
-  email_stream %>%
-    select(!any_of(c("timestamp",feature_cols))) %>%
-    left_join(email_subtypes,
-              by=c("group_customer_no", "timestamp_id", "source_no", "event_subtype"))
+  email_stream %>% select(!any_of(feature_cols)) %>%
+    left_join(email_subtypes %>% select(all_of(c("group_customer_no","timestamp_id",feature_cols))),
+              by=c("group_customer_no", "timestamp_id")) %>%
+    compute
 
 }
 
+#' @describeIn email_stream produce one chunk of the base email_stream (without p2_stream or subtype features)
+email_stream_base <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...) {
 
-#' @importFrom dplyr arrange
-#' @importFrom arrow as_arrow_table
-#' @importFrom tidyselect ends_with
+  timestamp <- group_customer_no <- customer_no <- timestamp_id <- event_subtype <-
+    source_no <- appeal_no <- campaign_no <- source_desc <- extraction_desc <-
+    response <- url_no <- eaddress <- domain <- NULL
+
+  email_stream <- email_data(from_date = from_date, to_date = to_date, ...) %>%
+    email_data_append(...) %>% email_fix_timestamp %>% email_fix_eaddress %>%
+    filter(timestamp >= from_date & timestamp < to_date) %>%
+    transmute(group_customer_no = as.integer(group_customer_no), customer_no,
+              timestamp, timestamp_id, event_type = "Email", event_subtype,
+              source_no, appeal_no, campaign_no, source_desc, extraction_desc,
+              response, url_no, email = eaddress, domain) %>% compute
+}
+
+
 #' @importFrom tessilake cache_exists_any read_cache
 #' @importFrom checkmate assert_posixct
 #' @inheritDotParams tessilake::read_sql freshness
@@ -237,20 +288,12 @@ email_subtype_features <- function(email_stream) {
 #' @param from_date earliest date/time for which data will be returned
 #' @param to_date latest date/time for which data will be returned
 email_stream_chunk <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...) {
+  campaignid <- timestamp <- NULL
+
   assert_posixct(c(from_date, to_date), sorted = TRUE)
 
-  customer_no <- timestamp <- event_subtype <- source_no <-
-    group_customer_no <- timestamp_id <- appeal_no <- campaign_no <-
-    source_desc <- extraction_desc <- response <- url_no <- eaddress <-
-    domain <- campaignid <- NULL
-
-  email_stream <- email_data(...) %>% email_data_append(...) %>%
-    email_fix_timestamp %>% email_fix_eaddress %>%
-    filter(timestamp >= from_date & timestamp < to_date) %>%
-    transmute(group_customer_no = as.integer(group_customer_no), customer_no,
-              timestamp, timestamp_id, event_type = "Email", event_subtype,
-              source_no, appeal_no, campaign_no, source_desc, extraction_desc,
-              response, url_no, email = eaddress, domain) %>% compute
+  email_stream <- email_stream_base(from_date = from_date, to_date = to_date)
+  message(nrow(email_stream))
 
   if (cache_exists_any("p2_stream","stream")) {
     p2_stream <- read_cache("p2_stream","stream") %>%

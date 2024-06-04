@@ -21,6 +21,11 @@ test_that("email_data only loads data between the given dates", {
                nrow(promotions) + nrow(promotion_responses))
 })
 
+test_that("email_data clears any primary_key info", {
+  email_data <- email_data_stubbed() %>% collect %>% setDT
+  expect_equal(attributes(email_data)$primary_keys, NULL)
+})
+
 # email_data_append -------------------------------------------------------
 
 test_that("email_data_append appends descriptive info for responses, sources, and extractions", {
@@ -280,6 +285,11 @@ test_that("email_stream_base is deterministic for row reorderings", {
 
 test_that("email_stream_base runs successfully and returns an empty table when there's nothing to do",{
   expect_equal(nrow(email_stream_base_stubbed(from_date = as.POSIXct("1900-01-01"), to_date = as.POSIXct("1900-01-02"))),0)
+})
+
+test_that("email_data clears any primary_key info", {
+  email_stream_base <- email_stream_base_stubbed() %>% collect %>% setDT
+  expect_equal(attributes(email_stream_base)$primary_keys, NULL)
 })
 
 # email_stream_chunk ------------------------------------------------------------

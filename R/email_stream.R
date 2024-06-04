@@ -85,8 +85,12 @@ email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now(
                         .by = source_no)) %>%
     compute
 
+
   email_stream <- concat_tables(promotions, promotion_responses, unify_schemas = TRUE) %>%
     compute
+
+  email_stream$metadata$r$attributes$primary_keys <- NULL
+  email_stream
 
 }
 

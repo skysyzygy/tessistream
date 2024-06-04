@@ -6,6 +6,9 @@
 email_data_stubbed <- function(...) {
   promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE)
   promotion_responses <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"), as_data_frame = FALSE)
+  tessilake:::cache_set_attributes(promotions, list(primary_keys = c("source_no","customer_no")))
+  tessilake:::cache_set_attributes(promotion_responses, list(primary_keys = c("ID")))
+
   read_tessi <- mock(promotion_responses, promotions, cycle=T)
 
   stub(email_data, "read_tessi", read_tessi)

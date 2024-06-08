@@ -126,7 +126,7 @@ setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
 #' @export
 #'
 #' @importFrom rlang list2
-#' @importFrom data.table haskey
+#' @importFrom data.table haskey last
 #' @importFrom checkmate assert_data_table
 #'
 #' @examples
@@ -143,7 +143,7 @@ stream_debounce <- function(stream, ...) {
   assert_true(haskey(stream))
 
   # Debounce, take the last change per group per day
-  stream[, .SD[.N], by = cols][]
+  stream[, last(.SD), by = cols][]
 
 }
 

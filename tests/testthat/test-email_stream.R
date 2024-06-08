@@ -397,7 +397,6 @@ test_that("email_stream_chunk runs successfully when there's nothing to do",{
 
 test_that("email_stream executes email_stream_chunk by month while honoring from_date and to_date", {
   withr::local_package("lubridate")
-  withr::local_package("mockery")
   email_stream_chunk <- mock()
   stub(email_stream,"email_stream_chunk",email_stream_chunk)
   stub(email_stream,"sync_cache",TRUE)

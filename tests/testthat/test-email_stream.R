@@ -395,23 +395,23 @@ test_that("email_stream_chunk runs successfully when there's nothing to do",{
 
 # email_stream ------------------------------------------------------------
 
-test_that("email_stream executes email_stream_chunk by year while honoring from_date and to_date", {
+test_that("email_stream executes email_stream_chunk by month while honoring from_date and to_date", {
   withr::local_package("lubridate")
+  withr::local_package("mockery")
   email_stream_chunk <- mock()
   stub(email_stream,"email_stream_chunk",email_stream_chunk)
   stub(email_stream,"sync_cache",TRUE)
 
   email_stream(from_date = make_datetime(2020,7,1), to_date = make_datetime(2024,5,30))
 
-  expect_length(mock_args(email_stream_chunk), 5)
-  expect_equal(mock_args(email_stream_chunk)[[1]][["from_date"]], make_datetime(2020,7,1))
-  for (i in seq(2,5)) {
-    expect_equal(mock_args(email_stream_chunk)[[i]][["from_date"]], make_datetime(2019+i))
+  expect_length(mock_args(email_stream_chunk), 47)
+  for (i in seq(47)) {
+    expect_equal(mock_args(email_stream_chunk)[[i]][["from_date"]], make_datetime(2020,7+i-1,1))
   }
-  for (i in seq(1,4)) {
-    expect_equal(mock_args(email_stream_chunk)[[i]][["to_date"]], make_datetime(2020+i))
+  for (i in seq(46)) {
+    expect_equal(mock_args(email_stream_chunk)[[i]][["to_date"]], make_datetime(2020,7+i,1))
   }
-  expect_equal(mock_args(email_stream_chunk)[[5]][["to_date"]], make_datetime(2024,5,30))
+  expect_equal(mock_args(email_stream_chunk)[[47]][["to_date"]], make_datetime(2024,5,30))
 
 })
 

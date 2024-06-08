@@ -372,14 +372,12 @@ email_stream_write_partition <- function(email_stream) {
 email_stream <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...) {
   assert_posixct(c(from_date, to_date), sorted = TRUE)
 
-  from_year <- year(from_date)
-  to_year <- year(to_date)
+  dates <- seq(from_date,to_date,by="month")
 
-  for (year in seq(from_year, to_year)) {
-    from_date_inner = max(from_date, lubridate::make_datetime(year))
-    to_date_inner = min(to_date, lubridate::make_datetime(year+1))
-    email_stream_chunk(from_date = from_date_inner, to_date = to_date_inner)
+  for(i in seq(length(dates)-1)) {
+    email_stream_chunk(from_date = dates[i], to_date = dates[i+1])
   }
+  email_stream_chunk(from_date = dates[length(dates)], to_date = to_date)
 
   sync_cache("email_stream","stream")
 }

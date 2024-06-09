@@ -183,10 +183,10 @@ email_fix_eaddress <- function(email_stream) {
   setleftjoin(email_matches, emails_cleaned, by = "eaddress")
 
   # provide event_type and event_subtype and remove columns
-  email_stream <- email_stream %>% select(-eaddress) %>% compute %>%
+  email_stream <- email_stream %>% select(-eaddress) %>% collect %>%
     left_join(email_matches[,.(customer_no,timestamp_id,eaddress,domain)],
               by = c("customer_no","timestamp_id")) %>%
-    compute
+    as_arrow_table
 
 }
 
@@ -289,8 +289,8 @@ email_stream_base <- function(from_date = as.POSIXct("1900-01-01"), to_date = no
     return(arrow::arrow_table(group_customer_no=integer(0)))
   }
 
-  email_stream %>% email_data_append(...) %>% email_fix_timestamp %>% email_fix_eaddress %>%
-  filter(timestamp >= from_date & timestamp < to_date) %>%
+  email_stream %>% email_data_append(...) %>% email_fix_timestamp %>%
+  filter(timestamp >= from_date & timestamp < to_date) %>% email_fix_eaddress %>%
   transmute(group_customer_no = as.integer(group_customer_no), customer_no,
             timestamp, timestamp_id, event_type = "Email", event_subtype,
             source_no, appeal_no, campaign_no, source_desc, extraction_desc,

@@ -74,7 +74,7 @@ test_that("email_fix_timestamp recalculates send timestamps based on earliest pr
 test_that("email_fix_eaddress fills in customer emails based on the send date", {
   email_fix_timestamp <- email_data_stubbed() %>% email_data_append_stubbed() %>%
     email_fix_timestamp %>% collect %>% setDT
-  email_fix_eaddress <- email_fix_eaddress_stubbed(email_fix_timestamp)
+  email_fix_eaddress <- email_fix_eaddress_stubbed(email_fix_timestamp) %>% collect %>% setDT
   emails <- readRDS(rprojroot::find_testthat_root_file("email_stream-emails.Rds")) %>% setDT %>%
     setkey(customer_no, timestamp)
 

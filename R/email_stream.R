@@ -55,7 +55,7 @@ email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now(
   ### Promotion responses by source (because promotion timestamps may be modified by source)
 
   promotion_responses2 = read_tessi("promotion_responses", ...) %>%
-    filter(source_no %in% promotions$source_no &
+    filter(source_no %in% c(promotions$source_no, promotion_responses$source_no) &
              !(response_dt >= from_date & response_dt < to_date)) %>%
     transmute(group_customer_no,customer_no,
               response, timestamp = response_dt,
@@ -65,7 +65,7 @@ email_data <- function(..., from_date = as.POSIXct("1900-01-01"), to_date = now(
   ### Promotions by source (because promotion timestamps may be modified by source)
 
   promotions2 = read_tessi("promotions", ...) %>%
-    filter(source_no %in% promotion_responses$source_no &
+    filter(source_no %in% c(promotions$source_no, promotion_responses$source_no) &
              !(promote_dt >= from_date & promote_dt < to_date) &
              media_type == 3) %>%
     select(group_customer_no,customer_no,eaddress,

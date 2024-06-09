@@ -144,7 +144,9 @@ email_fix_timestamp <- function(email_stream) {
     # 1. use first recorded response for source
     # TODO: 2. use acq_dt from the source code because this is sometimes set manually as a replacement for acq_dt
     # 3. use promote_dt
-    mutate(timestamp = coalesce(timestamp,first_response_dt,promote_dt),
+    mutate(timestamp = coalesce(timestamp,ifelse(!is.na(first_response_dt) & abs(first_response_dt - promote_dt) < lubridate::ddays(30),
+                                                 first_response_dt,
+                                                 promote_dt)),
     # Arrow uses int64 for timestamps; R uses double precision floating points.
     # to avoid precision loss and failed joins, create a timestamp_id for joins
            timestamp_id = arrow:::cast(timestamp, arrow::int64())) %>%
@@ -372,7 +374,7 @@ email_stream_write_partition <- function(email_stream) {
 email_stream <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), ...) {
   assert_posixct(c(from_date, to_date), sorted = TRUE)
 
-  dates <- seq(from_date,to_date,by="month")
+  dates <- seq(from_date,to_date,by="year")
 
   for(i in seq(length(dates)-1)) {
     email_stream_chunk(from_date = dates[i], to_date = dates[i+1])

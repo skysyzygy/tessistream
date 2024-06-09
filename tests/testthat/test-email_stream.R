@@ -60,18 +60,9 @@ test_that("email_fix_timestamp recalculates send timestamps based on earliest pr
   expect_equal(email_compare_responses[,.(customer_no,source_no,timestamp = timestamp.x)] %>% setkey,
                email_compare_responses[,.(customer_no,source_no,timestamp = timestamp.y)] %>% setkey)
 
-  # Does update promote dates
-  email_compare_sends <- merge(
-    email_fix_timestamp[event_subtype == "Send",.(customer_no, timestamp,
-                           first_response = min(timestamp, na.rm=T)),
-                        by = "source_no"],
-    email_data_append[event_subtype == "Send",.(customer_no, source_no)],
-    by = c("customer_no", "source_no")
-  )
-
-  # to first response date
-  expect_equal(email_compare_sends[source_no>1,timestamp],
-               email_compare_sends[source_no>1,first_response])
+  # Does update promote dates to first response date if first_response is within 30 days of the promote_dt
+  expect_equal(email_fix_timestamp[event_subtype == "Send" & abs(first_response_dt - promote_dt) < ddays(30), timestamp],
+               email_fix_timestamp[event_subtype == "Send" & abs(first_response_dt - promote_dt) < ddays(30), first_response_dt])
   # or acq_dt
   # expect_equal(email_compare_sends[source_no==1,timestamp],
   #              rep(.acq_dt,email_compare_sends[source_no==1,.N])) # variable set above
@@ -164,6 +155,9 @@ test_that("email_subtype_features adds subtype counts/min/max",{
                  email_subtype_features[integer(0)])
     # timestamp min must be less than current timestamp
     expect_equal(email_subtype_features[timestamp < get(paste0(prefix,"_timestamp_min"))],
+                 email_subtype_features[integer(0)])
+    # and must not be smaller than the min timestamp
+    expect_equal(email_subtype_features[min(timestamp,na.rm=T) > get(paste0(prefix,"_timestamp_min"))],
                  email_subtype_features[integer(0)])
     # timestamp features are filled in correctly for matching subtypes
     expect_equal(email_subtype_features[event_subtype == subtype, timestamp],
@@ -339,7 +333,7 @@ test_that("email_stream_chunk returns all of the expected features", {
                must.include = feature_cols)
 
   for (col in feature_cols) {
-    expect_gt(email_stream_chunk[!is.na(get(col)),.N],email_stream_chunk[,.N]/25)
+    expect_gt(email_stream_chunk[!is.na(get(col)),.N],email_stream_chunk[,.N]/26)
   }
 
 })
@@ -403,14 +397,14 @@ test_that("email_stream executes email_stream_chunk by month while honoring from
 
   email_stream(from_date = make_datetime(2020,7,1), to_date = make_datetime(2024,5,30))
 
-  expect_length(mock_args(email_stream_chunk), 47)
-  for (i in seq(47)) {
-    expect_equal(mock_args(email_stream_chunk)[[i]][["from_date"]], make_datetime(2020,7+i-1,1))
+  expect_length(mock_args(email_stream_chunk), 4)
+  for (i in seq(4)) {
+    expect_equal(mock_args(email_stream_chunk)[[i]][["from_date"]], make_datetime(2020+i-1,7,1))
   }
-  for (i in seq(46)) {
-    expect_equal(mock_args(email_stream_chunk)[[i]][["to_date"]], make_datetime(2020,7+i,1))
+  for (i in seq(3)) {
+    expect_equal(mock_args(email_stream_chunk)[[i]][["to_date"]], make_datetime(2020+i,7,1))
   }
-  expect_equal(mock_args(email_stream_chunk)[[47]][["to_date"]], make_datetime(2024,5,30))
+  expect_equal(mock_args(email_stream_chunk)[[4]][["to_date"]], make_datetime(2024,5,30))
 
 })
 

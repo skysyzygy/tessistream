@@ -240,7 +240,7 @@ email_subtype_features <- function(email_stream) {
     # email_[subtype]_timestamp_max
     # email_[subtype]_count
 
-    cols = grep(gsub("\\s","_",tolower(subtype)), feature_cols, value = T, fixed = TRUE)
+    cols = grep(gsub("\\s","_",tolower(subtype)), feature_cols, value = T, fixed = TRUE) %>% unique
 
     i_cols = paste0("i.",cols)
     customer_history[,event_subtype := subtype]

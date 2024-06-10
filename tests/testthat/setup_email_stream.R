@@ -1,7 +1,7 @@
 # test fixtures for test-email_stream.R and integration_tests/test-email_prospect2_stream.R
 
 .acq_dt <- lubridate::as_datetime(lubridate::today())
-.responses <- c("Opened Email","Click Through","Hard Bounce","Soft Bounce","UnSubscribe")
+.responses <- c("Open","Click","Hard Bounce","Soft Bounce","Unsubscribe")
 
 email_data_stubbed <- function(...) {
   promotions <- arrow::read_parquet(rprojroot::find_testthat_root_file("email_stream-promotions.parquet"), as_data_frame = FALSE)

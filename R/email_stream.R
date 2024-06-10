@@ -106,7 +106,13 @@ email_data_append <- function(email_stream, ...) {
   responses = read_sql("select email_response response,
                         description event_subtype from TR_EMAIL_RESPONSE_CODE erc
                         join TR_RESPONSE r on
-                        erc.promo_response=r.id", ...)
+                        erc.promo_response=r.id", ...) %>%
+    mutate(event_subtype = case_when(grepl("open",event_subtype,ignore.case=T) ~ "Open",
+                                     grepl("click",event_subtype,ignore.case=T) ~ "Click",
+                                     grepl("unsub",event_subtype,ignore.case=T) ~ "Unsubscribe",
+                                     grepl("soft",event_subtype,ignore.case=T) ~ "Soft Bounce",
+                                     grepl("hard",event_subtype,ignore.case=T) ~ "Hard Bounce",
+                                     TRUE ~ event_subtype))
 
   ### Sources and extractions
 

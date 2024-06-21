@@ -382,7 +382,7 @@ email_stream <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), 
 
   dates <- seq(from_date,to_date,by="year")
 
-  for(i in seq(length(dates)-1)) {
+  for(i in seq_len(length(dates)-1)) {
     email_stream_chunk(from_date = dates[i], to_date = dates[i+1])
   }
   email_stream_chunk(from_date = dates[length(dates)], to_date = to_date)

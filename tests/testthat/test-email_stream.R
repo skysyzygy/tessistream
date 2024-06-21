@@ -389,7 +389,7 @@ test_that("email_stream_chunk runs successfully when there's nothing to do",{
 
 # email_stream ------------------------------------------------------------
 
-test_that("email_stream executes email_stream_chunk by month while honoring from_date and to_date", {
+test_that("email_stream executes email_stream_chunk by year while honoring from_date and to_date", {
   withr::local_package("lubridate")
   email_stream_chunk <- mock()
   stub(email_stream,"email_stream_chunk",email_stream_chunk)
@@ -408,4 +408,17 @@ test_that("email_stream executes email_stream_chunk by month while honoring from
 
 })
 
+test_that("email_stream executes email_stream_chunk works when only one year selected", {
+  withr::local_package("lubridate")
+  email_stream_chunk <- mock()
+  stub(email_stream,"email_stream_chunk",email_stream_chunk)
+  stub(email_stream,"sync_cache",TRUE)
+
+  email_stream(from_date = make_datetime(2024,2,1), to_date = make_datetime(2024,5,30))
+
+  expect_length(mock_args(email_stream_chunk), 1)
+  expect_equal(mock_args(email_stream_chunk)[[1]][["from_date"]], make_datetime(2024,2,1))
+  expect_equal(mock_args(email_stream_chunk)[[1]][["to_date"]], make_datetime(2024,5,30))
+
+})
 

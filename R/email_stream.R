@@ -160,6 +160,7 @@ email_fix_timestamp <- function(email_stream) {
 }
 
 #' @importFrom dplyr select collect compute
+#' @importFrom arrow as_arrow_table
 #' @describeIn email_stream fills in email address based on time of send and the current email address for the customer,
 #' using email data from [stream_from_audit]
 email_fix_eaddress <- function(email_stream) {

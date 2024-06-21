@@ -49,6 +49,7 @@ p2_query_table_length <- function(url, api_key = keyring::key_get("P2_API")) {
 #' @return JSON object as a list
 #' @importFrom httr modify_url GET content add_headers
 #' @importFrom checkmate assert check_data_frame check_names
+#' @export
 p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
                          offset = NULL, max_len = NULL, jobs = NULL) {
   len <- off <- NULL

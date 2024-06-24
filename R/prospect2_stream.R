@@ -302,8 +302,13 @@ p2_update <- function() {
 
   # linkData and mppLinkData are *mostly* immutable, so refresh the recent links...
   if (DBI::dbExistsTable(tessistream$p2_db, "links")) {
+    recent_campaigns <- tbl(tessistream$p2_db, "campaigns") %>%
+      filter(sdate > !!(today() - dmonths(1))) %>%
+      select(id) %>%
+      collect()
+
     recent_links <- tbl(tessistream$p2_db, "links") %>%
-      filter(linkclicks > 0 & updated_timestamp > !!(today() - dmonths(1))) %>%
+      filter(campaignid %in% recent_campaigns$id) %>%
       select(id) %>%
       collect()
 

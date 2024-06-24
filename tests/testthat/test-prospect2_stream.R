@@ -449,15 +449,19 @@ test_that("p2_update only loads logs after max(id)", {
   expect_equal(calls[[1]][["offset"]], 100)
 })
 
-test_that("p2_update updates recent linkData", {
+test_that("p2_update updates recent linkData based on campaign send date", {
   p2_load <- mock(cycle = T)
   stub(p2_update, "p2_load", p2_load)
   p2_db_open()
   copy_to(tessistream$p2_db, name = "links", data.table(
     id = seq(100) %>% as.character(),
-    updated_timestamp = today() %>% as.character(),
+    campaignid = seq(100) %>% as.character(),
     linkclicks = "1"
   ))
+  copy_to(tessistream$p2_db, name = "campaigns", data.table(
+    id=seq(10) %>% as.character(),
+    sdate=now() %>% as.character())
+  )
   copy_to(tessistream$p2_db, name = "logs", data.table(id=seq(100)))
   copy_to(tessistream$p2_db, name = "linkData", data.table(id=seq(100)))
   copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id=seq(100)))
@@ -465,10 +469,10 @@ test_that("p2_update updates recent linkData", {
   p2_update()
 
   calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("linkData"))
-  expect_equal(length(calls), 100)
+  expect_equal(length(calls), 10)
   expect_equal(
     keep(calls, ~ "path" %in% names(.)) %>% purrr::map_chr("path"),
-    paste0("api/3/links/", seq(100), "/linkData")
+    paste0("api/3/links/", seq(10), "/linkData")
   )
 })
 

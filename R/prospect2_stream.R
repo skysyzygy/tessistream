@@ -108,12 +108,13 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
 #'
 #' @param jsons list of *named* lists of data.tables, as returned by p2_json_to_datatable
 #'
-#' @return single `JSON` object as a list
+#' @return single `JSON` object as a list, or `NULL` if empty or unnamed
 #' @importFrom purrr map_int
 #' @importFrom checkmate assert_true
 #' @importFrom stats setNames
 p2_combine_jsons <- function(jsons) {
-  assert_true(all(map_int(jsons, ~ length(names(.))) > 0))
+  if (!all(map_int(jsons, ~ length(names(.))) > 0))
+    return(NULL)
 
   # combine results
   names <- do.call(c, map(jsons, names)) %>% unique()

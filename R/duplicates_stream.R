@@ -65,7 +65,7 @@ duplicates_append_data <- function(data, features = rlang::exprs(
 
   . <- memb_level <- last_login_dt <- last_activity_dt <- last_update_dt <-
     cur_record_ind <- customer_no <- memb_amt <- inactive <- inactive_desc <-
-    keep_customer_no <- i.customer_no <- NULL
+    keep_customer_no <- i.customer_no <- in_household <- group_customer_no <- NULL
 
   memberships <- read_tessi("memberships") %>%
     filter(cur_record_ind == 'Y') %>% collect %>% setDT %>%

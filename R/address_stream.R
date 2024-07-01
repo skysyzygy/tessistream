@@ -101,7 +101,7 @@ address_stream_build <- function(...) {
 #' @importFrom data.table setDT setkey
 #' @importFrom lubridate as_date
 address_create_stream <- function(...) {
-  . <- timestamp <- NULL
+  . <- timestamp <- address_no <- NULL
 
   p <- progressor(1)
   p("Running address_create_stream", amount = 0)

@@ -37,7 +37,7 @@ p2_verb_thing(
 
 \item{verb}{HTTP verb to use for the API}
 
-\item{thing}{character of entity to update (at "api/3/{thing}")}
+\item{thing}{character of entity to update (at "api/3/\if{html}{\out{<thing>}}")}
 
 \item{.name}{character of name field that \code{existing_things} refers to}
 }

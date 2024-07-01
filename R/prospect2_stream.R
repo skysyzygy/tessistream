@@ -277,7 +277,7 @@ p2_unnest <- function(data, colname) {
 #' @importFrom dplyr select
 #' @export
 p2_update <- function() {
-  updated_timestamp <- id <- linkclicks <- NULL
+  updated_timestamp <- id <- linkclicks <- sdate <- campaignid <- NULL
 
   withr::defer(p2_db_close())
   p2_db_open()

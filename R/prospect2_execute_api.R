@@ -27,7 +27,7 @@ p2_delete_segments <- function(segments, dry_run = FALSE) {
 #' @param new_things list of objects to send to the API endpoint
 #' @param verb HTTP verb to use for the API
 #' @param .name character of name field that `existing_things` refers to
-#' @param thing character of entity to update (at "api/3/{thing}")
+#' @param thing character of entity to update (at "api/3/<thing>")
 #' @inheritParams p2_execute_api
 #' @importFrom rlang list2
 #' @importFrom checkmate assert_list
@@ -35,6 +35,8 @@ p2_verb_thing <- function(existing_things, new_things = NULL,
                           verb, thing,
                           dry_run = FALSE,
                           .name = thing) {
+  . <- name <- id <- NULL
+
   assert_character(existing_things)
   if(is.null(new_things)) {
     new_things <- rep(list(NULL), length(existing_things))

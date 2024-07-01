@@ -1,13 +1,19 @@
+#' @describeIn p2_verb_thing delete P2 tags
 p2_delete_tags <- function(tags, dry_run = FALSE) {
   p2_verb_thing(tags,verb="DELETE",thing="tag",dry_run=dry_run)
 }
 
+#' @describeIn p2_verb_thing rename P2 tags
+#' @param tags character vector of tags to update/delete
+#' @param new_tags character vector of new names for `tags`
 p2_rename_tags <- function(tags, new_tags, dry_run = FALSE) {
   new_tags <- map(new_tags,~list(tag=list(tag=.)))
   p2_verb_thing(tags,new_tags,verb="PUT",thing="tag",
                 dry_run=dry_run)
 }
 
+#' @describeIn p2_verb_thing delete P2 list segments
+#' @param segments character vector of segments to delete
 p2_delete_segments <- function(segments, dry_run = FALSE) {
   p2_verb_thing(segments,verb="DELETE",
                 thing="segment",dry_run=dry_run,

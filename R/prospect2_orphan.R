@@ -118,49 +118,6 @@ p2_resolve_orphan <- function(from = NULL, to = NULL, customer_no = NULL, dry_ru
   }
 }
 
-#' p2_execute_api
-#'
-#' Sends a JSON `object` to a P2 API endpoint `url` using an `api_key` and returns T/F based on `success_codes`
-#'
-#' @param url character, endpoint url for the API
-#' @param object list to be converted into JSON using `jsonlite::toJSON`
-#' @param success_codes, integer vector of success codes returned by the API
-#' @param method, character name of the `httr` function to call, usually `POST` or `PUT`
-#' @param api_key Active Campaign API key, defaults to `keyring::key_get("P2_API")`
-#' @param dry_run boolean, nothing will be changed in P2 if set to `TRUE`
-#'
-#' @return `TRUE` if success, `FALSE` if not
-#'
-#' @importFrom checkmate assert_integerish
-#' @importFrom rlang sym expr warn
-p2_execute_api <- function(url, object = list(), success_codes = c(200,201,202), method = "POST",
-                           api_key = keyring::key_get("P2_API"), dry_run = FALSE) {
-  assert_character(url,len=1)
-  assert_character(method,len=1)
-  assert_character(api_key,len=1)
-
-  api_headers <- add_headers("Api-Token" = keyring::key_get("P2_API"))
-  inform(c(
-    "v" = paste("Executing",method,":",url),
-    "*" = jsonlite::toJSON(object, auto_unbox = T)
-  ))
-
-  if (dry_run) {
-    inform(c("*" = "(dry run)"))
-    return(TRUE)
-  }
-
-  fun <- eval(parse(text = paste0("httr::",method)))
-  response <- fun(url = url, api_headers, body = object, encode = "json", httr::timeout(300))
-
-  if (!response$status_code %in% success_codes) {
-    warn(c("!" = paste(method, "to", url, "failed! Status code", response$status_code)), response = response)
-    return(FALSE)
-  }
-
-  TRUE
-}
-
 #' p2_update_email
 #'
 #' Updates email for a contact on P2 (https://developers.activecampaign.com/reference/update-a-contact-new)

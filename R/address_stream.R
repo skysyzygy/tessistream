@@ -233,6 +233,23 @@ address_parse_libpostal <- function(address_stream) {
   # postcode => postcode
   # country/country_region/world_region => country
 
+  # Now merge everything else together
+  if (any(c("unit", "level", "entrance", "staircase") %in% colnames(parsed))) {
+    setunite(parsed, "unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = TRUE)
+  }
+  if (any(c("house", "category", "near") %in% colnames(parsed))) {
+    setunite(parsed, "house", any_of(c("house", "category", "near")), sep = " ", na.rm = TRUE)
+  }
+  if (any(c("suburb", "city_district", "city", "island") %in% colnames(parsed))) {
+    setunite(parsed, "city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = TRUE)
+  }
+  if (any(c("state_district", "state") %in% colnames(parsed))) {
+    setunite(parsed, "state", any_of(c("state_district", "state")), sep = ", ", na.rm = TRUE)
+  }
+  if (any(c("country_region", "country", "world_region") %in% colnames(parsed))) {
+    setunite(parsed, "country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = TRUE)
+  }
+
   # But the parsing is imperfect. The hardest to resolve is unit.
 
   # ... for some reason a lot of units end up in postcode!
@@ -265,23 +282,6 @@ address_parse_libpostal <- function(address_stream) {
       parsed[!is.na(unit) & get(col) == "", (col) := NA_character_]
     }
   )
-
-  # Now merge everything else together
-  if (any(c("unit", "level", "entrance", "staircase") %in% colnames(parsed))) {
-    setunite(parsed, "unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = TRUE)
-  }
-  if (any(c("house", "category", "near") %in% colnames(parsed))) {
-    setunite(parsed, "house", any_of(c("house", "category", "near")), sep = " ", na.rm = TRUE)
-  }
-  if (any(c("suburb", "city_district", "city", "island") %in% colnames(parsed))) {
-    setunite(parsed, "city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = TRUE)
-  }
-  if (any(c("state_district", "state") %in% colnames(parsed))) {
-    setunite(parsed, "state", any_of(c("state_district", "state")), sep = ", ", na.rm = TRUE)
-  }
-  if (any(c("country_region", "country", "world_region") %in% colnames(parsed))) {
-    setunite(parsed, "country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = TRUE)
-  }
 
   # ok maybe we're finally done. Let's clean up
   parsed_cols <- intersect(colnames(parsed),c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode"))

@@ -96,8 +96,8 @@ address_normalize <- function(address_stream) {
 
 #' street_cleaner
 #'
-#' Loads address info for a given list of customers and normalizes it with
-#' [address_normalize]
+#' Convenience function for loading address info for a given list of customers and normalizing it by
+#' running it through [address_normalize]
 #'
 #' @param list_no list number in Tessitura to pull data for
 #'
@@ -126,6 +126,11 @@ street_cleaner <- function(list_no) {
   addresses_cleaned <- cbind(address_normalize(address_stream),customer_no = address_stream$customer_no)
 
   addresses_cleaned <- salutations[addresses_cleaned,on="customer_no"]
+
+  # try to resolve repeated words
+  addresses_cleaned[sapply(street2_cleaned,\(.) {anyDuplicated(strsplit(., " ")[[1]])>0}) &
+                    address_clean(street2) != street1_cleaned,
+                    street2_cleaned := address_clean(street2)]
 
   addresses_cleaned[sapply(paste(street1_cleaned,street2_cleaned),
                            \(.) {anyDuplicated(strsplit(., " ")[[1]])>0}),

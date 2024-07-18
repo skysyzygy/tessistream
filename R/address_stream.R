@@ -254,17 +254,17 @@ address_parse_libpostal <- function(address_stream) {
 
   # ... for some reason a lot of units end up in postcode!
   parsed[
-    is.na(unit) & postcode != address_stream$postal_code[I],
+    trimws(unit) == "" & postcode != address_stream$postal_code[I],
     unit := postcode
   ]
   # ... some units don't get detected in street2
   parsed[
-    is.na(unit) & str_detect(address_stream$street2[I], unit_regex2),
+    trimws(unit) == "" & str_detect(address_stream$street2[I], unit_regex2),
     unit := address_stream$street2[I]
   ]
   # ... and if the road has the unit in it, put it in unit
   parsed[
-    is.na(unit) & str_detect(road, paste0(street_unit_regex, ")")),
+    trimws(unit) == "" & str_detect(road, paste0(street_unit_regex, ")")),
     unit := str_match(road, paste0(street_unit_regex, ".*$)"))[, 5]
   ]
   # ... finally cleanup unit

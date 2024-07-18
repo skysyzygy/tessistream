@@ -58,9 +58,13 @@ address_stream_build <- function(...) {
   address_stream <- address_create_stream(...)
   address_parsed <- address_parse(address_stream)
   address_geocode <- address_geocode(address_parsed)
+  address_normalized <- address_normalize(cbind(address_parsed,address_geocode[,-address_cols,with=F]))
   address_census <- address_census(cbind(address_geocode,timestamp = address_stream$timestamp))
 
-  address_stream <- cbind(address_stream, address_geocode[,-address_cols, with = F], address_census[,-c(address_cols, "timestamp"), with = F])
+  address_stream <- cbind(address_stream,
+                          address_geocode[,-address_cols, with = F],
+                          address_normalized[,-address_cols, with = F],
+                          address_census[,-c(address_cols, "timestamp"), with = F])
 
   iwave <- read_tessi("iwave") %>% collect() %>% setDT() %>% .[,score_dt:=as_date(score_dt)]
 
@@ -117,36 +121,7 @@ address_create_stream <- function(...) {
 
 }
 
-# Street cleaning ---------------------------------------------------------
-
-#' address_clean
-#'
-#' Removes newlines, tabs, lowercases, trims whitespace, and removes junk info
-#'
-#' @param address_stream data.table of addresses
-#'
-#' @return data.table of addresses cleaned
-#' @importFrom purrr map
-#' @importFrom stringr str_replace_all
-address_clean <- function(address_stream) {
-  street1 <- city <- state <- postal_code <- NULL
-
-  # Remove newlines, tabs, etc.
-  address_stream[, (address_cols) := map(.SD, ~ str_replace_all(., "\\s+", " ")), .SDcols = address_cols]
-
-  # Lowercase and trim whitespace from address fields
-  address_stream[, (address_cols) := lapply(.SD, function(.) {
-    trimws(tolower(.))
-  }), .SDcols = address_cols]
-
-  # remove junk info
-  lapply(address_cols, function(col) {
-    address_stream[grepl("^(web add|unknown|no add)|^$", get(col)), (col) := NA_character_]
-  })
-
-  address_stream <- address_stream[!(grepl("^30 lafayette", street1) &
-                                       (city == "brooklyn" & state == "ny" | substr(postal_code, 1, 5) == "11217"))]
-}
+# address parsing ---------------------------------------------------------
 
 #' address_exec_libpostal
 #'

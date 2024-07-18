@@ -14,10 +14,13 @@ address_clean <- function(address_col, pattern = "^(web add|unknown|no add)|^$")
   assert_character(address_col)
 
   # Remove newlines, tabs, etc.
-  address_col <- str_replace_all(address_col, "\\s+", " ") %>%
-    trimws %>% tolower
+  address_col <- str_replace_all(address_col, "\\s+", " ") %>% trimws
 
+  # Remove junk info
   address_col[grepl(pattern, address_col, perl = T)] <- NA_character_
+
+  # Title Case
+  address_col <- gsub("\\b(.)","\\U\\1", tolower(address_col), perl = T)
 
   address_col
 
@@ -80,9 +83,8 @@ address_normalize <- function(address_stream) {
 
   address_cols_cleaned <- paste0(address_cols,"_cleaned")
 
-  address_stream[, (address_cols_cleaned) :=
   # remove whitespace and known junk values and Title Case
-                    map(.SD, ~gsub("\\b(.)","\\U\\1", address_clean(.), perl = T)), .SDcols = address_cols_cleaned]
+  address_stream[, (address_cols_cleaned) := lapply(.SD, address_clean), .SDcols = address_cols_cleaned]
   # fix state and country case for US
   address_stream[country_cleaned == "Usa", `:=` (state_cleaned = toupper(state_cleaned),
                                                  country_cleaned = toupper(country_cleaned))]

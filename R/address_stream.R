@@ -176,12 +176,15 @@ address_exec_libpostal <- function(addresses) {
   })
 
 
-  ret <- iconv(ret, from = "utf-8") %>% tail(-match("Result:", .) - 1)
-  ret[which(ret == "Result:")] <- ","
+  ret <- iconv(ret, from = "utf-8")
+  results <- match("Result:", ret)
+  if (length(results)) {
+    ret <- tail(ret, -results -1)
+    ret[which(ret == "Result:")] <- ","
+  }
 
   fromJSON(c("[", ret, "]"))
 }
-
 
 #' address_parse_libpostal
 #'

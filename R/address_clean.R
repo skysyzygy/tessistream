@@ -40,7 +40,9 @@ address_normalize <- function(address_stream) {
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)
 
-  address_stream <- copy(address_stream)
+  address_parsed <- address_parse(address_stream)
+  address_geocoded <- address_geocode(address_stream)
+  address_stream <- c(address_parsed,address_geocoded[,-address_cols,with=F])
 
   # Google doesn't put a comma between the state and the zipcode
   address_stream[grepl("google", query),

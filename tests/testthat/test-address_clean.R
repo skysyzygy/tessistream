@@ -17,3 +17,26 @@ test_that("address_clean replaces junk info with NA", {
 # address_normalize -------------------------------------------------------
 
 
+test_that("address_normalize combines data from Google, the US Census, libpostal, and Tessitura",{
+
+})
+
+test_that("address_normalize fills in street2 when available (but doesn't duplicate street1)",{
+
+})
+
+test_that("address_normalize adds unit info to street1 when there's no room in street2",{
+
+})
+
+test_that("address_normalize attempts to eliminate issues with duplicated apartment details by using street2",{
+
+})
+
+test_that("address_normalize gets the case of state/country right",{
+
+})
+
+test_that("address_normalize returns only address_cols and address_cols_cleaned",{
+
+})

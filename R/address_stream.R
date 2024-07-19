@@ -58,7 +58,7 @@ address_stream_build <- function(...) {
   address_stream <- address_create_stream(...)
   address_parsed <- address_parse(address_stream)
   address_geocode <- address_geocode(address_parsed)
-  address_normalized <- address_normalize(cbind(address_parsed,address_geocode[,-address_cols,with=F]))
+  address_normalized <- address_normalize(address_stream)
   address_census <- address_census(cbind(address_geocode,timestamp = address_stream$timestamp))
 
   address_stream <- cbind(address_stream,

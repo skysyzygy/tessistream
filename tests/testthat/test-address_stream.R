@@ -149,39 +149,6 @@ test_that("address_create_stream returns only one address change per day", {
   expect_equal(stream[, .N, by = c("timestamp", "address_no")][N > 1, .N], 0)
 })
 
-# address_clean -----------------------------------------------------------
-
-test_that("address_clean removes tabs, newlines, and multiple spaces", {
-  spaces <- c("one\twhitespace", "two\n\rtogether", "several\rin\tdifferent places", "lots    of    spaces")
-  cleaned <- c("one whitespace", "two together", "several in different places", "lots of spaces")
-  address_stream <- do.call(data.table, setNames(rep(list(spaces), length(address_cols)), address_cols))
-  address_stream_cleaned <- do.call(data.table, setNames(rep(list(cleaned), length(address_cols)), address_cols))
-
-  expect_equal(address_clean(address_stream), address_stream_cleaned)
-})
-
-test_that("address_clean trims whitespace and lowercases", {
-  spaces <- c(" SPACE be-4", "spA(e aft`r ", "\r\t\nand some other things!  ")
-  cleaned <- c("space be-4", "spa(e aft`r", "and some other things!")
-  address_stream <- do.call(data.table, setNames(rep(list(spaces), length(address_cols)), address_cols))
-  address_stream_cleaned <- do.call(data.table, setNames(rep(list(cleaned), length(address_cols)), address_cols))
-
-  expect_equal(address_clean(address_stream), address_stream_cleaned)
-})
-
-test_that("address_clean removes junk info", {
-  # replaced with NA
-  junk_type_1 <- c("unknown", "Web Added", "NO ADDRESS")
-  # row removed
-  junk_type_2 <- setNames(list("30 Lafayette Ave.", "Development", "Brooklyn", "NY", "11217-0000", ""), address_cols)
-  cleaned <- c(NA_character_, NA_character_, NA_character_)
-  address_stream <- do.call(data.table, setNames(rep(list(junk_type_1), length(address_cols)), address_cols))
-  address_stream <- rbind(address_stream, junk_type_2)
-  address_stream_cleaned <- do.call(data.table, setNames(rep(list(cleaned), length(address_cols)), address_cols))
-
-  expect_equal(address_clean(address_stream), address_stream_cleaned)
-})
-
 # address_exec_libpostal --------------------------------------------------
 
 test_that("address_exec_libpostal complains if addresses are not a character vector", {

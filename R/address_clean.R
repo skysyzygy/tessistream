@@ -42,7 +42,7 @@ address_normalize <- function(address_stream) {
 
   address_parsed <- address_parse(address_stream)
   address_geocoded <- address_geocode(address_stream)
-  address_stream <- c(address_parsed,address_geocoded[,-address_cols,with=F])
+  address_stream <- cbind(address_parsed,address_geocoded[,-address_cols,with=F])
 
   # Google doesn't put a comma between the state and the zipcode
   address_stream[grepl("google", query),
@@ -77,19 +77,25 @@ address_normalize <- function(address_stream) {
                  country_cleaned = country)]
 
 
+  address_stream$street2_cleaned = NA_character_
   # fill in street2_cleaned
-  address_stream[,street2_cleaned := coalesce(libpostal.po_box, libpostal.unit, libpostal.house)]
+  address_stream[street1_cleaned != coalesce(libpostal.po_box, libpostal.unit, libpostal.house),
+                 street2_cleaned := coalesce(libpostal.po_box, libpostal.unit, libpostal.house)]
   # add unit to street1_cleaned if it wasn't added to street2
   address_stream[!is.na(libpostal.unit) & street2_cleaned != libpostal.unit,
                   street1_cleaned := paste0(street1_cleaned, ", ", libpostal.unit)]
+  # try to resolve repeated words
+  address_stream[sapply(street2_cleaned,\(.) {anyDuplicated(strsplit(., " ")[[1]])>0}) &
+                    address_clean(street2) != street1_cleaned,
+                    street2_cleaned := address_clean(street2)]
 
   address_cols_cleaned <- paste0(address_cols,"_cleaned")
 
   # remove whitespace and known junk values and Title Case
   address_stream[, (address_cols_cleaned) := lapply(.SD, address_clean), .SDcols = address_cols_cleaned]
-  # fix state and country case for US
-  address_stream[country_cleaned == "Usa", `:=` (state_cleaned = toupper(state_cleaned),
-                                                 country_cleaned = toupper(country_cleaned))]
+  # fix state and country case
+  address_stream[, `:=` (state_cleaned = toupper(state_cleaned),
+                        country_cleaned = toupper(country_cleaned))]
 
   address_stream[,c(address_cols, address_cols_cleaned), with = F]
 

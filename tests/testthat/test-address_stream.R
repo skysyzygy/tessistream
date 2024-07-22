@@ -20,6 +20,10 @@ test_that("address_stream_build combines data from address_parse, address_census
   address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
   stub(address_stream_build, "address_geocode", address_geocode[address_stream_original[,..address_cols],on=address_cols])
 
+  address_stream_normalized <- cbind(address_stream_original[,..address_cols],
+                                     setnames(address_stream_original[,..address_cols],
+                                              address_cols, paste0(address_cols,"_cleaned")))
+  stub(address_stream_build, "address_normalize", address_stream_normalized)
   stub(address_reverse_census,"address_geocode",address_geocode)
   stub(address_census,"address_reverse_census",address_reverse_census)
   stub(address_census, "census_features", readRDS(rprojroot::find_testthat_root_file("census_features.Rds")))
@@ -39,7 +43,8 @@ test_that("address_stream_build combines data from address_parse, address_census
                address_stream[iwave, on = "group_customer_no"][timestamp > score_dt,.N])
 
   # has all the stream column names
-  checkmate::expect_names(colnames(address_stream), must.include = c(address_cols, "lat", "lon", "address_no",
+  checkmate::expect_names(colnames(address_stream), must.include = c(address_cols, paste0(address_cols,"_cleaned"),
+                                                                     "lat", "lon", "address_no",
                                                   "event_type", "event_subtype", "group_customer_no", "timestamp"))
 
 

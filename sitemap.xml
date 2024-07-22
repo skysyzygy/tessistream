@@ -9,6 +9,7 @@
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/address_clean.html</loc></url>
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/address_create_stream.html</loc></url>
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/address_geocode.html</loc></url>
+<url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/address_normalize.html</loc></url>
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/address_parse.html</loc></url>
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/address_reverse_census.html</loc></url>
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/address_reverse_census_all.html</loc></url>
@@ -50,6 +51,7 @@
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/stream_customer_history.html</loc></url>
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/stream_debounce.html</loc></url>
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/stream_from_audit.html</loc></url>
+<url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/street_cleaner.html</loc></url>
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/tessi_changed_emails.html</loc></url>
 <url><loc>https://bamorg-my.sharepoint.com/personal/ssyzygy_bam_org/Documents/documentation/tessistream/reference/tessistream-package.html</loc></url>
 </urlset>

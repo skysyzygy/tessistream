@@ -6,3 +6,6 @@ default:
       shallow:
         path: !expr file.path(tempdir(),"shallow")
     tessitura: "tessitura"
+
+  tessistream:
+    survey_dir: !expr here::here("tests/testthat/survey_data")

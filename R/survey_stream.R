@@ -2,6 +2,9 @@
 #'
 #' Simple dataset of all survey results.
 #'
+#' @param survey_dir directory of surveys to parse
+#' @param reader function(filename) that reads survey data, the only current reader is [survey_monkey]
+#'
 #' @description
 #' * anonymized using a hash so that joins can still be done post-hoc
 #' * timestamped so that trends can be visualized
@@ -23,12 +26,110 @@
 #' forcing the mapping is trivial.
 #'
 #' The goal is just to make it more difficult to extract customer information from this table
-#' so that the end user *knows* what they are doing.
+#' so that the user *knows* what they are doing.
 #'
-survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir) {
-  files <- dir(survey_dir,full.names=T,recursive=T)
+#' @importFrom tools file_path_sans_ext
+survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, reader = survey_monkey) {
+  files <- dir(survey_dir,full.names=T,recursive=T) %>% setNames(.,.)
+
+  mockery::stub(reader, "read_tessi", data.frame(customer_no=seq(20000)))
+  stream_from_audit <- mockery::mock(readRDS(rprojroot::find_testthat_root_file("email_stream-emails.Rds")) %>% setDT)
+
+  survey_stream <- lapply(files, reader) %>% rbindlist(idcol = "filename")
+  survey_stream[,survey := file_path_sans_ext(basename(filename))]
+
+  emails <- stream_from_audit("emails", c("address","primary_ind")) %>%
+    .[primary_ind=="Y" & !is.na(address), .(address, customer_no, group_customer_no, timestamp)]
+
+  survey_stream <- emails[survey_stream,on=c("address"="email","timestamp"),roll=Inf]
+  survey_stream[,`:=`(group_customer_no = anonymize(group_customer_no),
+                      customer_no = anonymize(customer_no),
+                      address = NULL)]
+
+}
+
+email_fix_eaddress_stubbed <- function(email_stream) {
+  emails <- readRDS(rprojroot::find_testthat_root_file("email_stream-emails.Rds")) %>% setDT
+  stream_from_audit <- mock(emails)
+  stub(email_fix_eaddress, "stream_from_audit", stream_from_audit)
+
+  email_fix_eaddress(email_stream)
+}
 
 
+#' survey_monkey
+#'
+#' Parser for Surveymonkey exports, handles:
+#'
+#' * identifying `email` and `timestamp` columns
+#' * anonymizing customer id
+#' * appending survey name
+#' * labeling questions and subquestions
+#' * converting timestamps to POSIXct
+#'
+#' @param file filename of the file to process
+#'
+#' @returns data.table stream of survey data, partially anonymized. Columns are:
+#' * email
+#' * timestamp
+#' * question
+#' * subquestion
+#' * answer
+#'
+survey_monkey <- function(file) {
+  survey_data <- openxlsx::read.xlsx(file,sep.names = " ") %>% setDT
+
+  # find email column
+  email_regex <- "^[\\w\\-\\.]+@([\\w\\-]+\\.)+[\\w\\-]{2,4}$"
+  email_column <- sapply(survey_data,\(.) {sum(grepl(email_regex,.,perl=T))})
+  email_column <- which(email_column == max(email_column))
+  if (length(email_column) > 1) {
+    email_column <- email_column[1]
+    warning(paste("More than one email column found, using",names(email_column)))
+  }
+
+  # find customer id column
+  customers <- read_tessi("customers","customer_no") %>% collect
+  suppressWarnings(customer_no_column <- sapply(survey_data,\(.) {sum(as.integer(.) %in% as.integer(customers$customer_no) &
+                                                                      !as.integer(.) <= year(today()))}))
+  customer_no_column <- which(customer_no_column>.9*nrow(survey_data))
+  if (length(customer_no_column) > 0)
+    warning(paste("Anonymizing",paste(names(customer_no_column),collapse=", ")))
+  # and anonymize them
+  survey_data[,(customer_no_column) := lapply(.SD,anonymize),
+              .SDcols = customer_no_column]
+
+
+  # find timestamp column
+  suppressWarnings(timestamp_column <- sapply(survey_data, \(.) {sum(between(as.numeric(.),40000,50000), na.rm=T)}))
+  timestamp_column <- which(timestamp_column == max(timestamp_column))
+  if (length(timestamp_column) > 1) {
+    timestamp_column <- timestamp_column[1]
+    warning(paste("More than one timestamp column found, using",names(timestamp_column)))
+  }
+
+  # questions / sub-questions
+  questions <- data.table(question = colnames(survey_data), # question is column name
+                          subquestion = as.character(survey_data[1,]), # subquestion is first row
+                          id = factor(seq_along(survey_data))) # id for joining
+  # fill down missing questions
+  questions[grepl("^X\\d+$",question),question:=NA]
+  setnafill(questions, type = "locf", cols = "question")
+
+  # relabel columns with ids
+  colnames(survey_data) <- as.character(seq_along(survey_data))
+
+  # melt data
+  survey_stream <- survey_data[-1,] %>%
+    melt(id.vars = c(email_column, timestamp_column),
+         variable.name = "id", value.name = "answer") %>% left_join(questions, by="id")
+  setnames(survey_stream, as.character(c(email_column, timestamp_column)),c("email","timestamp"))
+
+  survey_stream <- survey_stream[!is.na(answer)]
+  survey_stream[,`:=`(id = NULL,
+                      timestamp = as.POSIXct(timestamp*86400, origin = "1899-12-30 00:00:00"))]
+
+  survey_stream
 }
 
 #' anonymize
@@ -39,6 +140,7 @@ survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir) {
 #' @importFrom openssl sha256
 #' @noRd
 anonymize <- function(customer_no) {
+  customer_no <- as.character(customer_no)
   salt = sha256(customer_no,key=sha256("this data is anonymized for privacy reasons"))
   customer_no = paste(salt,customer_no,sep="-")
   sha256(customer_no,key=sha256("please use it with care"))

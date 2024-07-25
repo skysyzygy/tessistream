@@ -4,7 +4,15 @@
 \alias{survey_stream}
 \title{survey_stream}
 \usage{
-survey_stream()
+survey_stream(
+  survey_dir = config::get("tessistream")$survey_dir,
+  reader = survey_monkey
+)
+}
+\arguments{
+\item{survey_dir}{directory of surveys to parse}
+
+\item{reader}{function(filename) that reads survey data, the only current reader is \link{survey_monkey}}
 }
 \description{
 \itemize{
@@ -16,6 +24,7 @@ survey_stream()
 \item customer_hash: string hash of customer_no
 \item group_customer_hash: string hash of group_customer_no
 \item timestamp: submission timestamp
+\item survey: filename / title of the survey
 \item question: text of the question
 \item subquestion: text of the subquestion (or NA if none)
 \item answer: text of the response

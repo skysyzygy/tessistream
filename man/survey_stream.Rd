@@ -42,5 +42,5 @@ algorithm is explained here, and the number of possible customer numbers is smal
 forcing the mapping is trivial.
 
 The goal is just to make it more difficult to extract customer information from this table
-so that the end user \emph{knows} what they are doing.
+so that the user \emph{knows} what they are doing.
 }

@@ -32,8 +32,8 @@
 survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, reader = survey_monkey) {
   files <- dir(survey_dir,full.names=T,recursive=T) %>% setNames(.,.)
 
-  mockery::stub(reader, "read_tessi", data.frame(customer_no=seq(20000)))
-  stream_from_audit <- mockery::mock(readRDS(rprojroot::find_testthat_root_file("email_stream-emails.Rds")) %>% setDT)
+  #read_tessi <- mockery::mock(data.frame(customer_no=seq(20000)))
+  #stream_from_audit <- mockery::mock(readRDS(rprojroot::find_testthat_root_file("email_stream-emails.Rds")) %>% setDT)
 
   survey_stream <- lapply(files, reader) %>% rbindlist(idcol = "filename")
   survey_stream[,survey := file_path_sans_ext(basename(filename))]
@@ -42,9 +42,29 @@ survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, re
     .[primary_ind=="Y" & !is.na(address), .(address, customer_no, group_customer_no, timestamp)]
 
   survey_stream <- emails[survey_stream,on=c("address"="email","timestamp"),roll=Inf]
-  survey_stream[,`:=`(group_customer_no = anonymize(group_customer_no),
-                      customer_no = anonymize(customer_no),
-                      address = NULL)]
+
+  # find customer id question
+  customers <- read_tessi("customers","customer_no") %>% collect
+  customer_no_question <- survey_stream[,sum(sum(suppressWarnings(as.numeric(answer)) %in% as.integer(customers$customer_no) &
+                                                   !duplicated(answer))),by="question"][V1 == max(V1),question]
+
+  if (length(customer_no_question) > 1) {
+    hashed_question <- customer_no_question[1]
+    rlang::warn("More than on customer_no answer found, using:",body=c("*"=hashed_question[1]))
+  }
+
+  # fill in missing customer info
+  survey_stream[survey_stream[question == customer_no_question], `:=`(customer_no=coalesce(customer_no,as.numeric(i.answer))), on = "address"]
+
+  # and anonymize
+  survey_stream[,`:=`(group_customer_hash = anonymize(group_customer_no),
+                      customer_hash = anonymize(customer_no),
+                      address = NULL,
+                      customer_no = NULL,
+                      group_customer_no = NULL)]
+  survey_stream[question != customer_no_question]
+
+
 
 }
 
@@ -55,6 +75,14 @@ email_fix_eaddress_stubbed <- function(email_stream) {
 
   email_fix_eaddress(email_stream)
 }
+
+survey_cross <- function(survey_stream, ...) {
+  questions <- list(...) %>% lapply(\(.) survey_stream[grepl(.,question)])
+
+  purrr::reduce(questions, \(.x, .y) merge(.x, .y, by = "customer_hash", all = T))
+
+}
+
 
 
 #' survey_monkey
@@ -75,38 +103,20 @@ email_fix_eaddress_stubbed <- function(email_stream) {
 #' * question
 #' * subquestion
 #' * answer
-#'
+#' @importFrom dplyr between
+#' @importFrom data.table melt
 survey_monkey <- function(file) {
-  survey_data <- openxlsx::read.xlsx(file,sep.names = " ") %>% setDT
+  survey_data <- openxlsx::read.xlsx(file,sep.names = " ") %>%
+    lapply(\(.) gsub("xml:space.+>","",.)) %>% setDT
+
+  colnames(survey_data) <- gsub("xml:space.+>","",colnames(survey_data))
 
   # find email column
   email_regex <- "^[\\w\\-\\.]+@([\\w\\-]+\\.)+[\\w\\-]{2,4}$"
-  email_column <- sapply(survey_data,\(.) {sum(grepl(email_regex,.,perl=T))})
-  email_column <- which(email_column == max(email_column))
-  if (length(email_column) > 1) {
-    email_column <- email_column[1]
-    warning(paste("More than one email column found, using",names(email_column)))
-  }
-
-  # find customer id column
-  customers <- read_tessi("customers","customer_no") %>% collect
-  suppressWarnings(customer_no_column <- sapply(survey_data,\(.) {sum(as.integer(.) %in% as.integer(customers$customer_no) &
-                                                                      !as.integer(.) <= year(today()))}))
-  customer_no_column <- which(customer_no_column>.9*nrow(survey_data))
-  if (length(customer_no_column) > 0)
-    warning(paste("Anonymizing",paste(names(customer_no_column),collapse=", ")))
-  # and anonymize them
-  survey_data[,(customer_no_column) := lapply(.SD,anonymize),
-              .SDcols = customer_no_column]
-
+  email_column <- survey_find_column(survey_data, \(.) sum(grepl(email_regex,.,perl=T)))
 
   # find timestamp column
-  suppressWarnings(timestamp_column <- sapply(survey_data, \(.) {sum(between(as.numeric(.),40000,50000), na.rm=T)}))
-  timestamp_column <- which(timestamp_column == max(timestamp_column))
-  if (length(timestamp_column) > 1) {
-    timestamp_column <- timestamp_column[1]
-    warning(paste("More than one timestamp column found, using",names(timestamp_column)))
-  }
+  timestamp_column <- survey_find_column(survey_data, \(.) sum(between(as.numeric(.),40000,50000), na.rm=T))
 
   # questions / sub-questions
   questions <- data.table(question = colnames(survey_data), # question is column name
@@ -127,9 +137,29 @@ survey_monkey <- function(file) {
 
   survey_stream <- survey_stream[!is.na(answer)]
   survey_stream[,`:=`(id = NULL,
-                      timestamp = as.POSIXct(timestamp*86400, origin = "1899-12-30 00:00:00"))]
+                      timestamp = as.POSIXct(as.numeric(timestamp)*86400, origin = "1899-12-30 00:00:00"))]
 
   survey_stream
+}
+
+
+survey_find_column <- function(survey_data, .f, criterion = "max") {
+
+  columns <- sapply(survey_data,\(.) suppressWarnings(.f(.)))
+  column <- if (criterion == "max") {
+    which(columns == max(columns))
+  } else if (is.numeric(criterion)) {
+    which(columns > criterion)
+  } else {
+    rlang::abort("Criterion must be numeric or `max`")
+  }
+
+  if (length(column) > 1) {
+    column <- column[1]
+    rlang::warn("More than one column found, using:",body=setNames(names(column),"*"))
+  }
+
+  return(column)
 }
 
 #' anonymize
@@ -144,4 +174,24 @@ anonymize <- function(customer_no) {
   salt = sha256(customer_no,key=sha256("this data is anonymized for privacy reasons"))
   customer_no = paste(salt,customer_no,sep="-")
   sha256(customer_no,key=sha256("please use it with care"))
+}
+
+survey_append_tessi <- function(survey_data, tables, ...) {
+
+  features <- rlang::enquos(...)
+
+  tables <- lapply(tables,\(.) read_tessi(.) %>% collect %>% setDT %>%
+                     .[,`:=`(customer_hash = anonymize(customer_no),
+                             group_customer_hash = anonymize(group_customer_no),
+                             address = NULL,
+                             customer_no = NULL,
+                             group_customer_no = NULL)] %>%
+                     .[group_customer_hash %in% survey_data$group_customer_hash])
+
+
+  append <- purrr::reduce(tables,\(.x,.y) merge(.x,.y,all = T)) %>%
+    .[,lapply(features,rlang::eval_tidy,data=.SD),by="group_customer_hash"]
+
+  merge(survey_data, append, all.x = T)
+
 }

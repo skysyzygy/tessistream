@@ -46,6 +46,8 @@ jobs:
           extra-packages: any::rcmdcheck, any::devtools
           needs: check
 
+      - uses: r-lib/actions/check-r-package@v2
+
       - name: Setup upterm session
         uses: lhotari/action-upterm@v1
         if: ${{ failure() }}
@@ -54,8 +56,6 @@ jobs:
           limit-access-to-actor: true
           ## If no one connects after 5 minutes, shut down server.
           wait-timeout-minutes: 5
-
-      - uses: r-lib/actions/check-r-package@v2
 
       - name: Test coverage
         run: |

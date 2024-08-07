@@ -68,22 +68,6 @@ survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, re
 
 }
 
-email_fix_eaddress_stubbed <- function(email_stream) {
-  emails <- readRDS(rprojroot::find_testthat_root_file("email_stream-emails.Rds")) %>% setDT
-  stream_from_audit <- mock(emails)
-  stub(email_fix_eaddress, "stream_from_audit", stream_from_audit)
-
-  email_fix_eaddress(email_stream)
-}
-
-survey_cross <- function(survey_stream, ...) {
-  questions <- list(...) %>% lapply(\(.) survey_stream[grepl(.,question)])
-
-  purrr::reduce(questions, \(.x, .y) merge(.x, .y, by = "customer_hash", all = T))
-
-}
-
-
 
 #' survey_monkey
 #'
@@ -113,10 +97,10 @@ survey_monkey <- function(file) {
 
   # find email column
   email_regex <- "^[\\w\\-\\.]+@([\\w\\-]+\\.)+[\\w\\-]{2,4}$"
-  email_column <- survey_find_column(survey_data, \(.) sum(grepl(email_regex,.,perl=T)))
+  email_column <- survey_find_column(survey_data, \(.) grepl(email_regex,.,perl=T))
 
   # find timestamp column
-  timestamp_column <- survey_find_column(survey_data, \(.) sum(between(as.numeric(.),40000,50000), na.rm=T))
+  timestamp_column <- survey_find_column(survey_data, \(.) between(as.numeric(.),40000,50000))
 
   # questions / sub-questions
   questions <- data.table(question = colnames(survey_data), # question is column name
@@ -143,9 +127,21 @@ survey_monkey <- function(file) {
 }
 
 
+#' survey_find_column
+#' 
+#' Find a column by applying `.f` to each element in the column, the results of which are summed, and then the column matching `criterion` is chosen.
+#'
+#' @param survey_data data.frame of survey data
+#' @param .f function to apply to each element of `survey_data`, should return a numeric score that is 
+#' @param criterion numeric or "max". If "max" then the first column with a maximum score is chosen, otherwise the first column with a value greater than 
+#' `criterion` is chosen.
+#'
+#' @return character column name
 survey_find_column <- function(survey_data, .f, criterion = "max") {
+  
+  assert_data_frame(survey_data)
 
-  columns <- sapply(survey_data,\(.) suppressWarnings(.f(.)))
+  columns <- sapply(survey_data,\(.) sum(suppressWarnings(.f(.)),na.rm=T))
   column <- if (criterion == "max") {
     which(columns == max(columns))
   } else if (is.numeric(criterion)) {
@@ -176,6 +172,35 @@ anonymize <- function(customer_no) {
   sha256(customer_no,key=sha256("please use it with care"))
 }
 
+
+#' survey_cross
+#'
+#' @param survey_stream data.table of survey data
+#' @param ... one or more regular expressions used to locate the questions to combine
+#'
+#' @return data.table of survey data, merged on `customer_hash` so that each question/answer is 
+#' a separate column, labelled `question.1`, `answer.1`, `question.2`, `answer.2`, etc. based on the
+#' position of the selecting regular expression in `...`
+#' @export
+survey_cross <- function(survey_stream, ...) {
+  assert_data_table(survey_stream)
+  
+  questions <- list(...) %>% lapply(\(.) survey_stream[grepl(.,question)])
+  
+  purrr::reduce2(questions, seq_along(questions)[-1],
+                 \(.x, .y, .i) merge(.x, .y, by = "customer_hash", all = T, suffixes = paste0(".",c(.i-1,.i))))
+  
+}
+
+
+#' survey_append_tessi
+#'
+#' @param survey_stream data.table of survey data
+#' @param tables character vector of tables to pass to [tessilake::read_tessi]
+#' @param ... expressions defining features that will be appended to survey data
+#'
+#' @return data.table of survey data with features appended
+#' @export
 survey_append_tessi <- function(survey_data, tables, ...) {
 
   features <- rlang::enquos(...)

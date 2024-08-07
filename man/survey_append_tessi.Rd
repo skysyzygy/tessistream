@@ -4,14 +4,14 @@
 \alias{survey_append_tessi}
 \title{survey_append_tessi}
 \usage{
-survey_append_tessi(survey_data, tables, ...)
+survey_append_tessi(survey_stream, tables, ...)
 }
 \arguments{
+\item{survey_stream}{data.table of survey data}
+
 \item{tables}{character vector of tables to pass to \link[tessilake:read_tessi]{tessilake::read_tessi}}
 
 \item{...}{expressions defining features that will be appended to survey data}
-
-\item{survey_stream}{data.table of survey data}
 }
 \value{
 data.table of survey data with features appended

@@ -10,7 +10,7 @@ survey_monkey(file)
 \item{file}{filename of the file to process}
 }
 \value{
-data.table stream of survey data, partially anonymized. Columns are:
+data.table stream of survey data. Columns are:
 \itemize{
 \item email
 \item timestamp
@@ -25,7 +25,6 @@ Parser for Surveymonkey exports, handles:
 \details{
 \itemize{
 \item identifying \code{email} and \code{timestamp} columns
-\item anonymizing customer id
 \item appending survey name
 \item labeling questions and subquestions
 \item converting timestamps to POSIXct

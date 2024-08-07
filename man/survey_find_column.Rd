@@ -9,13 +9,13 @@ survey_find_column(survey_data, .f, criterion = "max")
 \arguments{
 \item{survey_data}{data.frame of survey data}
 
-\item{.f}{function to apply to each element of \code{survey_data}, should return a numeric score that is}
+\item{.f}{function to apply to each element of \code{survey_data}, should return a numeric score}
 
 \item{criterion}{numeric or "max". If "max" then the first column with a maximum score is chosen, otherwise the first column with a value greater than
 \code{criterion} is chosen.}
 }
 \value{
-character column name
+named integer vector, name is the selected column name and value is its position in \code{survey_data}
 }
 \description{
 Find a column by applying \code{.f} to each element in the column, the results of which are summed, and then the column matching \code{criterion} is chosen.

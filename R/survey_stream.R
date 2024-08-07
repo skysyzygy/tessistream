@@ -203,18 +203,22 @@ survey_append_tessi <- function(survey_data, tables, ...) {
 
   features <- rlang::enquos(...)
 
-  tables <- lapply(tables,\(.) read_tessi(.) %>% collect %>% setDT %>%
-                     .[,`:=`(customer_hash = anonymize(customer_no),
-                             group_customer_hash = anonymize(group_customer_no),
-                             address = NULL,
-                             customer_no = NULL,
-                             group_customer_no = NULL)] %>%
-                     .[group_customer_hash %in% survey_data$group_customer_hash])
-
+  tables <- lapply(tables,\(.) {
+    table <- read_tessi(.) %>% collect %>% setDT %>%
+      .[,`:=`(customer_hash = anonymize(customer_no),
+              group_customer_hash = anonymize(group_customer_no))] %>%
+      .[group_customer_hash %in% survey_data$group_customer_hash]
+    
+    # remove sensitive columns
+    cols <- intersect(colnames(table),
+                      c("address","email","customer_no","group_customer_no"))
+    table[,(cols) := NULL]
+    table })
 
   append <- purrr::reduce(tables,\(.x,.y) merge(.x,.y,all = T)) %>%
     .[,lapply(features,rlang::eval_tidy,data=.SD),by="group_customer_hash"]
 
+  
   merge(survey_data, append, all.x = T)
 
 }

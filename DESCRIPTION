@@ -19,6 +19,7 @@ Suggests:
     covr,
     furrr,
     future,
+    here,
     mockery,
     png,
     progressr,
@@ -50,7 +51,10 @@ Imports:
     tigris,
     withr,
     tidyselect,
-    arrow
+    arrow,
+    openssl,
+    openxlsx,
+    config
 Remotes: 
     skysyzygy/tessilake,
     chris-prener/censusxy,

@@ -32,9 +32,6 @@
 survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, reader = survey_monkey) {
   files <- dir(survey_dir,full.names=T,recursive=T) %>% setNames(.,.)
 
-  #read_tessi <- mockery::mock(data.frame(customer_no=seq(20000)))
-  #stream_from_audit <- mockery::mock(readRDS(rprojroot::find_testthat_root_file("email_stream-emails.Rds")) %>% setDT)
-
   survey_stream <- lapply(files, reader) %>% rbindlist(idcol = "filename")
   survey_stream[,survey := file_path_sans_ext(basename(filename))]
 
@@ -45,16 +42,15 @@ survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, re
 
   # find customer id question
   customers <- read_tessi("customers","customer_no") %>% collect
-  customer_no_question <- survey_stream[,sum(sum(suppressWarnings(as.numeric(answer)) %in% as.integer(customers$customer_no) &
-                                                   !duplicated(answer))),by="question"][V1 == max(V1),question]
+  customer_no_question <- survey_stream %>% dcast(...~question,value.var="answer") %>% 
+    survey_find_column(\(.) as.numeric(.) %in% as.integer(customers$customer_no) & !duplicated(.) | is.na(.), criterion = .9*nrow(.)) %>% 
+    names
 
-  if (length(customer_no_question) > 1) {
-    hashed_question <- customer_no_question[1]
-    rlang::warn("More than on customer_no answer found, using:",body=c("*"=hashed_question[1]))
+  if (length(customer_no_question) > 0) {
+    rlang::warn("Found customer number question, anonymizing:",body=c("*"=customer_no_question))
+    # fill in missing customer info
+    survey_stream[survey_stream[question == customer_no_question], `:=`(customer_no=coalesce(customer_no,as.numeric(i.answer))), on = "address"]
   }
-
-  # fill in missing customer info
-  survey_stream[survey_stream[question == customer_no_question], `:=`(customer_no=coalesce(customer_no,as.numeric(i.answer))), on = "address"]
 
   # and anonymize
   survey_stream[,`:=`(group_customer_hash = anonymize(group_customer_no),
@@ -62,9 +58,12 @@ survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, re
                       address = NULL,
                       customer_no = NULL,
                       group_customer_no = NULL)]
-  survey_stream[question != customer_no_question]
-
-
+  
+  if (length(customer_no_question) > 0) {
+    survey_stream[question != customer_no_question]
+  } else {
+    survey_stream
+  }
 
 }
 
@@ -74,14 +73,13 @@ survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, re
 #' Parser for Surveymonkey exports, handles:
 #'
 #' * identifying `email` and `timestamp` columns
-#' * anonymizing customer id
 #' * appending survey name
 #' * labeling questions and subquestions
 #' * converting timestamps to POSIXct
 #'
 #' @param file filename of the file to process
 #'
-#' @returns data.table stream of survey data, partially anonymized. Columns are:
+#' @returns data.table stream of survey data. Columns are:
 #' * email
 #' * timestamp
 #' * question
@@ -132,11 +130,11 @@ survey_monkey <- function(file) {
 #' Find a column by applying `.f` to each element in the column, the results of which are summed, and then the column matching `criterion` is chosen.
 #'
 #' @param survey_data data.frame of survey data
-#' @param .f function to apply to each element of `survey_data`, should return a numeric score that is 
+#' @param .f function to apply to each element of `survey_data`, should return a numeric score
 #' @param criterion numeric or "max". If "max" then the first column with a maximum score is chosen, otherwise the first column with a value greater than 
 #' `criterion` is chosen.
 #'
-#' @return character column name
+#' @return named integer vector, name is the selected column name and value is its position in `survey_data`
 survey_find_column <- function(survey_data, .f, criterion = "max") {
   
   assert_data_frame(survey_data)

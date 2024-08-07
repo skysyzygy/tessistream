@@ -24,7 +24,7 @@ test_that("survey_find_column warns if more than one column meets the criterion"
 # survey_monkey -----------------------------------------------------------
 
 test_that("survey_monkey returns a data.table of survey data", {
-  expect_warning(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience Survey Spring 2024.xlsx")),
+  expect_warning(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx")),
     "More than one column found")
   
   expect_data_table(survey_data)
@@ -32,7 +32,7 @@ test_that("survey_monkey returns a data.table of survey data", {
 })
 
 test_that("survey_monkey identifies emails and timestamp columns", {
-  expect_warning(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience Survey Spring 2024.xlsx")),
+  expect_warning(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx")),
                  "More than one column found")
   
   expect_class(survey_data$timestamp,"POSIXct")
@@ -45,7 +45,7 @@ test_that("survey_monkey identifies emails and timestamp columns", {
 # survey_stream -----------------------------------------------------------
 
 test_that("survey_stream loads data from `survey_dir`", {
-  suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience Survey Spring 2024.xlsx")))
+  suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx")))
   survey_reader <- mock(survey_data,cycle=T)
   stub(survey_stream,"dir",c("a","b","c"))
   stub(survey_stream,"stream_from_audit",data.table(address=paste0(seq(1000),"@bam.org"),timestamp=Sys.Date(),
@@ -59,7 +59,7 @@ test_that("survey_stream loads data from `survey_dir`", {
 })
 
 test_that("survey_stream identifies customers by email address", {
-  suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience Survey Spring 2024.xlsx")))
+  suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx")))
   survey_reader <- mock(survey_data,cycle=T)
   
   stream_from_audit <- data.table(address=paste0(seq(1000),"@bam.org"),timestamp=Sys.Date(),
@@ -77,7 +77,7 @@ test_that("survey_stream identifies customers by email address", {
 })
 
 test_that("survey_stream fills in customer number if it has been collected as a question", {
-  suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience Survey Spring 2024.xlsx")))
+  suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx")))
   survey_reader <- mock(survey_data,cycle=T)
   
   stream_from_audit <- data.table(address=paste0(seq(1000),"@bam.org"),timestamp=Sys.Date(),
@@ -97,7 +97,7 @@ test_that("survey_stream fills in customer number if it has been collected as a 
 })
 
 test_that("survey_stream anonymizes customer number", {
-  suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience Survey Spring 2024.xlsx")))
+  suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx")))
   survey_reader <- mock(survey_data,cycle=T)
   
   stream_from_audit <- data.table(address=paste0(seq(1000),"@bam.org"),timestamp=Sys.Date(),
@@ -113,7 +113,7 @@ test_that("survey_stream anonymizes customer number", {
 })
 
 test_that("survey_stream returns a data.table", {
-  suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience Survey Spring 2024.xlsx")))
+  suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx")))
   survey_reader <- mock(survey_data,cycle=T)
   
   stream_from_audit <- data.table(address=paste0(seq(1000),"@bam.org"),timestamp=Sys.Date(),
@@ -125,7 +125,7 @@ test_that("survey_stream returns a data.table", {
   
   expect_data_table(survey_stream)
   expect_names(colnames(survey_stream), permutation.of=c("customer_hash","group_customer_hash","timestamp","survey","question","subquestion","answer","filename"))
-  expect_equal(survey_stream$filename[1],here::here("tests/testthat/survey_data/Audience Survey Spring 2024.xlsx"))
+  expect_equal(survey_stream$filename[1],here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx"))
 })
 
 

@@ -30,6 +30,9 @@
 #'
 #' @importFrom tools file_path_sans_ext
 survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, reader = survey_monkey) {
+  . <- survey <- filename <- address <- customer_no <- group_customer_no <- primary_ind <- 
+    timestamp <- question <- i.answer <- NULL
+    
   files <- dir(survey_dir,full.names=T,recursive=T) %>% setNames(.,.)
 
   survey_stream <- lapply(files, reader) %>% rbindlist(idcol = "filename")
@@ -88,6 +91,8 @@ survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, re
 #' @importFrom dplyr between
 #' @importFrom data.table melt
 survey_monkey <- function(file) {
+  . <- question <- answer <- timestamp <- NULL
+  
   survey_data <- openxlsx::read.xlsx(file,sep.names = " ") %>%
     lapply(\(.) gsub("xml:space.+>","",.)) %>% setDT
 
@@ -181,6 +186,8 @@ anonymize <- function(customer_no) {
 #' position of the selecting regular expression in `...`
 #' @export
 survey_cross <- function(survey_stream, ...) {
+  question <- NULL
+  
   assert_data_table(survey_stream)
   
   questions <- list(...) %>% lapply(\(.) survey_stream[grepl(.,question)])
@@ -199,7 +206,8 @@ survey_cross <- function(survey_stream, ...) {
 #'
 #' @return data.table of survey data with features appended
 #' @export
-survey_append_tessi <- function(survey_data, tables, ...) {
+survey_append_tessi <- function(survey_stream, tables, ...) {
+  . <- customer_no <- group_customer_no <- group_customer_hash <- NULL
 
   features <- rlang::enquos(...)
 
@@ -207,7 +215,7 @@ survey_append_tessi <- function(survey_data, tables, ...) {
     table <- read_tessi(.) %>% collect %>% setDT %>%
       .[,`:=`(customer_hash = anonymize(customer_no),
               group_customer_hash = anonymize(group_customer_no))] %>%
-      .[group_customer_hash %in% survey_data$group_customer_hash]
+      .[group_customer_hash %in% survey_stream$group_customer_hash]
     
     # remove sensitive columns
     cols <- intersect(colnames(table),
@@ -219,6 +227,6 @@ survey_append_tessi <- function(survey_data, tables, ...) {
     .[,lapply(features,rlang::eval_tidy,data=.SD),by="group_customer_hash"]
 
   
-  merge(survey_data, append, all.x = T)
+  merge(survey_stream, append, all.x = T)
 
 }

@@ -52,7 +52,8 @@ Imports:
     withr,
     tidyselect,
     arrow,
-    openssl
+    openssl,
+    openxlsx
 Remotes: 
     skysyzygy/tessilake,
     chris-prener/censusxy,

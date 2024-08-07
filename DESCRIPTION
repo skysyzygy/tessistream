@@ -53,7 +53,8 @@ Imports:
     tidyselect,
     arrow,
     openssl,
-    openxlsx
+    openxlsx,
+    config
 Remotes: 
     skysyzygy/tessilake,
     chris-prener/censusxy,

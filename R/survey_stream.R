@@ -29,6 +29,7 @@
 #' so that the user *knows* what they are doing.
 #'
 #' @importFrom tools file_path_sans_ext
+#' @export
 survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, reader = survey_monkey) {
   . <- survey <- filename <- address <- customer_no <- group_customer_no <- primary_ind <- 
     timestamp <- question <- i.answer <- NULL
@@ -37,7 +38,11 @@ survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, re
 
   survey_stream <- lapply(files, reader) %>% rbindlist(idcol = "filename")
   survey_stream[,survey := file_path_sans_ext(basename(filename))]
-
+  if(survey_stream[,.N,by=c("email","timestamp","question","subquestion")][N>1,.N] > 0) {
+    rlang::abort("Imported data is not unique across `email`, `timestamp`, `question`, `subquestion`.",
+                body = c("*"=paste("Does",survey_dir,"contain duplicate files?")))
+  }
+  
   emails <- stream_from_audit("emails", c("address","primary_ind")) %>%
     .[primary_ind=="Y" & !is.na(address), .(address, customer_no, group_customer_no, timestamp)]
 
@@ -45,14 +50,16 @@ survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, re
 
   # find customer id question
   customers <- read_tessi("customers","customer_no") %>% collect
-  customer_no_question <- survey_stream %>% dcast(...~question,value.var="answer") %>% 
-    survey_find_column(\(.) as.numeric(.) %in% as.integer(customers$customer_no) & !duplicated(.) | is.na(.), criterion = .9*nrow(.)) %>% 
-    names
+  
+  customer_no_question <- survey_stream %>% dcast(address+timestamp~question+subquestion,
+                                                  value.var="answer", sep ="||") %>% 
+    survey_find_column(\(.) as.numeric(.) %in% as.integer(customers$customer_no) & !duplicated(.), criterion = .9*nrow(.)) %>% 
+    names %>% strsplit("||",fixed = T)
 
   if (length(customer_no_question) > 0) {
-    rlang::warn("Found customer number question, anonymizing:",body=c("*"=customer_no_question))
+    rlang::warn("Found customer number question, anonymizing:",body=c("*"=customer_no_question[[1]][[1]]))
     # fill in missing customer info
-    survey_stream[survey_stream[question == customer_no_question], `:=`(customer_no=coalesce(customer_no,as.numeric(i.answer))), on = "address"]
+    survey_stream[survey_stream[question == customer_no_question[[1]][[1]]], `:=`(customer_no=coalesce(customer_no,as.numeric(i.answer))), on = "address"]
   }
 
   # and anonymize
@@ -63,10 +70,14 @@ survey_stream <- function(survey_dir = config::get("tessistream")$survey_dir, re
                       group_customer_no = NULL)]
   
   if (length(customer_no_question) > 0) {
-    survey_stream[question != customer_no_question]
-  } else {
-    survey_stream
-  }
+    survey_stream <- survey_stream[question != customer_no_question[[1]][[1]]]
+  } 
+  
+  write_cache(survey_stream, "survey_stream", "stream", incremental = TRUE,
+              partition = FALSE, 
+              primary_keys = c("customer_hash", "timestamp", "question", "subquestion"))
+  
+  survey_stream
 
 }
 

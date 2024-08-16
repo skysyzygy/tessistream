@@ -3,10 +3,14 @@
 on:
   push:
     branches: [main, master]
-  pull_request:
-    branches: [main, master]
-  release:
-    types: [published]
+    paths:
+      - 'man/**'
+      - 'vignettes/**'
+      - 'pkgdown/**'
+      - 'README.*'
+      - '_pkgdown.yml'
+      - 'DESCRIPTION'
+      - 'LICENSE'
   workflow_dispatch:
 
 name: pkgdown

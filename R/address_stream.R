@@ -58,9 +58,13 @@ address_stream_build <- function(...) {
   address_stream <- address_create_stream(...)
   address_parsed <- address_parse(address_stream)
   address_geocode <- address_geocode(address_parsed)
+  address_normalized <- address_normalize(address_stream)
   address_census <- address_census(cbind(address_geocode,timestamp = address_stream$timestamp))
 
-  address_stream <- cbind(address_stream, address_geocode[,-address_cols, with = F], address_census[,-c(address_cols, "timestamp"), with = F])
+  address_stream <- cbind(address_stream,
+                          address_geocode[,-address_cols, with = F],
+                          address_normalized[,-address_cols, with = F],
+                          address_census[,-c(address_cols, "timestamp"), with = F])
 
   iwave <- read_tessi("iwave") %>% collect() %>% setDT() %>% .[,score_dt:=as_date(score_dt)]
 
@@ -101,7 +105,7 @@ address_stream_build <- function(...) {
 #' @importFrom data.table setDT setkey
 #' @importFrom lubridate as_date
 address_create_stream <- function(...) {
-  . <- timestamp <- NULL
+  . <- timestamp <- address_no <- NULL
 
   p <- progressor(1)
   p("Running address_create_stream", amount = 0)
@@ -112,40 +116,12 @@ address_create_stream <- function(...) {
 
   stream_from_audit("addresses", cols = cols, ...) %>%
     .[,timestamp := as_date(timestamp)] %>%
+    setkey(address_no,timestamp) %>%
     stream_debounce(c("address_no","timestamp"))
 
 }
 
-# Street cleaning ---------------------------------------------------------
-
-#' address_clean
-#'
-#' Removes newlines, tabs, lowercases, trims whitespace, and removes junk info
-#'
-#' @param address_stream data.table of addresses
-#'
-#' @return data.table of addresses cleaned
-#' @importFrom purrr map
-#' @importFrom stringr str_replace_all
-address_clean <- function(address_stream) {
-  street1 <- city <- state <- postal_code <- NULL
-
-  # Remove newlines, tabs, etc.
-  address_stream[, (address_cols) := map(.SD, ~ str_replace_all(., "\\s+", " ")), .SDcols = address_cols]
-
-  # Lowercase and trim whitespace from address fields
-  address_stream[, (address_cols) := lapply(.SD, function(.) {
-    trimws(tolower(.))
-  }), .SDcols = address_cols]
-
-  # remove junk info
-  lapply(address_cols, function(col) {
-    address_stream[grepl("^(web add|unknown|no add)|^$", get(col)), (col) := NA_character_]
-  })
-
-  address_stream <- address_stream[!(grepl("^30 lafayette", street1) &
-                                       (city == "brooklyn" & state == "ny" | substr(postal_code, 1, 5) == "11217"))]
-}
+# address parsing ---------------------------------------------------------
 
 #' address_exec_libpostal
 #'
@@ -175,12 +151,15 @@ address_exec_libpostal <- function(addresses) {
   })
 
 
-  ret <- iconv(ret, from = "utf-8") %>% tail(-match("Result:", .) - 1)
-  ret[which(ret == "Result:")] <- ","
+  ret <- iconv(ret, from = "utf-8")
+  results <- match("Result:", ret)
+  if (length(results)) {
+    ret <- tail(ret, -results -1)
+    ret[which(ret == "Result:")] <- ","
+  }
 
   fromJSON(c("[", ret, "]"))
 }
-
 
 #' address_parse_libpostal
 #'
@@ -232,21 +211,38 @@ address_parse_libpostal <- function(address_stream) {
   # postcode => postcode
   # country/country_region/world_region => country
 
+  # Now merge everything else together
+  if (any(c("unit", "level", "entrance", "staircase") %in% colnames(parsed))) {
+    setunite(parsed, "unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = TRUE)
+  }
+  if (any(c("house", "category", "near") %in% colnames(parsed))) {
+    setunite(parsed, "house", any_of(c("house", "category", "near")), sep = " ", na.rm = TRUE)
+  }
+  if (any(c("suburb", "city_district", "city", "island") %in% colnames(parsed))) {
+    setunite(parsed, "city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = TRUE)
+  }
+  if (any(c("state_district", "state") %in% colnames(parsed))) {
+    setunite(parsed, "state", any_of(c("state_district", "state")), sep = ", ", na.rm = TRUE)
+  }
+  if (any(c("country_region", "country", "world_region") %in% colnames(parsed))) {
+    setunite(parsed, "country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = TRUE)
+  }
+
   # But the parsing is imperfect. The hardest to resolve is unit.
 
   # ... for some reason a lot of units end up in postcode!
   parsed[
-    is.na(unit) & postcode != address_stream$postal_code[I],
+    trimws(unit) == "" & postcode != address_stream$postal_code[I],
     unit := postcode
   ]
   # ... some units don't get detected in street2
   parsed[
-    is.na(unit) & str_detect(address_stream$street2[I], unit_regex2),
+    trimws(unit) == "" & str_detect(address_stream$street2[I], unit_regex2),
     unit := address_stream$street2[I]
   ]
   # ... and if the road has the unit in it, put it in unit
   parsed[
-    is.na(unit) & str_detect(road, paste0(street_unit_regex, ")")),
+    trimws(unit) == "" & str_detect(road, paste0(street_unit_regex, ")")),
     unit := str_match(road, paste0(street_unit_regex, ".*$)"))[, 5]
   ]
   # ... finally cleanup unit
@@ -264,23 +260,6 @@ address_parse_libpostal <- function(address_stream) {
       parsed[!is.na(unit) & get(col) == "", (col) := NA_character_]
     }
   )
-
-  # Now merge everything else together
-  if (any(c("unit", "level", "entrance", "staircase") %in% colnames(parsed))) {
-    setunite(parsed, "unit", any_of(c("unit", "level", "entrance", "staircase")), sep = " ", na.rm = TRUE)
-  }
-  if (any(c("house", "category", "near") %in% colnames(parsed))) {
-    setunite(parsed, "house", any_of(c("house", "category", "near")), sep = " ", na.rm = TRUE)
-  }
-  if (any(c("suburb", "city_district", "city", "island") %in% colnames(parsed))) {
-    setunite(parsed, "city", any_of(c("suburb", "city_district", "city", "island")), sep = ", ", na.rm = TRUE)
-  }
-  if (any(c("state_district", "state") %in% colnames(parsed))) {
-    setunite(parsed, "state", any_of(c("state_district", "state")), sep = ", ", na.rm = TRUE)
-  }
-  if (any(c("country_region", "country", "world_region") %in% colnames(parsed))) {
-    setunite(parsed, "country", any_of(c("country_region", "country", "world_region")), sep = ", ", na.rm = TRUE)
-  }
 
   # ok maybe we're finally done. Let's clean up
   parsed_cols <- intersect(colnames(parsed),c("house_number", "road", "unit", "house", "po_box", "city", "state", "country", "postcode"))

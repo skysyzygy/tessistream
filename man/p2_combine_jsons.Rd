@@ -10,7 +10,7 @@ p2_combine_jsons(jsons)
 \item{jsons}{list of \emph{named} lists of data.tables, as returned by p2_json_to_datatable}
 }
 \value{
-single \code{JSON} object as a list
+single \code{JSON} object as a list, or \code{NULL} if empty or unnamed
 }
 \description{
 Combine \code{JSON} objects returned by the Active Campaign API, concatenating each element with the same name.

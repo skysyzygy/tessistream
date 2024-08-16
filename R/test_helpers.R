@@ -1,5 +1,5 @@
 address_geocode_prepare_fixtures <- function() {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   address_stream <- data.table(
     street1 = c("30 Lafayette Ave", "321 Ashland Pl", "30 Churchill Pl"),
@@ -45,7 +45,7 @@ address_census_prepare_fixtures <- function() {
 
 address_prepare_fixtures <- function() {
   . <- N <- table_name <- alternate_key <- address_no <- NULL
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   # only take customers with lots of changes
   audit <- read_tessi("audit") %>%
@@ -191,6 +191,51 @@ duplicates_prepare_fixtures <- function() {
 
   saveRDS(phones, rprojroot::find_testthat_root_file("duplicates_stream-phones.Rds"))
   saveRDS(emails, rprojroot::find_testthat_root_file("duplicates_stream-emails.Rds"))
+
+}
+
+email_prepare_fixtures <- function() {
+
+  customer_no <- eaddress <- source_no <- group_customer_no <- . <- promote_dt <- NULL
+
+  n_rows = 10000
+  withr::local_package("lubridate")
+
+  promotions = data.frame(
+    media_type = 3,
+    customer_no = sample(1:1000,n_rows,replace = TRUE),
+    promote_dt = lubridate::as_datetime(runif(n_rows, lubridate::ymd_hms("2000-01-01 00:00:00"), lubridate::ymd_hms("2010-01-01 00:00:00"))),
+    appeal_no = sample(1:10, n_rows, replace = TRUE),
+    campaign_no = sample(1:10, n_rows, replace = TRUE),
+    source_no = sample(1:100, n_rows, replace = TRUE)) %>%
+  mutate(group_customer_no = customer_no + 10000,
+         eaddress = ifelse(runif(n_rows) < .1,
+                           paste(customer_no,c("mac.com","me.com","hotmail.com",
+                                               "mac.COM ","ME.com ","hotmail.com "),sep = "@"),
+                           NA))
+
+  ### Promotion responses
+
+  promotion_responses =
+    filter(promotions, !is.na(eaddress)) %>%
+    filter(source_no > 1) %>% # one source has no response
+      transmute(group_customer_no,customer_no,
+              response = sample(1:5, nrow(.), replace = TRUE),
+              response_dt = promote_dt + runif(nrow(.), 300, 86400),
+              source_no, url_no = sample(1:1000, nrow(.), replace = TRUE))
+
+  arrow::write_parquet(promotions, rprojroot::find_testthat_root_file("email_stream-promotions.parquet"))
+  arrow::write_parquet(promotion_responses, rprojroot::find_testthat_root_file("email_stream-promotion_responses.parquet"))
+
+  emails <- data.frame(customer_no = sample(1:1000,n_rows, replace = TRUE),
+                       primary_ind = "Y",
+                       timestamp = lubridate::as_datetime(runif(n_rows, lubridate::ymd_hms("2000-01-01 00:00:00"), now()))) %>%
+    mutate(group_customer_no = customer_no + 10000,
+           address = paste(customer_no,sample(c("gmail.com","yahoo.com","bam.org"),n_rows,replace = TRUE),
+                           sep = "@")) %>% setDT
+
+  saveRDS(emails, rprojroot::find_testthat_root_file("email_stream-emails.Rds"))
+
 
 }
 

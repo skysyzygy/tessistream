@@ -10,7 +10,7 @@ addresses <- readRDS(test_path("addresses.Rds"))
 # address_stream ----------------------------------------------------------
 
 test_that("address_stream_build combines data from address_parse, address_census, address_geocode, and read_tessi and returns all rows and a subset of columns", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   address_stream_original <- readRDS(rprojroot::find_testthat_root_file("address_stream.Rds"))
   stub(address_stream_build, "address_create_stream", address_stream_original)
@@ -20,6 +20,10 @@ test_that("address_stream_build combines data from address_parse, address_census
   address_geocode <- readRDS(rprojroot::find_testthat_root_file("address_geocode.Rds"))
   stub(address_stream_build, "address_geocode", address_geocode[address_stream_original[,..address_cols],on=address_cols])
 
+  address_stream_normalized <- cbind(address_stream_original[,..address_cols],
+                                     setnames(address_stream_original[,..address_cols],
+                                              address_cols, paste0(address_cols,"_cleaned")))
+  stub(address_stream_build, "address_normalize", address_stream_normalized)
   stub(address_reverse_census,"address_geocode",address_geocode)
   stub(address_census,"address_reverse_census",address_reverse_census)
   stub(address_census, "census_features", readRDS(rprojroot::find_testthat_root_file("census_features.Rds")))
@@ -39,7 +43,8 @@ test_that("address_stream_build combines data from address_parse, address_census
                address_stream[iwave, on = "group_customer_no"][timestamp > score_dt,.N])
 
   # has all the stream column names
-  checkmate::expect_names(colnames(address_stream), must.include = c(address_cols, "lat", "lon", "address_no",
+  checkmate::expect_names(colnames(address_stream), must.include = c(address_cols, paste0(address_cols,"_cleaned"),
+                                                                     "lat", "lon", "address_no",
                                                   "event_type", "event_subtype", "group_customer_no", "timestamp"))
 
 
@@ -50,7 +55,7 @@ test_that("address_stream_build combines data from address_parse, address_census
 })
 
 test_that("address_stream writes a full file containing additional data", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
   stub(address_stream, "address_stream_build", .address_stream)
   stub(address_stream, "sync_cache", TRUE)
 
@@ -69,7 +74,7 @@ test_that("address_stream writes a full file containing additional data", {
 })
 
 test_that("address_stream copies the address database", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   withr::local_package("checkmate")
   stub(address_stream, "address_stream_build", .address_stream)
@@ -147,39 +152,6 @@ test_that("address_create_stream returns only one address change per day", {
   stream <- address_create_stream()
 
   expect_equal(stream[, .N, by = c("timestamp", "address_no")][N > 1, .N], 0)
-})
-
-# address_clean -----------------------------------------------------------
-
-test_that("address_clean removes tabs, newlines, and multiple spaces", {
-  spaces <- c("one\twhitespace", "two\n\rtogether", "several\rin\tdifferent places", "lots    of    spaces")
-  cleaned <- c("one whitespace", "two together", "several in different places", "lots of spaces")
-  address_stream <- do.call(data.table, setNames(rep(list(spaces), length(address_cols)), address_cols))
-  address_stream_cleaned <- do.call(data.table, setNames(rep(list(cleaned), length(address_cols)), address_cols))
-
-  expect_equal(address_clean(address_stream), address_stream_cleaned)
-})
-
-test_that("address_clean trims whitespace and lowercases", {
-  spaces <- c(" SPACE be-4", "spA(e aft`r ", "\r\t\nand some other things!  ")
-  cleaned <- c("space be-4", "spa(e aft`r", "and some other things!")
-  address_stream <- do.call(data.table, setNames(rep(list(spaces), length(address_cols)), address_cols))
-  address_stream_cleaned <- do.call(data.table, setNames(rep(list(cleaned), length(address_cols)), address_cols))
-
-  expect_equal(address_clean(address_stream), address_stream_cleaned)
-})
-
-test_that("address_clean removes junk info", {
-  # replaced with NA
-  junk_type_1 <- c("unknown", "Web Added", "NO ADDRESS")
-  # row removed
-  junk_type_2 <- setNames(list("30 Lafayette Ave.", "Development", "Brooklyn", "NY", "11217-0000", ""), address_cols)
-  cleaned <- c(NA_character_, NA_character_, NA_character_)
-  address_stream <- do.call(data.table, setNames(rep(list(junk_type_1), length(address_cols)), address_cols))
-  address_stream <- rbind(address_stream, junk_type_2)
-  address_stream_cleaned <- do.call(data.table, setNames(rep(list(cleaned), length(address_cols)), address_cols))
-
-  expect_equal(address_clean(address_stream), address_stream_cleaned)
 })
 
 # address_exec_libpostal --------------------------------------------------
@@ -314,7 +286,7 @@ test_that("address_parse_libpostal returns only house_number,road,unit,house,po_
 
 
 # address_cache -----------------------------------------------------------
-tessilake:::local_cache_dirs()
+tessilake::local_cache_dirs()
 
 address_stream <- data.table(street1 = paste(1:100, "example lane"), something = "extra") %>% rbind(setNames(rep(list(character(0)),6),address_cols),
                                                                                                     fill = TRUE)

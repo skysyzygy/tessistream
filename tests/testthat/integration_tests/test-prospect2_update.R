@@ -1,7 +1,7 @@
 withr::local_package("mockery")
 withr::local_package("lubridate")
 future::plan("multisession")
-tessilake:::local_cache_dirs()
+tessilake::local_cache_dirs()
 dir.create(file.path(tempdir(),"deep","stream"))
 
 max_len <- 2000

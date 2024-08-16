@@ -3,6 +3,7 @@
 on:
   push:
     branches: [main, master]
+<<<<<<< HEAD
     paths:
       - 'man/**'
       - 'vignettes/**'
@@ -11,6 +12,10 @@ on:
       - '_pkgdown.yml'
       - 'DESCRIPTION'
       - 'LICENSE'
+=======
+  release:
+    types: [published]
+>>>>>>> 9fc925a56f62f3bc1f581fac94fef692fddd6f24
   workflow_dispatch:
 
 name: pkgdown

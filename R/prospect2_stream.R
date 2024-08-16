@@ -1,3 +1,22 @@
+#' @title p2_stream
+#' @description
+#'
+#' Combined dataset of email sends/clicks/opens/unsubscribes from Prospect2.
+#' Features included are:
+#'
+#' * group_customer_no, customer_no
+#' * subscriberid : Prospect2 customer id
+#' * timestamp : date of email event
+#' * email : email address
+#' * event_type : "Email"
+#' * event_subtype : "Open", "Click", "Unsubscribe', "Hard Bounce", "Soft Bounce", etc.
+#' * campaignid, messageid, listid, linkid : Prospect2 internal ids
+#' * ip, ua, uasrc, referer, isread, times : Email open data
+#' * status : List subscription status
+#'
+#' @name p2_stream
+NULL
+
 api_url <- "https://brooklynacademyofmusic.api-us1.com"
 
 
@@ -30,6 +49,7 @@ p2_query_table_length <- function(url, api_key = keyring::key_get("P2_API")) {
 #' @return JSON object as a list
 #' @importFrom httr modify_url GET content add_headers
 #' @importFrom checkmate assert check_data_frame check_names
+#' @export
 p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
                          offset = NULL, max_len = NULL, jobs = NULL) {
   len <- off <- NULL
@@ -88,12 +108,13 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
 #'
 #' @param jsons list of *named* lists of data.tables, as returned by p2_json_to_datatable
 #'
-#' @return single `JSON` object as a list
+#' @return single `JSON` object as a list, or `NULL` if empty or unnamed
 #' @importFrom purrr map_int
 #' @importFrom checkmate assert_true
 #' @importFrom stats setNames
 p2_combine_jsons <- function(jsons) {
-  assert_true(all(map_int(jsons, ~ length(names(.))) > 0))
+  if (!all(map_int(jsons, ~ length(names(.))) > 0))
+    return(NULL)
 
   # combine results
   names <- do.call(c, map(jsons, names)) %>% unique()
@@ -256,7 +277,7 @@ p2_unnest <- function(data, colname) {
 #' @importFrom dplyr select
 #' @export
 p2_update <- function() {
-  updated_timestamp <- id <- linkclicks <- NULL
+  updated_timestamp <- id <- linkclicks <- sdate <- campaignid <- NULL
 
   withr::defer(p2_db_close())
   p2_db_open()
@@ -282,8 +303,13 @@ p2_update <- function() {
 
   # linkData and mppLinkData are *mostly* immutable, so refresh the recent links...
   if (DBI::dbExistsTable(tessistream$p2_db, "links")) {
+    recent_campaigns <- tbl(tessistream$p2_db, "campaigns") %>%
+      filter(sdate > !!(today() - dmonths(1))) %>%
+      select(id) %>%
+      collect()
+
     recent_links <- tbl(tessistream$p2_db, "links") %>%
-      filter(linkclicks > 0 & updated_timestamp > !!(today() - dmonths(1))) %>%
+      filter(campaignid %in% recent_campaigns$id) %>%
       select(id) %>%
       collect()
 
@@ -541,9 +567,7 @@ p2_stream_enrich <- function(p2_stream) {
 }
 
 
-#' p2_stream
-#'
-#' Update and build the p2 parquet files
+#' @describeIn p2_stream Update and build the p2 parquet files
 #'
 #' @return stream as a data.table
 #' @importFrom tessilake write_cache sync_cache

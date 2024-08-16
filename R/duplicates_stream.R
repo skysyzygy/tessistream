@@ -65,7 +65,7 @@ duplicates_append_data <- function(data, features = rlang::exprs(
 
   . <- memb_level <- last_login_dt <- last_activity_dt <- last_update_dt <-
     cur_record_ind <- customer_no <- memb_amt <- inactive <- inactive_desc <-
-    keep_customer_no <- i.customer_no <- NULL
+    keep_customer_no <- i.customer_no <- in_household <- group_customer_no <- NULL
 
   memberships <- read_tessi("memberships") %>%
     filter(cur_record_ind == 'Y') %>% collect %>% setDT %>%
@@ -166,7 +166,7 @@ duplicates_exact_match <- function(data, match_cols) {
 #' @describeIn duplicates_stream Load data for [duplicates_stream]
 #' @usage NULL
 #' @importFrom tessilake read_tessi read_sql_table read_cache
-#' @importFrom dplyr filter collect
+#' @importFrom dplyr filter collect all_of
 #' @note depends on [address_stream]
 #' @return data.table of data for deduplication
 #' @inheritDotParams tessilake::read_tessi freshness incremental
@@ -185,7 +185,7 @@ duplicates_data <- function(...) {
 
   # load all addresses past and present
   addresses <- read_cache("address_stream_full", "stream") %>%
-    select(c(address_cols, "group_customer_no", "customer_no")) %>%
+    select(all_of(c(address_cols, "group_customer_no", "customer_no"))) %>%
     collect %>% setDT %>%
   # and append libpostal parsed data
     cbind(address_parse(.)[,-address_cols, with = F])

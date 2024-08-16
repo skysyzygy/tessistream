@@ -157,7 +157,7 @@ test_that("duplicates_append_data makes choices for keep/delete and returns this
 # duplicates_stream -------------------------------------------------------
 
 test_that("duplicates_stream loads data from duplicates_data and deduplicates it", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
   features <- c("email","house_number","road",
                 "unit","city","state","fname","lname")
 
@@ -177,7 +177,7 @@ test_that("duplicates_stream loads data from duplicates_data and deduplicates it
 })
 
 test_that("duplicates_stream suppresses and appends data to duplicates", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   features <- c("email","house_number","road",
                 "unit","city","state","fname","lname")
@@ -203,7 +203,7 @@ test_that("duplicates_stream suppresses and appends data to duplicates", {
 })
 
 test_that("duplicates_stream writes to a cache", {
-  tessilake:::local_cache_dirs()
+  tessilake::local_cache_dirs()
 
   features <- c("email","house_number","road",
                 "unit","city","state","fname","lname")

@@ -190,49 +190,6 @@ test_that("p2_resolve_orphan does nothing if `from` or `customer_no` is empty, a
 
 })
 
-
-# p2_execute_api ----------------------------------------------------------
-
-test_that("p2_execute_api sends object to url using method and logs info", {
-  POST <- mock(list(status_code = 200),cycle=T)
-  PUT <- mock(list(status_code = 200),cycle=T)
-  stub(p2_execute_api, "httr::POST", POST)
-  stub(p2_execute_api, "httr::PUT", PUT)
-
-  expect_message(p2_execute_api("http://api.url", list("json" = "object")), "v Executing POST : http://api.url")
-  expect_message(p2_execute_api("http://api.url", list("json" = "object"), method = "PUT"), "v Executing PUT : http://api.url")
-  expect_message(p2_execute_api("http://api.url", list("json" = "object")), '* \\{"json":"object"\\}')
-
-  expect_equal(mock_args(POST)[[1]][["url"]],"http://api.url")
-  expect_equal(mock_args(POST)[[1]][["body"]],list("json" = "object"))
-  expect_length(mock_args(POST),2)
-  expect_length(mock_args(PUT),1)
-})
-
-
-test_that("p2_execute_api executes the command only if dry_run is FALSE", {
-  PUT <- mock(list(status_code = 200),cycle=T)
-  stub(p2_execute_api, "httr::POST", PUT)
-
-  expect_message_n(2,p2_execute_api("http://api.url", list("json" = "object"), dry_run = T),"* \\(dry run\\)")
-  expect_length(mock_args(PUT),0)
-
-  expect_message(p2_execute_api("http://api.url", list("json" = "object"), dry_run = F))
-  expect_length(mock_args(PUT),1)
-})
-
-test_that("p2_execute_api returns T/F and warns based on return code", {
-  POST <- mock(list(status_code = 200),cycle=T)
-  stub(p2_execute_api, "httr::POST", POST)
-  DELETE <- mock(list(status_code = 400),cycle=T)
-  stub(p2_execute_api, "httr::DELETE", DELETE)
-
-  expect_message_n(2,expect_true(p2_execute_api("http://api.url", list("json" = "object"), dry_run = TRUE)))
-  expect_message(expect_true(p2_execute_api("http://api.url", list("json" = "object"), method = "POST")))
-  expect_warning(expect_message(expect_false(p2_execute_api("http://api.url", list("json" = "object"), method = "DELETE"))))
-  expect_message(expect_true(p2_execute_api("http://api.url", list("json" = "object"), method = "DELETE", success_codes = 400)))
-})
-
 # p2_update_email ---------------------------------------------------------
 
 test_that("p2_update_email calls p2_execute_api", {

@@ -17,14 +17,15 @@ stream(
 
 stream_chunk_write(
   stream,
-  stream_cols = colnames(stream),
-  since = min(stream$timestamp),
-  windows = windows
+  stream_cols = setdiff(colnames(stream), c(by, "timestamp")),
+  since = min(stream$timestamp) - 1,
+  by = "group_customer_no",
+  windows = NULL
 )
 
 stream_window_features(
   stream,
-  stream_cols = colnames(stream),
+  stream_cols = setdiff(colnames(stream), c("group_customer_no", "timestamp")),
   windows = NULL,
   by = "group_customer_no"
 )

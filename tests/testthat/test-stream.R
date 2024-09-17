@@ -146,7 +146,6 @@ test_that("stream rebuilds the whole dataset if `rebuild=TRUE`", {
                2*n)
 })
 
-
 # stream_chunk_write ------------------------------------------------------
 
 test_that("stream_chunk_write fills down all selected columns by group", {
@@ -163,7 +162,8 @@ test_that("stream_chunk_write fills down all selected columns by group", {
   write_cache <- mock()
   stub(stream_chunk_write, "write_cache", write_cache)
   stub(stream_chunk_write, "cache_exists_any", F)
-  stream_chunk_write(copy(stream), stream_cols = c("feature_b"), 2023)
+
+  stream_chunk_write(copy(stream), stream_cols = c("feature_b"))
   stream_actual <- mock_args(write_cache)[[1]][[1]]
   
   setkey(stream,group_customer_no,timestamp)
@@ -185,12 +185,13 @@ test_that("stream_chunk_write loads historical data", {
                        pk = sample(c(NA,"c"),n,replace=T),
                        year = 2023) 
   
-  stream[1, `:=`(group_customer_no = 1, timestamp = min(stream$timestamp), pk = NA)]
+  stream[1, `:=`(group_customer_no = 1, timestamp = min(stream$timestamp)-1, pk = NA)]
   stream[group_customer_no == 1, feature_b := NA]
   
   write_cache <- mock()
   stub(stream_chunk_write, "write_cache", write_cache)
   stub(stream_chunk_write, "cache_exists_any", T)
+  stub(stream_chunk_write, "stream_window_features", \(stream, ...) stream)
   stub(stream_chunk_write, "read_cache", arrow::arrow_table(timestamp = as_datetime("2022-01-01"),
                                                             group_customer_no = 1,
                                                             feature_b = "z"))
@@ -209,17 +210,43 @@ test_that("stream_chunk_write loads historical data", {
   expect_set_equal(stream_actual[group_customer_no != 1, unique(pk)],c(NA,"c"))
 })
 
+test_that("stream_chunk_write done once is the same as doing it multiple times", {
+  
+})
 
 # stream_window_features --------------------------------------------------
 
-test_that("stream_window_features constructs windowed feature", {
+test_that("stream_window_features constructs windowed features", {
+  
+  stream <- data.table(group_customer_no = rep(seq(100), each = 100),
+                       timestamp = rep(as_datetime("2021-01-01") + ddays(seq(100)), 100),
+                       feature = rep(seq(100), 100))
+
+  stream_window <- stream_window_features(stream, windows = list(lubridate::days(1)))
+  
+  expect_contains(colnames(stream_window), "feature.-1")
+  expect_equal(stream_window[,`feature.-1`], rep(c(rep(NA,1),rep(1,100-1)),100))
+
+  stream_window <- stream_window_features(stream, windows = list(lubridate::days(30)))
+  
+  expect_contains(colnames(stream_window), "feature.-30")
+  expect_equal(stream_window[,`feature.-30`], rep(c(rep(NA,30),rep(30,100-30)),100))
+  
+})
+
+test_that("stream_window_features subtracts windowed features from each other", {
   
   stream <- data.table(group_customer_no = rep(seq(100), each = 100),
                        timestamp = rep(as_datetime("2021-01-01") + ddays(seq(100)), 100),
                        feature = rep(seq(100), 100))
   
-  stream_window <- stream_window_features(stream, windows = list(lubridate::days(1)))
+  stream_window <- stream_window_features(stream, windows = list(lubridate::days(30), 
+                                                                 lubridate::days(1),
+                                                                 lubridate::days(90)))
   
-  expect_contains(colnames(stream_window), c("feature.-1"))
-  
+  expect_contains(colnames(stream_window), c("feature.-1", "feature.-30", "feature.-90"))
+  expect_equal(stream_window[,`feature.-1`], rep(c(rep(NA,1),rep(1,100-1)),100))
+  expect_equal(stream_window[,`feature.-30`], rep(c(rep(NA,30),rep(29,100-30)),100))
+  expect_equal(stream_window[,`feature.-90`], rep(c(rep(NA,90),rep(60,100-90)),100))
 })
+

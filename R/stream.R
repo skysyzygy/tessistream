@@ -22,6 +22,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
                    rebuild = FALSE) {
   
   assert_character(streams,min.len = 1)
+  assert_character(cols_match,len=1)
   assert_logical(rebuild)
   assert_list(windows, types = "Period")
   
@@ -48,6 +49,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
                        .[,timestamp := as.POSIXct(timestamp)]) %>%
       rbindlist(idcol = "stream", fill = T) %>% .[,year := .year]
     
+    # do the filling and windowing
     stream_chunk_write(stream, cols = stream_cols, since = stream_max_date, windows = windows)
     
   }
@@ -58,21 +60,29 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
 
 
 #' @describeIn stream Fill down cols in `stream_cols` and add windowed features to `stream` for timestamps after `since`
+#' @importFrom checkmate assert_data_table assert_names assert_posixct assert_character assert_list
+#' @importFrom lubridate as_datetime
 stream_chunk_write <- function(stream, stream_cols = setdiff(colnames(stream),
                                                              c(by, "timestamp")),
-                               since = min(stream$timestamp), 
+                               since = as.POSIXct(min(stream$timestamp)-1), 
                                by = "group_customer_no",
                                windows = NULL) {
   
   assert_data_table(stream)
-  assert_names(colnames(stream), must.include = c(by,"timestamp"))
+  assert_names(colnames(stream), must.include = c(by,"timestamp", stream_cols))
+  assert_posixct(since,len=1)
+  assert_character(by,len=1)
+  assert_list(windows,types="Period",null.ok=T)
   
   stream_prev <- stream_customer_history <- data.table()
   if(cache_exists_any("stream","stream")) {
+    
     # load data from prior year for windowing
     stream_prev <- read_cache("stream", "stream") %>% 
       filter(as_datetime(timestamp) >= as_datetime(since - dyears())) %>% 
       collect %>% setDT
+    
+    # and the last row per customer for filling down
     stream_customer_history <- stream_customer_history(read_cache("stream","stream"), 
                                                        by = by, 
                                                        cols = stream_cols) 
@@ -83,10 +93,11 @@ stream_chunk_write <- function(stream, stream_cols = setdiff(colnames(stream),
                   stream, fill = T) %>% setkey(group_customer_no, timestamp)
   
   # fill down
-  setnafill(stream, type = "locf", cols = intersect(colnames(stream), stream_cols), by = by)
+  setnafill(stream, type = "locf", cols = stream_cols, by = by)
   
   # window
-  stream_window_features(stream, stream_cols = stream_cols, windows = windows, by = by)
+  window_cols <- grep("(count|amt)$",stream_cols,ignore.case=T,perl=T,value = T)
+  stream <- stream_window_features(stream, stream_cols = window_cols, windows = windows, by = by)
   
   # save
   write_cache(stream[timestamp > since], "stream", "stream", partition = "year", sync = FALSE, 
@@ -110,23 +121,31 @@ stream_window_features <- function(stream, stream_cols = setdiff(colnames(stream
     # sort windows
     windows <- windows[order(purrr::map_dbl(windows, as.numeric))]
   }
-  last_window = NULL
+
   for (window in windows) {
     # rolling join with adjusted stream
-    stream_rolled_forward = copy(stream[,..all_cols])[,timestamp := timestamp + window]
-    stream <- stream_rolled_forward[stream, on = c(by, "timestamp"), roll = Inf]
+    stream_rolled = copy(stream[,..all_cols])[,timestamp := timestamp + window]
+    stream <- stream_rolled[stream, on = c(by, "timestamp"), roll = Inf]
     
-    # rename columns
-    window_cols <- paste0(stream_cols, "_-", as.numeric(window)/86400)
-    setnames(stream, paste0("i.",stream_cols), window_cols)
+    # rename columns... i. columns are the original ones...
+    window_cols <- paste0(stream_cols, ".-", as.numeric(window)/86400)
+    setnames(stream, stream_cols, window_cols)
+    setnames(stream, paste0("i.",stream_cols), stream_cols)
+    stream[,(window_cols) := purrr::map2(stream_cols, window_cols, \(.x,.y) get(.x)-get(.y))]
     
-    # subtract from the previous
-    if (!is.null(last_window)) {
-      stream[,(window_cols) := mget(window_cols) - mget(last_window_cols)]
-    }
-    
-    last_window = window
-    last_window_cols = window_cols
   }
   
+  # work backwards through windowed features and subtract each from the next (lower offset) to 
+  # get properly decoupled features
+  for (i in rev(seq_along(windows)[-1])) {
+    window <- windows[[i]]
+    prev_window <- windows[[i-1]]
+    
+    window_cols <- paste0(stream_cols, ".-", as.numeric(window)/86400)
+    prev_window_cols <- paste0(stream_cols, ".-", as.numeric(prev_window)/86400)
+    
+    stream[,(window_cols) := purrr::map2(window_cols, prev_window_cols, \(.x,.y) get(.x)-get(.y))]
+  }
+  
+  stream
 }

@@ -12,6 +12,7 @@
 #' @importFrom data.table setDT
 #' @importFrom dplyr collect filter transmute
 #' @importFrom tessilake read_cache cache_exists_any write_cache sync_cache
+#' @importFrom checkmate assert_character assert_logical assert_list
 #' @importFrom lubridate year as_datetime
 #' @return stream dataset as an [arrow::Table]
 #' @export
@@ -20,6 +21,8 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
                    cols_match = "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min)",
                    windows = lapply(c(1,7,30,90,365),lubridate::days),
                    rebuild = FALSE) {
+  
+  . <- timestamp
   
   assert_character(streams,min.len = 1)
   assert_character(cols_match,len=1)
@@ -50,7 +53,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
       rbindlist(idcol = "stream", fill = T) %>% .[,year := .year]
     
     # do the filling and windowing
-    stream_chunk_write(stream, cols = stream_cols, since = stream_max_date, windows = windows)
+    stream_chunk_write(stream, stream_cols = stream_cols, since = stream_max_date, windows = windows)
     
   }
   
@@ -62,11 +65,17 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
 #' @describeIn stream Fill down cols in `stream_cols` and add windowed features to `stream` for timestamps after `since`
 #' @importFrom checkmate assert_data_table assert_names assert_posixct assert_character assert_list
 #' @importFrom lubridate as_datetime
+#' @param stream [data.table] data to process and write 
+#' @param stream_cols [character] vector of column names to fill down and window
+#' @param since [POSIXct] only the data with timestamps greater than `since` will be written
+#' @param by [character(1)] column name to group by for filling down and windowing
 stream_chunk_write <- function(stream, stream_cols = setdiff(colnames(stream),
                                                              c(by, "timestamp")),
                                since = as.POSIXct(min(stream$timestamp)-1), 
                                by = "group_customer_no",
                                windows = NULL) {
+  
+  timestamp <- group_customer_no <- NULL
   
   assert_data_table(stream)
   assert_names(colnames(stream), must.include = c(by,"timestamp", stream_cols))
@@ -110,6 +119,8 @@ stream_window_features <- function(stream, stream_cols = setdiff(colnames(stream
                                                                  c("group_customer_no","timestamp")),
                                    windows = NULL, by = "group_customer_no") {
   
+  timestamp <- NULL
+  
   assert_data_table(stream)
   assert_names(colnames(stream), must.include = c(by, "timestamp",stream_cols))
   assert_names(stream_cols, disjunct.from = c(by, "timestamp"))
@@ -124,7 +135,7 @@ stream_window_features <- function(stream, stream_cols = setdiff(colnames(stream
 
   for (window in windows) {
     # rolling join with adjusted stream
-    stream_rolled = copy(stream[,..all_cols])[,timestamp := timestamp + window]
+    stream_rolled = copy(stream[,all_cols,with=F])[,timestamp := timestamp + window]
     stream <- stream_rolled[stream, on = c(by, "timestamp"), roll = Inf]
     
     # rename columns... i. columns are the original ones...

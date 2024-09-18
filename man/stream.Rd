@@ -18,7 +18,7 @@ stream(
 stream_chunk_write(
   stream,
   stream_cols = setdiff(colnames(stream), c(by, "timestamp")),
-  since = min(stream$timestamp) - 1,
+  since = as.POSIXct(min(stream$timestamp) - 1),
   by = "group_customer_no",
   windows = NULL
 )
@@ -38,6 +38,14 @@ stream_window_features(
 \item{windows}{\link[lubridate:period]{lubridate::period} vector that determines the offsets used when constructing the windowed features.}
 
 \item{rebuild}{\link{logical(1)} whether or not to rebuild the whole dataset (\code{TRUE}) or just append to the end of it (\code{FALSE})}
+
+\item{stream}{\link{data.table} data to process and write}
+
+\item{stream_cols}{\link{character} vector of column names to fill down and window}
+
+\item{since}{\link{POSIXct} only the data with timestamps greater than \code{since} will be written}
+
+\item{by}{\link{character(1)} column name to group by for filling down and windowing}
 }
 \value{
 stream dataset as an \link[arrow:Table-class]{arrow::Table}

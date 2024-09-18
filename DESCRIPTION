@@ -19,7 +19,6 @@ Suggests:
     covr,
     furrr,
     future,
-    here,
     mockery,
     png,
     progressr,

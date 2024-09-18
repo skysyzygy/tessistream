@@ -211,6 +211,34 @@ test_that("stream_chunk_write loads historical data", {
 })
 
 test_that("stream_chunk_write done once is the same as doing it multiple times", {
+  n <- 100000
+  
+  tessilake::local_cache_dirs()
+  stream <- data.table(group_customer_no = sample(seq(n/100),n,replace=T),
+                       timestamp = sample(seq(as.POSIXct("2023-01-01","America/New_York"),
+                                              as.POSIXct("2023-12-31","America/New_York"),by="day"),
+                                          n,replace=T),
+                       feature_b = sample(c(NA,"b"),n,replace = T),
+                       pk = sample(c(NA,"c"),n,replace=T),
+                       year = 2023) 
+  
+  stream_chunk_write(copy(stream))
+  
+  stream_full <- read_cache("stream","stream") %>% collect %>% setDT()
+  
+  suppressMessages(withr::deferred_run())
+  tessilake::local_cache_dirs()
+  
+  stream_chunk_write(stream[timestamp < as.POSIXct("2023-07-01")])
+  expect_warning(stream_chunk_write(stream[timestamp >= as.POSIXct("2023-07-01")]),
+                 "primary_keys not given")
+  
+  stream_part <- read_cache("stream","stream") %>% collect %>% setDT()
+  
+  setkey(stream_full,group_customer_no,timestamp)
+  setkey(stream_part,group_customer_no,timestamp)
+  
+  expect_equal(stream_part, stream_full)
   
 })
 

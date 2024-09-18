@@ -19,7 +19,7 @@
 #' @return stream dataset as an [arrow::Table]
 #' @export
 stream <- function(streams = c("email_stream","ticket_stream","contribution_stream",
-                                "membership_stream","ticketFuture_stream","address_stream"),
+                                "membership_stream","ticket_future_stream","address_stream"),
                    fill_match = "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min)",
                    window_match = "^(email|ticket|contribution|membership|ticket|address).+(count|amt)$",
                    rebuild = FALSE, ...) {
@@ -40,20 +40,20 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
   window_cols <- fill_cols %>% grep(pattern = window_match, ignore.case = T, perl = T, value = T)
   
   
-  stream_max_date <- as.POSIXct(-Inf)
+  stream_max_date <- as.POSIXct("1900-01-01")
   if(cache_exists_any("stream","stream") & !rebuild) 
     stream_max_date <- read_cache("stream","stream") %>% summarise(max(timestamp)) %>% collect() %>% .[[1]]
   
   years <- lapply(streams, \(stream) filter(stream,timestamp > stream_max_date) %>% 
                     transmute(year(timestamp)) %>% collect) %>% 
-    unlist %>% unique
+    unlist %>% unique %>% sort
   
   for(.year in years) {
     
     # load data from streams
     stream <- lapply(streams, \(stream) filter(stream, timestamp > as.POSIXct(stream_max_date) & 
                                                  year(timestamp) == .year) %>% collect %>% setDT %>% 
-                       .[,timestamp := as.POSIXct(timestamp)]) %>%
+                       .[,timestamp := lubridate::as_datetime(timestamp)]) %>%
       rbindlist(idcol = "stream", fill = T) %>% .[,year := .year]
     
     # do the filling and windowing
@@ -99,7 +99,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
     # and the last row per customer for filling down
     stream_customer_history <- stream_customer_history(read_cache("stream","stream"), 
                                                        by = by, 
-                                                       cols = fill_cols) 
+                                                       pattern = fill_cols) 
   }
   
   stream <- rbind(stream_customer_history,
@@ -114,7 +114,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   
   # save
   write_cache(stream[timestamp > since], "stream", "stream", partition = "year", sync = FALSE, 
-              overwrite = TRUE, incremental = FALSE)
+              incremental = TRUE, date_column = "timestamp")
 }
 
 #' @describeIn stream construct windowed features for columns in `stream_cols`, using a list of [lubridate::period], 

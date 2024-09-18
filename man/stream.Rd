@@ -9,23 +9,25 @@
 stream(
   streams = c("email_stream", "ticket_stream", "contribution_stream",
     "membership_stream", "ticketFuture_stream", "address_stream"),
-  cols_match =
+  fill_match =
     "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min)",
-  windows = lapply(c(1, 7, 30, 90, 365), lubridate::days),
-  rebuild = FALSE
+  window_match = "^(email|ticket|contribution|membership|ticket|address).+(count|amt)$",
+  rebuild = FALSE,
+  ...
 )
 
 stream_chunk_write(
   stream,
-  stream_cols = setdiff(colnames(stream), c(by, "timestamp")),
+  fill_cols = setdiff(colnames(stream), c(by, "timestamp")),
+  window_cols = fill_cols,
   since = as.POSIXct(min(stream$timestamp) - 1),
   by = "group_customer_no",
-  windows = NULL
+  ...
 )
 
 stream_window_features(
   stream,
-  stream_cols = setdiff(colnames(stream), c("group_customer_no", "timestamp")),
+  window_cols = setdiff(colnames(stream), c("group_customer_no", "timestamp")),
   windows = NULL,
   by = "group_customer_no"
 )
@@ -33,26 +35,33 @@ stream_window_features(
 \arguments{
 \item{streams}{\link{character} vector of streams to combine}
 
-\item{cols_match}{\link{character(1)} regular expression to use when matching columns to fill down}
+\item{fill_match}{\link{character(1)} regular expression to use when matching columns to fill down}
 
-\item{windows}{\link[lubridate:period]{lubridate::period} vector that determines the offsets used when constructing the windowed features.}
+\item{window_match}{\link{character(1)} regular expression to use when matching columns to window}
 
 \item{rebuild}{\link{logical(1)} whether or not to rebuild the whole dataset (\code{TRUE}) or just append to the end of it (\code{FALSE})}
 
+\item{...}{not used}
+
 \item{stream}{\link{data.table} data to process and write}
 
-\item{stream_cols}{\link{character} vector of column names to fill down and window}
+\item{fill_cols}{\link{character} columns to fill down}
+
+\item{window_cols}{\link{character} columns to window}
 
 \item{since}{\link{POSIXct} only the data with timestamps greater than \code{since} will be written}
 
 \item{by}{\link{character(1)} column name to group by for filling down and windowing}
+
+\item{windows}{\link[lubridate:period]{lubridate::period} vector that determines the offsets used when constructing the windowed features.}
 }
 \value{
 stream dataset as an \link[arrow:Table-class]{arrow::Table}
 }
 \description{
 Combine all streams named in \code{streams} into a single dataset, filling down columns matched by \code{cols_match} and
-optionally rebuilding the whole dataset if \code{rebuild} is \code{TRUE}. Windowed features are appended
+optionally rebuilding the whole dataset if \code{rebuild} is \code{TRUE}. Windowed features are appended using \code{windows}
+as offsets.
 }
 \section{Functions}{
 \itemize{

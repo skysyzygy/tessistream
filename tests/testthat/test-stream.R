@@ -163,7 +163,7 @@ test_that("stream_chunk_write fills down all selected columns by group", {
   stub(stream_chunk_write, "write_cache", write_cache)
   stub(stream_chunk_write, "cache_exists_any", F)
 
-  stream_chunk_write(copy(stream), stream_cols = c("feature_b"))
+  stream_chunk_write(copy(stream), fill_cols = c("feature_b"))
   stream_actual <- mock_args(write_cache)[[1]][[1]]
   
   setkey(stream,group_customer_no,timestamp)

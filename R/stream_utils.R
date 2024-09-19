@@ -317,13 +317,13 @@ stream_customer_history <- function(stream, by, before = as.POSIXct("2100-01-01"
   assert_names(names(stream), must.include = c("timestamp", by))
 
   stream <- stream %>% filter(timestamp < before)
-  if (is.null(stream$timestamp_id)) {
+  #if (is.null(stream$timestamp_id)) {
     if (inherits(stream, c("ArrowTabular", "arrow_dplyr_query"))) {
       stream <- stream %>% mutate(timestamp_id = arrow:::cast(timestamp, arrow::int64()))
     } else {
       stream <- stream %>% mutate(timestamp_id = timestamp)
     }
-  }
+  #}
   stream <- compute(stream)
 
   stream_dates <- stream %>%

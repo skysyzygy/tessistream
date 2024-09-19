@@ -93,12 +93,14 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
     
     # load data from prior year for windowing
     stream_prev <- read_cache("stream", "stream") %>% 
-      filter(as_datetime(timestamp) >= as_datetime(since - dyears())) %>% 
+      filter(as_datetime(timestamp) >= as_datetime(since - dyears()) & 
+               as_datetime(timestamp) <= as_datetime(since)) %>% 
       collect %>% setDT
     
     # and the last row per customer for filling down
     stream_customer_history <- stream_customer_history(read_cache("stream","stream"), 
                                                        by = by, 
+                                                       before = since,
                                                        pattern = fill_cols) 
   }
   

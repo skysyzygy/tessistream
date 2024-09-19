@@ -44,11 +44,16 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
   if(cache_exists_any("stream","stream") & !rebuild) 
     stream_max_date <- read_cache("stream","stream") %>% summarise(max(timestamp)) %>% collect() %>% .[[1]]
   
-  years <- lapply(streams, \(stream) filter(stream,timestamp > stream_max_date) %>% 
-                    transmute(year(timestamp)) %>% collect) %>% 
-    unlist %>% unique %>% sort
+  years <- lapply(streams, \(stream) transmute(stream, year = year(timestamp)) %>% collect) %>% 
+    rbindlist %>% setkey(year) %>% .[year >= year(stream_max_date), unique(year)]
+  
+  p <- function(...) {}
+  if (system.file(package = "progressr") != "")
+    p <- progressr::progressor(length(years))
   
   for(.year in years) {
+    
+    p(c("Building stream for ",.year), amount = 0)
     
     # load data from streams
     stream <- lapply(streams, \(stream) filter(stream, timestamp > as.POSIXct(stream_max_date) & 
@@ -58,6 +63,8 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
     
     # do the filling and windowing
     stream_chunk_write(stream, fill_cols = fill_cols, window_cols = window_cols, since = stream_max_date, ...)
+    
+    p()
     
   }
   

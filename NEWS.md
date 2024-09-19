@@ -1,3 +1,7 @@
+# tessistream 0.5.0
+
+* incremental `stream()` building from all existing streams
+
 # tessistream 0.4.1
 
 * email_stream now can be built incrementally, for more efficiency

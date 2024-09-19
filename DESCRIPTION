@@ -1,6 +1,6 @@
 Package: tessistream
 Title: Datasets for Analytics and Machine Learning from Tessitura
-Version: 0.4.1
+Version: 0.5.0
 Authors@R: 
     person("Sky", "Syzygy", , "ssyzygy@bam.org", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))

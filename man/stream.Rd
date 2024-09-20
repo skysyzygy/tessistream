@@ -8,7 +8,7 @@
 \usage{
 stream(
   streams = c("email_stream", "ticket_stream", "contribution_stream",
-    "membership_stream", "ticketFuture_stream", "address_stream"),
+    "membership_stream", "ticket_future_stream", "address_stream"),
   fill_match =
     "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min)",
   window_match = "^(email|ticket|contribution|membership|ticket|address).+(count|amt)$",

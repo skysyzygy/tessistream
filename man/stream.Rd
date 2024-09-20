@@ -35,11 +35,11 @@ stream_window_features(
 \arguments{
 \item{streams}{\link{character} vector of streams to combine}
 
-\item{fill_match}{\link{character(1)} regular expression to use when matching columns to fill down}
+\item{fill_match}{\href{1}{character} regular expression to use when matching columns to fill down}
 
-\item{window_match}{\link{character(1)} regular expression to use when matching columns to window}
+\item{window_match}{\href{1}{character} regular expression to use when matching columns to window}
 
-\item{rebuild}{\link{logical(1)} whether or not to rebuild the whole dataset (\code{TRUE}) or just append to the end of it (\code{FALSE})}
+\item{rebuild}{\href{1}{logical} whether or not to rebuild the whole dataset (\code{TRUE}) or just append to the end of it (\code{FALSE})}
 
 \item{...}{not used}
 
@@ -51,7 +51,7 @@ stream_window_features(
 
 \item{since}{\link{POSIXct} only the data with timestamps greater than \code{since} will be written}
 
-\item{by}{\link{character(1)} column name to group by for filling down and windowing}
+\item{by}{\href{1}{character} column name to group by for filling down and windowing}
 
 \item{windows}{\link[lubridate:period]{lubridate::period} vector that determines the offsets used when constructing the windowed features.}
 }

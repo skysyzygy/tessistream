@@ -7,9 +7,9 @@
 #' as offsets.
 #'
 #' @param streams [character] vector of streams to combine
-#' @param fill_match [character(1)] regular expression to use when matching columns to fill down 
-#' @param window_match [character(1)] regular expression to use when matching columns to window
-#' @param rebuild [logical(1)] whether or not to rebuild the whole dataset (`TRUE`) or just append to the end of it (`FALSE`)
+#' @param fill_match [character](1) regular expression to use when matching columns to fill down 
+#' @param window_match [character](1) regular expression to use when matching columns to window
+#' @param rebuild [logical](1) whether or not to rebuild the whole dataset (`TRUE`) or just append to the end of it (`FALSE`)
 #' @importFrom data.table setDT
 #' @importFrom dplyr collect filter transmute
 #' @importFrom tessilake read_cache cache_exists_any write_cache sync_cache
@@ -83,7 +83,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
 #' @param fill_cols [character] columns to fill down 
 #' @param window_cols [character] columns to window
 #' @param since [POSIXct] only the data with timestamps greater than `since` will be written
-#' @param by [character(1)] column name to group by for filling down and windowing
+#' @param by [character](1) column name to group by for filling down and windowing
 stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
                                                              c(by, "timestamp")),
                                window_cols = fill_cols,

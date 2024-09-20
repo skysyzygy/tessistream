@@ -57,7 +57,10 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
     
     # load data from streams
     stream <- lapply(streams, \(stream) filter(stream, timestamp > as.POSIXct(stream_max_date) & 
-                                                 year(timestamp) == .year) %>% collect %>% setDT %>% 
+                                                 year(timestamp) == .year) %>% 
+                       mutate(timestamp_id = arrow:::cast(lubridate::as_datetime(timestamp), 
+                                                          arrow::int64())) %>%
+                       collect %>% setDT %>% 
                        .[,timestamp := lubridate::as_datetime(timestamp)]) %>%
       rbindlist(idcol = "stream", fill = T) %>% .[,year := .year]
     

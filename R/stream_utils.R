@@ -107,9 +107,12 @@ setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
   roll <- ifelse(type == "locf", Inf, -Inf)
 
   .x <- x
+  join_cols <- na.omit(c(by, "I"))
   lapply(cols, function(col) {
     idx <- is.na(.x[, col, with = FALSE][[1]])
-    .x[idx, (col) := .x[!idx][.x[idx], col, on = na.omit(c(by, "I")), roll = roll, with = FALSE]]
+    filled <- .x[!idx,c(join_cols,col),with=F] %>% 
+      .[.x[idx,join_cols, with = F], col, on = join_cols, roll = roll, with = FALSE]
+    .x[idx, (col) := filled]
   })
 
   x[, I := NULL]

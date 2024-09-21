@@ -316,7 +316,9 @@ stream_customer_history <- function(stream, by, before = as.POSIXct("2100-01-01"
   timestamp <- NULL
   assert_names(names(stream), must.include = c("timestamp", by))
 
-  stream <- stream %>% filter(timestamp < before)
+  stream <- stream %>% filter(timestamp < before) %>% 
+    select(all_of(c(by,"timestamp")),matches(pattern,...))
+  
   if (is.null(stream$timestamp_id)) {
     if (inherits(stream, c("ArrowTabular", "arrow_dplyr_query"))) {
       stream <- stream %>% mutate(timestamp_id = arrow:::cast(timestamp, arrow::int64()))
@@ -333,12 +335,13 @@ stream_customer_history <- function(stream, by, before = as.POSIXct("2100-01-01"
     stream_debounce(by)
   
   if(nrow(stream_dates) == 0)
-    return(arrow_table(schema = stream$schema))
+    return(arrow::arrow_table(schema = arrow::schema(stream)) %>% 
+             collect %>% setDT)
     
   if (inherits(stream, c("ArrowTabular","arrow_dplyr_query")))
-    stream_dates <- as_arrow_table(stream_dates)
+    stream_dates <- arrow::as_arrow_table(stream_dates)
   
-  stream %>% select(all_of(c(by,"timestamp","timestamp_id")),matches(pattern,...)) %>%
+  stream  %>%
     semi_join(stream_dates, by=c(by, "timestamp_id")) %>%
     select(-timestamp_id) %>% 
     collect %>% setDT

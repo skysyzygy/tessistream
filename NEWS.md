@@ -1,6 +1,7 @@
 # tessistream 0.5.0
 
 * incremental `stream()` building from all existing streams
+* optimizations to `stream_customer_history` 
 
 # tessistream 0.4.1
 

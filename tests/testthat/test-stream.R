@@ -195,10 +195,9 @@ test_that("stream_chunk_write loads historical data", {
   stub(stream_chunk_write, "read_cache", arrow::arrow_table(timestamp = as_datetime("2022-01-01"),
                                                             group_customer_no = 1,
                                                             feature_b = "z"))
-  stub(stream_chunk_write, "stream_customer_history", data.table(timestamp = as_datetime("2022-01-01"),
+  stub(stream_chunk_write, "stream_customer_history", data.table(timestamp = as_datetime("2021-01-01"),
                                                                          group_customer_no = 1,
                                                                          pk = "x"))
-  
   stream_chunk_write(copy(stream))
   
   stream_actual <- mock_args(write_cache)[[1]][[1]]

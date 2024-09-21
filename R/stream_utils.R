@@ -324,7 +324,6 @@ stream_customer_history <- function(stream, by, before = as.POSIXct("2100-01-01"
       stream <- stream %>% mutate(timestamp_id = timestamp)
     }
   }
-  stream <- compute(stream)
 
   stream_dates <- stream %>%
     select(all_of(c(by,"timestamp", "timestamp_id"))) %>%
@@ -332,12 +331,13 @@ stream_customer_history <- function(stream, by, before = as.POSIXct("2100-01-01"
     collect %>% setDT %>%
     setkeyv(c(by, "timestamp_id", "timestamp")) %>%
     stream_debounce(by)
-
-  if (nrow(stream_dates) > 0) {
-    stream <- stream %>% semi_join(stream_dates, by=c(by, "timestamp_id"))
-  }
-
-  stream %>% select(all_of(c(by,"timestamp")),matches(pattern,...)) %>%
+  
+  if (inherits(stream, c("ArrowTabular","arrow_dplyr_query")))
+    stream_dates <- as_arrow_table(stream_dates)
+  
+  stream %>% select(all_of(c(by,"timestamp","timestamp_id")),matches(pattern,...)) %>%
+    semi_join(stream_dates, by=c(by, "timestamp_id")) %>%
+    select(-timestamp_id) %>% 
     collect %>% setDT
 
 }

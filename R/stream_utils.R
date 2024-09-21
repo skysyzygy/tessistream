@@ -332,6 +332,9 @@ stream_customer_history <- function(stream, by, before = as.POSIXct("2100-01-01"
     setkeyv(c(by, "timestamp_id", "timestamp")) %>%
     stream_debounce(by)
   
+  if(nrow(stream_dates) == 0)
+    return(arrow_table(schema = stream$schema))
+    
   if (inherits(stream, c("ArrowTabular","arrow_dplyr_query")))
     stream_dates <- as_arrow_table(stream_dates)
   

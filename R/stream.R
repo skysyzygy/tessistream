@@ -111,7 +111,8 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
     stream_customer_history <- stream_customer_history(read_cache("stream","stream"), 
                                                        by = by, 
                                                        before = since,
-                                                       pattern = fill_cols) 
+                                                       pattern = fill_cols) %>% 
+      .[,timestamp < as_datetime(since - dyears())]
   }
   
   stream <- rbind(stream_customer_history,

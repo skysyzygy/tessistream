@@ -144,24 +144,24 @@ stream_window_features <- function(stream, window_cols = setdiff(colnames(stream
   assert_names(window_cols, disjunct.from = c(by, "timestamp"))
   assert_list(windows, types = "Period", null.ok = TRUE)
   
-  all_cols <- union(window_cols,c(by,"timestamp"))
-  
   if (length(windows) > 0) {
     # sort windows
     windows <- windows[order(purrr::map_dbl(windows, as.numeric))]
   }
 
   for (window in windows) {
-    # rolling join with adjusted stream
-    stream_rolled = copy(stream[,all_cols,with=F])[,timestamp := timestamp + window]
-    stream <- stream_rolled[stream, on = c(by, "timestamp"), roll = Inf]
-    
-    # rename columns... i. columns are the original ones...
-    new_cols <- paste0(window_cols, ".-", as.numeric(window)/86400)
-    setnames(stream, window_cols, new_cols)
-    setnames(stream, paste0("i.",window_cols), window_cols)
-    stream[,(new_cols) := purrr::map2(window_cols, new_cols, \(.x,.y) get(.x)-get(.y))]
-    
+    # loop by column to reduce memory footprint
+    for (col in window_cols) {
+      # rolling join with adjusted stream
+      stream_rolled = copy(stream[,c(col,by,"timestamp"),with=F])[,timestamp := timestamp + window]
+      stream <- stream_rolled[stream, on = c(by, "timestamp"), roll = Inf]
+      
+      # rename columns... i. columns are the original ones...
+      new_col <- paste0(col, ".-", as.numeric(window)/86400)
+      setnames(stream, col, new_col)
+      setnames(stream, paste0("i.",col), col)
+      stream[,(new_col) := purrr::map2(col, new_col, \(.x,.y) get(.x)-get(.y))]
+    }
   }
   
   # work backwards through windowed features and subtract each from the next (lower offset) to 

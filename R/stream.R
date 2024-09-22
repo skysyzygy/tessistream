@@ -47,13 +47,9 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
   years <- lapply(streams, \(stream) transmute(stream, year = year(timestamp)) %>% collect) %>% 
     rbindlist %>% setkey(year) %>% .[year >= year(stream_max_date), unique(year)]
   
-  p <- function(...) {}
-  if (system.file(package = "progressr") != "")
-    p <- progressr::progressor(length(years))
-  
   for(.year in years) {
     
-    p(c("Building stream for ",.year), amount = 0)
+    rlang::inform(paste("Building stream for",.year))
     
     # load data from streams
     stream <- lapply(streams, \(stream) filter(stream, timestamp > as.POSIXct(stream_max_date) & 
@@ -66,8 +62,6 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
     
     # do the filling and windowing
     stream_chunk_write(stream, fill_cols = fill_cols, window_cols = window_cols, since = stream_max_date, ...)
-    
-    p()
     
   }
   
@@ -101,12 +95,14 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   stream_prev <- stream_customer_history <- data.table()
   if(cache_exists_any("stream","stream")) {
     
+    rlang::inform(c(i = "loading previous year"))
     # load data from prior year for windowing
     stream_prev <- read_cache("stream", "stream") %>% 
       filter(as_datetime(timestamp) >= as_datetime(since - dyears()) & 
                as_datetime(timestamp) <= as_datetime(since)) %>% 
       collect %>% setDT
     
+    rlang::inform(c(i = "loading customer history"))
     # and the last row per customer for filling down
     stream_customer_history <- stream_customer_history(read_cache("stream","stream"), 
                                                        by = by, 
@@ -119,12 +115,15 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
                   stream_prev,
                   stream, fill = T) %>% setkey(group_customer_no, timestamp)
   
+  rlang::inform(c(i = "filling down"))
   # fill down
   setnafill(stream, type = "locf", cols = fill_cols, by = by)
   
+  rlang::inform(c(i = "windowing"))
   # window
   stream <- stream_window_features(stream, window_cols = window_cols, by = by, ...)
   
+  rlang::inform(c(v = "writing cache"))
   # save
   write_cache(stream[timestamp > since], "stream", "stream", partition = "year", sync = FALSE, 
               incremental = TRUE, date_column = "timestamp")

@@ -115,6 +115,8 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
                   stream_prev,
                   stream, fill = T) %>% setkey(group_customer_no, timestamp)
   
+  rm(stream_prev,stream_customer_history)
+  
   rlang::inform(c(i = "filling down"))
   # fill down
   setnafill(stream, type = "locf", cols = fill_cols, by = by)

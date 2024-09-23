@@ -32,7 +32,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
   assert_logical(rebuild)
   
   # load stream headers
-  streams <- lapply(streams, \(stream) read_cache(stream, "stream"))
+  streams <- lapply(setNames(nm = streams), \(stream) read_cache(stream, "stream"))
   
   # match columns by name
   fill_cols <- lapply(streams, colnames) %>% unlist %>% unique %>% 

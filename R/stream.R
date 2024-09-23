@@ -44,8 +44,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
     grep(pattern = fill_match, ignore.case = T, perl = T, value = T)
   window_cols <- fill_cols %>% grep(pattern = window_match, ignore.case = T, perl = T, value = T)
   
-  
-  stream_max_date <- as.POSIXct("1900-01-01")
+  stream_max_date <- as_datetime("1900-01-01")
   if(cache_exists_any("stream","stream") & !rebuild) 
     stream_max_date <- read_cache("stream","stream") %>% summarise(max(timestamp)) %>% collect() %>% .[[1]]
   
@@ -57,7 +56,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
     rlang::inform(paste("Building stream for",.year))
     
     # load data from streams
-    stream <- lapply(streams, \(stream) filter(stream, timestamp > as.POSIXct(stream_max_date) & 
+    stream <- lapply(streams, \(stream) filter(stream, timestamp > as_datetime(stream_max_date) & 
                                                  year(timestamp) == .year) %>% 
                        mutate(timestamp_id = arrow:::cast(lubridate::as_datetime(timestamp), 
                                                           arrow::int64())) %>%

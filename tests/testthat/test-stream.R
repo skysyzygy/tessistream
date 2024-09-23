@@ -6,11 +6,11 @@ withr::local_package("mockery")
 test_that("stream combines multiple streams into one", {
   n <- 100000
   stream_a <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                         timestamp = sample(seq(as.POSIXct("2023-01-01"),as.POSIXct("2023-12-31"),by="day"),
+                         timestamp = sample(seq(as_datetime("2023-01-01"),as_datetime("2023-12-31"),by="day"),
                                             n,replace=T),
                          feature_a = runif(n)) 
   stream_b <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                         timestamp = sample(seq(as.POSIXct("2023-01-01"),as.POSIXct("2023-12-31"),by="day"),
+                         timestamp = sample(seq(as_datetime("2023-01-01"),as_datetime("2023-12-31"),by="day"),
                                             n,replace=T),
                          feature_b = runif(n),
                          pk = sample(seq(n),n)) 
@@ -32,7 +32,7 @@ test_that("stream combines multiple streams into one", {
 test_that("stream works with mixed POSIXct/Date timestamps", {
   n <- 100000
   stream_a <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                                 timestamp = sample(seq(as.POSIXct("2023-01-01"),as.POSIXct("2023-12-31"),by="day"),
+                                 timestamp = sample(seq(as_datetime("2023-01-01"),as_datetime("2023-12-31"),by="day"),
                                                     n,replace=T),
                                  feature_a = runif(n)) 
   stream_b <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
@@ -58,11 +58,11 @@ test_that("stream works with mixed POSIXct/Date timestamps", {
 test_that("stream writes out partitioned dataset", {
   n <- 100000
   stream_a <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                                 timestamp = sample(seq(as.POSIXct("2022-01-01"),as.POSIXct("2023-12-31"),by="day"),
+                                 timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2023-12-31"),by="day"),
                                                     n,replace=T),
                                  feature_a = runif(n)) 
   stream_b <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                                 timestamp = sample(seq(as.POSIXct("2022-01-01"),as.POSIXct("2023-12-31"),by="day"),
+                                 timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2023-12-31"),by="day"),
                                                     n,replace=T),
                                  feature_b = runif(n),
                                  pk = sample(seq(n),n)) 
@@ -85,16 +85,16 @@ test_that("stream writes out partitioned dataset", {
 test_that("stream updates the existing dataset", {
   n <- 100000
   stream_a <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                                 timestamp = sample(seq(as.POSIXct("2022-01-01"),as.POSIXct("2023-12-31"),by="day"),
+                                 timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2023-12-31"),by="day"),
                                                     n,replace=T),
                                  feature_a = runif(n)) 
   stream_b <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                                 timestamp = sample(seq(as.POSIXct("2022-01-01"),as.POSIXct("2023-12-31"),by="day"),
+                                 timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2023-12-31"),by="day"),
                                                     n,replace=T),
                                  feature_b = runif(n),
                                  pk = sample(seq(n),n)) 
   stream_cache <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                                     timestamp = sample(seq(as.POSIXct("2022-01-01"),as.POSIXct("2022-08-31"),by="day"),
+                                     timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2022-08-31"),by="day"),
                                                         n,replace=T))
   
   read_cache <- mock(stream_a, stream_b, stream_cache)
@@ -117,16 +117,16 @@ test_that("stream updates the existing dataset", {
 test_that("stream rebuilds the whole dataset if `rebuild=TRUE`", {
   n <- 100000
   stream_a <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                                 timestamp = sample(seq(as.POSIXct("2022-01-01"),as.POSIXct("2023-12-31"),by="day"),
+                                 timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2023-12-31"),by="day"),
                                                     n,replace=T),
                                  feature_a = runif(n)) 
   stream_b <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                                 timestamp = sample(seq(as.POSIXct("2022-01-01"),as.POSIXct("2023-12-31"),by="day"),
+                                 timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2023-12-31"),by="day"),
                                                     n,replace=T),
                                  feature_b = runif(n),
                                  pk = sample(seq(n),n)) 
   stream_cache <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
-                                     timestamp = sample(seq(as.POSIXct("2022-01-01"),as.POSIXct("2022-08-31"),by="day"),
+                                     timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2022-08-31"),by="day"),
                                                         n,replace=T))
   
   read_cache <- mock(stream_a, stream_b, stream_cache)
@@ -179,7 +179,7 @@ test_that("stream_chunk_write loads historical data", {
   n <- 100000
   
   stream <- data.table(group_customer_no = sample(seq(n/100),n,replace=T),
-                       timestamp = sample(seq(as.POSIXct("2023-01-01"),as.POSIXct("2023-12-31"),by="day"),
+                       timestamp = sample(seq(as_datetime("2023-01-01"),as_datetime("2023-12-31"),by="day"),
                                           n,replace=T),
                        feature_b = sample(c(NA,"b"),n,replace = T),
                        pk = sample(c(NA,"c"),n,replace=T),
@@ -214,8 +214,8 @@ test_that("stream_chunk_write done once is the same as doing it multiple times",
   
   tessilake::local_cache_dirs()
   stream <- data.table(group_customer_no = sample(seq(n/100),n,replace=T),
-                       timestamp = sample(seq(as.POSIXct("2023-01-01","America/New_York"),
-                                              as.POSIXct("2023-12-31","America/New_York"),by="day"),
+                       timestamp = sample(seq(as_datetime("2023-01-01"),
+                                              as_datetime("2023-12-31"),by="day"),
                                           n,replace=T),
                        feature_b = sample(c(NA,"b"),n,replace = T),
                        pk = sample(c(NA,"c"),n,replace=T),

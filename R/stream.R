@@ -2,9 +2,10 @@
 
 #' stream
 #' 
-#' Combine all streams named in `streams` into a single dataset, filling down columns matched by `cols_match` and
-#' optionally rebuilding the whole dataset if `rebuild` is `TRUE`. Windowed features are appended using `windows` 
-#' as offsets.
+#' Combine all streams named in `streams` into a single dataset, filling down columns matched by `fill_match` and 
+#' creating windowed features for columns matched by `window_match` and using `windows` 
+#' as offsets. The full dataset is rebuilt if `rebuild` is `TRUE` (default: `FALSE`), and data is appended to the
+#' existing cache if `incremental` is `TRUE` (default: `TRUE`)
 #'
 #' @param streams [character] vector of streams to combine
 #' @param fill_match [character](1) regular expression to use when matching columns to fill down 
@@ -151,11 +152,11 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   do.call(write_cache, args)
 }
 
-#' @describeIn stream construct windowed features for columns in `stream_cols`, using a list of [lubridate::period], 
-#' `windows` as offsets, and grouped by `by`
+#' @describeIn stream construct windowed features for columns in `stream_cols`, using `windows`, 
+#' a list of [lubridate::period]s as offsets, and grouped by `by`
 #' @param windows [lubridate::period] vector that determines the offsets used when constructing the windowed features.
 stream_window_features <- function(stream, window_cols = setdiff(colnames(stream), 
-                                                                 c("group_customer_no","timestamp")),
+                                                                 c(by,"timestamp")),
                                    windows = NULL, by = "group_customer_no", ...) {
   
   timestamp <- NULL

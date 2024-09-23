@@ -30,7 +30,7 @@ stream_chunk_write(
 
 stream_window_features(
   stream,
-  window_cols = setdiff(colnames(stream), c("group_customer_no", "timestamp")),
+  window_cols = setdiff(colnames(stream), c(by, "timestamp")),
   windows = NULL,
   by = "group_customer_no",
   ...
@@ -65,15 +65,16 @@ stream_window_features(
 stream dataset as an \link[arrow:Table-class]{arrow::Table}
 }
 \description{
-Combine all streams named in \code{streams} into a single dataset, filling down columns matched by \code{cols_match} and
-optionally rebuilding the whole dataset if \code{rebuild} is \code{TRUE}. Windowed features are appended using \code{windows}
-as offsets.
+Combine all streams named in \code{streams} into a single dataset, filling down columns matched by \code{fill_match} and
+creating windowed features for columns matched by \code{window_match} and using \code{windows}
+as offsets. The full dataset is rebuilt if \code{rebuild} is \code{TRUE} (default: \code{FALSE}), and data is appended to the
+existing cache if \code{incremental} is \code{TRUE} (default: \code{TRUE})
 }
 \section{Functions}{
 \itemize{
 \item \code{stream_chunk_write()}: Fill down cols in \code{stream_cols} and add windowed features to \code{stream} for timestamps after \code{since}
 
-\item \code{stream_window_features()}: construct windowed features for columns in \code{stream_cols}, using a list of \link[lubridate:period]{lubridate::period},
-\code{windows} as offsets, and grouped by \code{by}
+\item \code{stream_window_features()}: construct windowed features for columns in \code{stream_cols}, using \code{windows},
+a list of \link[lubridate:period]{lubridate::period}s as offsets, and grouped by \code{by}
 
 }}

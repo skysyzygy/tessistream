@@ -253,11 +253,13 @@ test_that("stream_window_features constructs windowed features", {
   
   expect_contains(colnames(stream_window), "feature.-1")
   expect_equal(stream_window[,`feature.-1`], rep(c(rep(NA,1),rep(1,100-1)),100))
-
+  expect_equal(stream_window[,.N],stream[,.N])
+  
   stream_window <- stream_window_features(stream, windows = list(lubridate::days(30)))
   
   expect_contains(colnames(stream_window), "feature.-30")
   expect_equal(stream_window[,`feature.-30`], rep(c(rep(NA,30),rep(30,100-30)),100))
+  expect_equal(stream_window[,.N],stream[,.N])
   
 })
 
@@ -275,5 +277,6 @@ test_that("stream_window_features subtracts windowed features from each other", 
   expect_equal(stream_window[,`feature.-1`], rep(c(rep(NA,1),rep(1,100-1)),100))
   expect_equal(stream_window[,`feature.-30`], rep(c(rep(NA,30),rep(29,100-30)),100))
   expect_equal(stream_window[,`feature.-90`], rep(c(rep(NA,90),rep(60,100-90)),100))
+  expect_equal(stream_window[,.N],stream[,.N])
 })
 

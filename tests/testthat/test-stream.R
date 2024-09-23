@@ -146,6 +146,40 @@ test_that("stream rebuilds the whole dataset if `rebuild=TRUE`", {
                2*n)
 })
 
+test_that("stream has all input features plus windowed features", {
+  tessilake::local_cache_dirs()
+  n <- 100000
+  stream_a <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
+                                 timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2023-12-31"),by="day"),
+                                                    n,replace=T),
+                                 feature_a = runif(n)) 
+  stream_b <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
+                                 timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2023-12-31"),by="day"),
+                                                    n,replace=T),
+                                 feature_b = runif(n),
+                                 pk = sample(seq(n),n)) 
+  
+  read_cache <- mock(stream_a, stream_b, cycle = T)
+  stub(stream, "read_cache", read_cache)
+  stub(stream, "sync_cache", NULL)
+
+  suppressMessages(stream(streams = c("stream_a","stream_b"), incremental = FALSE, 
+                          fill_match = "feature", window_match = "feature"))
+  rm(read_cache)
+  
+  stream <- read_cache("stream","stream")
+  
+  expect_names(names(stream), permutation.of = c("group_customer_no","timestamp","feature_a","feature_b","pk",
+                                                 "timestamp_id","year","stream",
+                                               paste(rep(c("feature_a","feature_b"),each = 5),
+                                                     c(1,7,30,90,365),
+                                                     sep = ".-")))
+  expect_equal(nrow(stream), 2*n)
+  
+  expect_match(collect(stream)[,stream],regexp = "stream_a|stream_b")
+  
+})
+
 # stream_chunk_write ------------------------------------------------------
 
 test_that("stream_chunk_write fills down all selected columns by group", {

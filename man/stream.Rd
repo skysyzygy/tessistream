@@ -13,6 +13,8 @@ stream(
     "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min)",
   window_match = "^(email|ticket|contribution|membership|ticket|address).+(count|amt)$",
   rebuild = FALSE,
+  incremental = !rebuild,
+  windows = lapply(c(1, 7, 30, 90, 365), lubridate::period, units = "day"),
   ...
 )
 
@@ -20,8 +22,9 @@ stream_chunk_write(
   stream,
   fill_cols = setdiff(colnames(stream), c(by, "timestamp")),
   window_cols = fill_cols,
-  since = as.POSIXct(min(stream$timestamp) - 1),
+  since = as_datetime(min(stream$timestamp)),
   by = "group_customer_no",
+  incremental = TRUE,
   ...
 )
 
@@ -29,7 +32,8 @@ stream_window_features(
   stream,
   window_cols = setdiff(colnames(stream), c("group_customer_no", "timestamp")),
   windows = NULL,
-  by = "group_customer_no"
+  by = "group_customer_no",
+  ...
 )
 }
 \arguments{
@@ -41,6 +45,10 @@ stream_window_features(
 
 \item{rebuild}{\href{1}{logical} whether or not to rebuild the whole dataset (\code{TRUE}) or just append to the end of it (\code{FALSE})}
 
+\item{incremental}{\href{1}{logical} whether or not to update the cache incrementally. Can require huge amounts of memory (approximately double the total dataset size to be appended).}
+
+\item{windows}{\link[lubridate:period]{lubridate::period} vector that determines the offsets used when constructing the windowed features.}
+
 \item{...}{not used}
 
 \item{stream}{\link{data.table} data to process and write}
@@ -49,11 +57,9 @@ stream_window_features(
 
 \item{window_cols}{\link{character} columns to window}
 
-\item{since}{\link{POSIXct} only the data with timestamps greater than \code{since} will be written}
+\item{since}{\link{POSIXct} only the data with timestamps greater than or equal to \code{since} will be written}
 
 \item{by}{\href{1}{character} column name to group by for filling down and windowing}
-
-\item{windows}{\link[lubridate:period]{lubridate::period} vector that determines the offsets used when constructing the windowed features.}
 }
 \value{
 stream dataset as an \link[arrow:Table-class]{arrow::Table}

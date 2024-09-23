@@ -10,6 +10,7 @@
 #' @param fill_match [character](1) regular expression to use when matching columns to fill down 
 #' @param window_match [character](1) regular expression to use when matching columns to window
 #' @param rebuild [logical](1) whether or not to rebuild the whole dataset (`TRUE`) or just append to the end of it (`FALSE`)
+#' @param incremental [logical](1) whether or not to update the cache incrementally. Can require huge amounts of memory (approximately double the total dataset size to be appended).
 #' @importFrom data.table setDT
 #' @importFrom dplyr collect filter transmute
 #' @importFrom tessilake read_cache cache_exists_any write_cache sync_cache
@@ -22,7 +23,11 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
                                 "membership_stream","ticket_future_stream","address_stream"),
                    fill_match = "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min)",
                    window_match = "^(email|ticket|contribution|membership|ticket|address).+(count|amt)$",
-                   rebuild = FALSE, ...) {
+                   rebuild = FALSE, 
+                   incremental = !rebuild, 
+                   windows = lapply(c(1,7,30,90,365),
+                                    lubridate::period,
+                                    units = "day"), ...) {
   
   . <- timestamp
   
@@ -61,7 +66,8 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
       rbindlist(idcol = "stream", fill = T) %>% .[,year := .year]
     
     # do the filling and windowing
-    stream_chunk_write(stream, fill_cols = fill_cols, window_cols = window_cols, since = stream_max_date, ...)
+    stream_chunk_write(stream, fill_cols = fill_cols, window_cols = window_cols,
+                       incremental = incremental, windows = windows, ...)
     
   }
   
@@ -76,13 +82,14 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
 #' @param stream [data.table] data to process and write 
 #' @param fill_cols [character] columns to fill down 
 #' @param window_cols [character] columns to window
-#' @param since [POSIXct] only the data with timestamps greater than `since` will be written
+#' @param since [POSIXct] only the data with timestamps greater than or equal to `since` will be written
 #' @param by [character](1) column name to group by for filling down and windowing
 stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
                                                              c(by, "timestamp")),
                                window_cols = fill_cols,
-                               since = as.POSIXct(min(stream$timestamp)-1), 
+                               since = as_datetime(min(stream$timestamp)), 
                                by = "group_customer_no",
+                               incremental = TRUE,
                                ...) {
   
   timestamp <- group_customer_no <- NULL
@@ -99,7 +106,8 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
     # load data from prior year for windowing
     stream_prev <- read_cache("stream", "stream") %>% 
       filter(as_datetime(timestamp) >= as_datetime(since - dyears()) & 
-               as_datetime(timestamp) <= as_datetime(since)) %>% 
+               as_datetime(timestamp) < as_datetime(since)) %>% 
+      select(all_of(c(by,"timestamp")),matches(paste0("^",fill_cols,"$"))) %>% 
       collect %>% setDT
     
     rlang::inform(c(i = "loading customer history"))
@@ -107,15 +115,16 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
     stream_customer_history <- stream_customer_history(read_cache("stream","stream"), 
                                                        by = by, 
                                                        before = since,
-                                                       pattern = fill_cols) %>% 
+                                                       pattern = paste0("^",fill_cols,"$")) %>% 
       .[timestamp < as_datetime(since - dyears())]
   }
   
   stream <- rbind(stream_customer_history,
                   stream_prev,
-                  stream, fill = T) %>% setkey(group_customer_no, timestamp)
+                  stream, fill = T) 
   
   rm(stream_prev,stream_customer_history)
+  setkey(stream, group_customer_no, timestamp)
   
   rlang::inform(c(i = "filling down"))
   # fill down
@@ -127,8 +136,20 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   
   rlang::inform(c(v = "writing cache"))
   # save
-  write_cache(stream[timestamp > since], "stream", "stream", partition = "year", sync = FALSE, 
-              incremental = TRUE, date_column = "timestamp")
+  args <- list(x = stream[timestamp >= since],
+               table_name = "stream",
+               type = "stream",
+               partition = "year",
+               sync = FALSE,
+               incremental = incremental, num_tries = 1)
+  
+  if(incremental) {
+    args$date_column = "timestamp"
+  } else {
+    args$overwrite = TRUE
+  }
+  
+  do.call(write_cache, args)
 }
 
 #' @describeIn stream construct windowed features for columns in `stream_cols`, using a list of [lubridate::period], 
@@ -136,7 +157,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
 #' @param windows [lubridate::period] vector that determines the offsets used when constructing the windowed features.
 stream_window_features <- function(stream, window_cols = setdiff(colnames(stream), 
                                                                  c("group_customer_no","timestamp")),
-                                   windows = NULL, by = "group_customer_no") {
+                                   windows = NULL, by = "group_customer_no", ...) {
   
   timestamp <- NULL
   

@@ -170,12 +170,16 @@ stream_window_features <- function(stream, window_cols = setdiff(colnames(stream
     # sort windows
     windows <- windows[order(purrr::map_dbl(windows, as.numeric))]
   }
-
+  
   for (window in windows) {
     # loop by column to reduce memory footprint
     for (col in window_cols) {
+      setkey(stream, group_customer_no, timestamp)
+      
       # rolling join with adjusted stream
-      stream_rolled = copy(stream[,c(col,by,"timestamp"),with=F])[,timestamp := timestamp + window]
+      stream_rolled = stream[,c(col,by,"timestamp"),with=F] %>% 
+        stream_debounce("group_customer_no","timestamp") %>% 
+        .[,timestamp := timestamp + window]
       stream <- stream_rolled[stream, on = c(by, "timestamp"), roll = Inf]
       
       # rename columns... i. columns are the original ones...

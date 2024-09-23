@@ -22,7 +22,7 @@ test_that("stream combines multiple streams into one", {
   stub(stream, "sync_cache", NULL)
   stub(stream, "cache_exists_any", FALSE)
   
-  stream(streams = c("stream_a","stream_b"))
+  suppressMessages(stream(streams = c("stream_a","stream_b")))
   
   expect_length(mock_args(stream_chunk_write),1)
   expect_equal(nrow(mock_args(stream_chunk_write)[[1]][[1]]),n*2)
@@ -48,7 +48,7 @@ test_that("stream works with mixed POSIXct/Date timestamps", {
   stub(stream, "sync_cache", NULL)
   stub(stream, "cache_exists_any", FALSE)
   
-  stream(streams = c("stream_a","stream_b"))
+  suppressMessages(stream(streams = c("stream_a","stream_b")))
   
   expect_length(mock_args(stream_chunk_write),1)
   expect_equal(nrow(mock_args(stream_chunk_write)[[1]][[1]]),n*2)
@@ -74,7 +74,7 @@ test_that("stream writes out partitioned dataset", {
   stub(stream, "sync_cache", NULL)
   stub(stream, "cache_exists_any", FALSE)
   
-  stream(streams = c("stream_a","stream_b"))
+  suppressMessages(stream(streams = c("stream_a","stream_b")))
   
   expect_length(mock_args(stream_chunk_write),2)
   expect_equal(nrow(mock_args(stream_chunk_write)[[1]][[1]])+
@@ -104,7 +104,7 @@ test_that("stream updates the existing dataset", {
   stub(stream, "sync_cache", NULL)
   stub(stream, "cache_exists_any", TRUE)
 
-  stream(streams = c("stream_a","stream_b"))
+  suppressMessages(stream(streams = c("stream_a","stream_b")))
   
   stream <- rbindlist(list(collect(stream_a),collect(stream_b)),fill=T)
   stream_cache <- stream_cache %>% collect 
@@ -136,7 +136,7 @@ test_that("stream rebuilds the whole dataset if `rebuild=TRUE`", {
   stub(stream, "sync_cache", NULL)
   stub(stream, "cache_exists_any", TRUE)
 
-  stream(streams = c("stream_a","stream_b"), rebuild = TRUE)
+  suppressMessages(stream(streams = c("stream_a","stream_b"), rebuild = TRUE))
   
   stream <- rbindlist(list(collect(stream_a),collect(stream_b)),fill=T)
   stream_cache <- stream_cache %>% collect 
@@ -163,7 +163,7 @@ test_that("stream_chunk_write fills down all selected columns by group", {
   stub(stream_chunk_write, "write_cache", write_cache)
   stub(stream_chunk_write, "cache_exists_any", F)
 
-  stream_chunk_write(copy(stream), fill_cols = c("feature_b"))
+  suppressMessages(stream_chunk_write(copy(stream), fill_cols = c("feature_b")))
   stream_actual <- mock_args(write_cache)[[1]][[1]]
   
   setkey(stream,group_customer_no,timestamp)
@@ -198,7 +198,7 @@ test_that("stream_chunk_write loads historical data", {
   stub(stream_chunk_write, "stream_customer_history", data.table(timestamp = as_datetime("2021-01-01"),
                                                                          group_customer_no = 1,
                                                                          pk = "x"))
-  stream_chunk_write(copy(stream))
+  suppressMessages(stream_chunk_write(copy(stream)))
   
   stream_actual <- mock_args(write_cache)[[1]][[1]]
   setkey(stream_actual, group_customer_no, timestamp)
@@ -221,16 +221,16 @@ test_that("stream_chunk_write done once is the same as doing it multiple times",
                        pk = sample(c(NA,"c"),n,replace=T),
                        year = 2023) 
   
-  stream_chunk_write(copy(stream))
+  suppressMessages(stream_chunk_write(copy(stream)))
   
   stream_full <- read_cache("stream","stream") %>% collect %>% setDT()
   
   suppressMessages(withr::deferred_run())
   tessilake::local_cache_dirs()
   
-  stream_chunk_write(stream[timestamp < as.POSIXct("2023-07-01")])
-  expect_warning(stream_chunk_write(stream[timestamp >= as.POSIXct("2023-07-01")]),
-                 "primary_keys not given")
+  suppressMessages(stream_chunk_write(stream[timestamp < as_datetime("2023-07-01")]))
+  suppressMessages(expect_warning(stream_chunk_write(stream[timestamp >= as_datetime("2023-07-01")]),
+                 "primary_keys not given"))
   
   stream_part <- read_cache("stream","stream") %>% collect %>% setDT()
   

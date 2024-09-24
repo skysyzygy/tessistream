@@ -80,7 +80,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
                        incremental = incremental, windows = windows, ...)
     
     stream_max_date = partition$timestamp
-    
+    gc()
   }
   
   sync_cache("stream", "stream", overwrite = TRUE)
@@ -110,41 +110,46 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   assert_names(colnames(stream), must.include = c(by,"timestamp", fill_cols))
   assert_posixct(since,len=1)
   assert_character(by,len=1)
-
+  
+  # load the last row per customer for filling down
   stream_prev <- stream_customer_history <- data.table()
   if(cache_exists_any("stream","stream")) {
     
-    rlang::inform(c(i = "loading previous year"))
-    # load data from prior year for windowing
-    stream_prev <- read_cache("stream", "stream") %>% 
-      filter(as_datetime(timestamp) >= as_datetime(since - dyears()) & 
-               as_datetime(timestamp) < as_datetime(since)) %>% 
-      select(all_of(c(by,"timestamp")),matches(paste0("^",fill_cols,"$"))) %>% 
-      collect %>% setDT
-    
     rlang::inform(c(i = "loading customer history"))
-    # and the last row per customer for filling down
     stream_customer_history <- stream_customer_history(read_cache("stream","stream"), 
                                                        by = by, 
                                                        before = since,
-                                                       pattern = paste0("^",fill_cols,"$")) %>% 
-      .[timestamp < as_datetime(since - dyears())]
+                                                       pattern = paste0("^",fill_cols,"$"))
   }
   
   stream <- rbind(stream_customer_history,
-                  stream_prev,
                   stream, fill = T) 
-  
-  rm(stream_prev,stream_customer_history)
+  rm(stream_customer_history)
   setkey(stream, group_customer_no, timestamp)
   
   rlang::inform(c(i = "filling down"))
   # fill down
   setnafill(stream, type = "locf", cols = fill_cols, by = by)
   
+  # load the last year for windowing
+  if(cache_exists_any("stream","stream")) {
+    
+    rlang::inform(c(i = "loading previous year"))
+    stream_prev <- read_cache("stream", "stream") %>% 
+      filter(as_datetime(timestamp) >= as_datetime(since - dyears()) & 
+               as_datetime(timestamp) < as_datetime(since)) %>% 
+      select(all_of(c(by,"timestamp")),matches(paste0("^",fill_cols,"$"))) %>% 
+      collect %>% setDT
+  }
+  
+  stream <- rbind(stream_prev,
+                  stream[timestamp >= since], fill=T)
+  rm(stream_prev)
+  setkey(stream, group_customer_no, timestamp)
+  
   rlang::inform(c(i = "windowing"))
   # window
-  stream <- stream_window_features(stream, window_cols = window_cols, by = by, ...)
+  stream <- stream_window_features(stream, window_cols = window_cols, by = by, since = since, ...)
   
   rlang::inform(c(v = "writing cache"))
   # save
@@ -169,6 +174,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
 #' @param windows [lubridate::period] vector that determines the offsets used when constructing the windowed features.
 stream_window_features <- function(stream, window_cols = setdiff(colnames(stream), 
                                                                  c(by,"timestamp")),
+                                   since = min(stream$timestamp),
                                    windows = NULL, by = "group_customer_no", ...) {
   
   timestamp <- NULL
@@ -185,7 +191,7 @@ stream_window_features <- function(stream, window_cols = setdiff(colnames(stream
   
   setkey(stream, group_customer_no, timestamp)
   stream_window <- stream[,c(by,"timestamp",window_cols),with=F]
-  stream_key <- stream[,c(by,"timestamp"),with=F]
+  stream_key <- stream[timestamp >= since,c(by,"timestamp"),with=F]
   
   for (window in windows) {
     # loop by column to reduce memory footprint
@@ -199,7 +205,8 @@ stream_window_features <- function(stream, window_cols = setdiff(colnames(stream
       
       # subtract columns and add to stream
       new_cols <- paste0(window_cols, ".-", as.numeric(window)/86400)
-      stream[,(new_cols) := purrr::map(window_cols, \(col) get(col)-stream_rolled[,get(col)])]
+      stream[timestamp >= since,
+             (new_cols) := purrr::map(window_cols, \(col) get(col)-stream_rolled[,get(col)])]
     #}
   }
   
@@ -212,7 +219,8 @@ stream_window_features <- function(stream, window_cols = setdiff(colnames(stream
     new_cols <- paste0(window_cols, ".-", as.numeric(window)/86400)
     prev_cols <- paste0(window_cols, ".-", as.numeric(prev_window)/86400)
     
-    stream[,(new_cols) := purrr::map2(new_cols, prev_cols, \(.x,.y) get(.x)-get(.y))]
+    stream[timestamp >= since,
+           (new_cols) := purrr::map2(new_cols, prev_cols, \(.x,.y) get(.x)-get(.y))]
   }
   
   stream

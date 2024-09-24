@@ -32,6 +32,7 @@ stream_chunk_write(
 stream_window_features(
   stream,
   window_cols = setdiff(colnames(stream), c(by, "timestamp")),
+  since = min(stream$timestamp),
   windows = NULL,
   by = "group_customer_no",
   ...

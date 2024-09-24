@@ -190,24 +190,19 @@ stream_window_features <- function(stream, window_cols = setdiff(colnames(stream
   }
   
   setkey(stream, group_customer_no, timestamp)
-  stream_window <- stream[,c(by,"timestamp",window_cols),with=F]
+  stream_window <- stream[,c(by,"timestamp",window_cols),with=F] %>% 
+    stream_debounce(by,"timestamp")
   stream <- stream[timestamp >= since]
   stream_key <- stream[,c(by,"timestamp"),with=F]
   
   for (window in windows) {
-    # loop by column to reduce memory footprint
-    #for (col in window_cols) {
-
       # rolling join with adjusted stream
-      stream_rolled = stream_window %>% 
-        stream_debounce(by,"timestamp") %>% 
-        .[,timestamp := timestamp + window]
+      stream_rolled = copy(stream_window) %>% .[,timestamp := timestamp + window]
       stream_rolled <- stream_rolled[stream_key, on = c(by, "timestamp"), roll = Inf]
       
       # subtract columns and add to stream
       new_cols <- paste0(window_cols, ".-", as.numeric(window)/86400)
       stream[,(new_cols) := purrr::map(window_cols, \(col) get(col)-stream_rolled[,get(col)])]
-    #}
   }
   
   # work backwards through windowed features and subtract each from the next (lower offset) to 

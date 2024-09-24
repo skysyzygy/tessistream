@@ -10,7 +10,7 @@ stream(
   streams = c("email_stream", "ticket_stream", "contribution_stream",
     "membership_stream", "ticket_future_stream", "address_stream"),
   fill_match =
-    "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min)",
+    "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min|last)",
   window_match = "^(email|ticket|contribution|membership|ticket|address).+(count|amt)$",
   chunk_size = 1e+06,
   rebuild = FALSE,
@@ -43,6 +43,8 @@ stream_window_features(
 \item{fill_match}{\href{1}{character} regular expression to use when matching columns to fill down}
 
 \item{window_match}{\href{1}{character} regular expression to use when matching columns to window}
+
+\item{chunk_size}{\href{1}{integer} number of rows to include in each partition of the dataset}
 
 \item{rebuild}{\href{1}{logical} whether or not to rebuild the whole dataset (\code{TRUE}) or just append to the end of it (\code{FALSE})}
 

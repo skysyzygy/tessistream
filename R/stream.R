@@ -65,8 +65,15 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
                        .[,timestamp := lubridate::as_datetime(timestamp)]) %>%
       rbindlist(idcol = "stream", fill = T) %>% .[,year := .year]
     
+    if(nrow(stream) == 0) {
+      since = stream_max_date
+    } else {
+      since = min(stream$timestamp)
+    }
+    
     # do the filling and windowing
     stream_chunk_write(stream, fill_cols = fill_cols, window_cols = window_cols,
+                       since = since,
                        incremental = incremental, windows = windows, ...)
     
   }

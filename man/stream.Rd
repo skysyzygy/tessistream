@@ -12,6 +12,7 @@ stream(
   fill_match =
     "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min)",
   window_match = "^(email|ticket|contribution|membership|ticket|address).+(count|amt)$",
+  chunk_size = 1e+06,
   rebuild = FALSE,
   incremental = !rebuild,
   windows = lapply(c(1, 7, 30, 90, 365), lubridate::period, units = "day"),
@@ -66,8 +67,8 @@ stream dataset as an \link[arrow:Table-class]{arrow::Table}
 }
 \description{
 Combine all streams named in \code{streams} into a single dataset, filling down columns matched by \code{fill_match} and
-creating windowed features for columns matched by \code{window_match} and using \code{windows}
-as offsets. The full dataset is rebuilt if \code{rebuild} is \code{TRUE} (default: \code{FALSE}), and data is appended to the
+creating windowed features using \code{windows} as offsets for columns matched by \code{window_match}.
+The full dataset is rebuilt if \code{rebuild} is \code{TRUE} (default: \code{FALSE}), and data is appended to the
 existing cache if \code{incremental} is \code{TRUE} (default: \code{TRUE})
 }
 \section{Functions}{

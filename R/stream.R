@@ -3,8 +3,8 @@
 #' stream
 #' 
 #' Combine all streams named in `streams` into a single dataset, filling down columns matched by `fill_match` and 
-#' creating windowed features for columns matched by `window_match` and using `windows` 
-#' as offsets. The full dataset is rebuilt if `rebuild` is `TRUE` (default: `FALSE`), and data is appended to the
+#' creating windowed features using `windows` as offsets for columns matched by `window_match`. 
+#' The full dataset is rebuilt if `rebuild` is `TRUE` (default: `FALSE`), and data is appended to the
 #' existing cache if `incremental` is `TRUE` (default: `TRUE`)
 #'
 #' @param streams [character] vector of streams to combine
@@ -16,7 +16,7 @@
 #' @importFrom dplyr collect filter transmute
 #' @importFrom tessilake read_cache cache_exists_any write_cache sync_cache
 #' @importFrom checkmate assert_character assert_logical assert_list
-#' @importFrom lubridate year as_datetime
+#' @importFrom lubridate as_datetime
 #' @param ... not used
 #' @return stream dataset as an [arrow::Table]
 #' @export
@@ -24,6 +24,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
                                 "membership_stream","ticket_future_stream","address_stream"),
                    fill_match = "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min)",
                    window_match = "^(email|ticket|contribution|membership|ticket|address).+(count|amt)$",
+                   chunk_size = 1e6,
                    rebuild = FALSE, 
                    incremental = !rebuild, 
                    windows = lapply(c(1,7,30,90,365),
@@ -49,32 +50,34 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
   if(cache_exists_any("stream","stream") & !rebuild) 
     stream_max_date <- read_cache("stream","stream") %>% summarise(max(timestamp)) %>% collect() %>% .[[1]]
   
-  years <- lapply(streams, \(stream) transmute(stream, year = year(timestamp)) %>% collect) %>% 
-    rbindlist %>% setkey(year) %>% .[year >= year(stream_max_date), unique(year)]
+  timestamps <- lapply(streams, \(stream) transmute(stream, timestamp = as_datetime(timestamp)) %>% collect) %>% 
+    rbindlist %>% setkey(timestamp) %>% .[,partition := rep(seq_len(.N), each = chunk_size, 
+                                                            length.out = .N)]
   
-  for(.year in years) {
+  partitions <- timestamps[!is.na(timestamp) & 
+                             timestamp > stream_max_date,.(timestamp = max(timestamp)),by="partition"]
+  rm(timestamps)
+  
+  for(partition in split(partitions, partitions$partition)) {
     
-    rlang::inform(paste("Building stream for",.year))
+    rlang::inform(c(paste("Building stream to date",partition$timestamp),
+                    "i" = "loading data"))
     
     # load data from streams
     stream <- lapply(streams, \(stream) filter(stream, timestamp > as_datetime(stream_max_date) & 
-                                                 year(timestamp) == .year) %>% 
+                                                       timestamp <= as_datetime(partition$timestamp)) %>% 
                        mutate(timestamp_id = arrow:::cast(lubridate::as_datetime(timestamp), 
                                                           arrow::int64())) %>%
                        collect %>% setDT %>% 
                        .[,timestamp := lubridate::as_datetime(timestamp)]) %>%
-      rbindlist(idcol = "stream", fill = T) %>% .[,year := .year]
-    
-    if(nrow(stream) == 0) {
-      since = stream_max_date
-    } else {
-      since = min(stream$timestamp)
-    }
+      rbindlist(idcol = "stream", fill = T) %>% .[,partition := partition$partition]
     
     # do the filling and windowing
     stream_chunk_write(stream, fill_cols = fill_cols, window_cols = window_cols,
-                       since = since,
+                       since = stream_max_date,
                        incremental = incremental, windows = windows, ...)
+    
+    stream_max_date = partition$timestamp
     
   }
   
@@ -146,7 +149,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   args <- list(x = stream[timestamp >= since],
                table_name = "stream",
                type = "stream",
-               partition = "year",
+               partition = "partition",
                sync = FALSE,
                incremental = incremental, num_tries = 1)
   
@@ -178,23 +181,24 @@ stream_window_features <- function(stream, window_cols = setdiff(colnames(stream
     windows <- windows[order(purrr::map_dbl(windows, as.numeric))]
   }
   
+  setkey(stream, group_customer_no, timestamp)
+  stream_window <- stream[,c(by,"timestamp",window_cols),with=F]
+  stream_key <- stream[,c(by,"timestamp"),with=F]
+  
   for (window in windows) {
     # loop by column to reduce memory footprint
-    for (col in window_cols) {
-      setkey(stream, group_customer_no, timestamp)
-      
+    #for (col in window_cols) {
+
       # rolling join with adjusted stream
-      stream_rolled = stream[,c(col,by,"timestamp"),with=F] %>% 
-        stream_debounce("group_customer_no","timestamp") %>% 
+      stream_rolled = stream_window %>% 
+        stream_debounce(by,"timestamp") %>% 
         .[,timestamp := timestamp + window]
-      stream <- stream_rolled[stream, on = c(by, "timestamp"), roll = Inf]
+      stream_rolled <- stream_rolled[stream_key, on = c(by, "timestamp"), roll = Inf]
       
-      # rename columns... i. columns are the original ones...
-      new_col <- paste0(col, ".-", as.numeric(window)/86400)
-      setnames(stream, col, new_col)
-      setnames(stream, paste0("i.",col), col)
-      stream[,(new_col) := purrr::map2(col, new_col, \(.x,.y) get(.x)-get(.y))]
-    }
+      # subtract columns and add to stream
+      new_cols <- paste0(window_cols, ".-", as.numeric(window)/86400)
+      stream[,(new_cols) := purrr::map(window_cols, \(col) get(col)-stream_rolled[,get(col)])]
+    #}
   }
   
   # work backwards through windowed features and subtract each from the next (lower offset) to 

@@ -232,7 +232,7 @@ email_subtype_features <- function(email_stream) {
       filter(group_customer_no %in% group_customer_nos$group_customer_no) %>%
       stream_customer_history("group_customer_no",
                               before = min_timestamp,
-                              pattern = "(count|min|max)$")
+                              pattern = "count|min|max$")
   } else {
     group_customer_nos
   }

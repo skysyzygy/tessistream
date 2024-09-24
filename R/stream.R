@@ -191,7 +191,8 @@ stream_window_features <- function(stream, window_cols = setdiff(colnames(stream
   
   setkey(stream, group_customer_no, timestamp)
   stream_window <- stream[,c(by,"timestamp",window_cols),with=F]
-  stream_key <- stream[timestamp >= since,c(by,"timestamp"),with=F]
+  stream <- stream[timestamp >= since]
+  stream_key <- stream[,c(by,"timestamp"),with=F]
   
   for (window in windows) {
     # loop by column to reduce memory footprint
@@ -205,8 +206,7 @@ stream_window_features <- function(stream, window_cols = setdiff(colnames(stream
       
       # subtract columns and add to stream
       new_cols <- paste0(window_cols, ".-", as.numeric(window)/86400)
-      stream[timestamp >= since,
-             (new_cols) := purrr::map(window_cols, \(col) get(col)-stream_rolled[,get(col)])]
+      stream[,(new_cols) := purrr::map(window_cols, \(col) get(col)-stream_rolled[,get(col)])]
     #}
   }
   
@@ -219,8 +219,7 @@ stream_window_features <- function(stream, window_cols = setdiff(colnames(stream
     new_cols <- paste0(window_cols, ".-", as.numeric(window)/86400)
     prev_cols <- paste0(window_cols, ".-", as.numeric(prev_window)/86400)
     
-    stream[timestamp >= since,
-           (new_cols) := purrr::map2(new_cols, prev_cols, \(.x,.y) get(.x)-get(.y))]
+    stream[,(new_cols) := purrr::map2(new_cols, prev_cols, \(.x,.y) get(.x)-get(.y))]
   }
   
   stream

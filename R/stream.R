@@ -112,7 +112,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   assert_character(by,len=1)
   
   # load the last row per customer for filling down
-  stream_prev <- stream_customer_history <- data.table()
+  stream_customer_history <- stream_prev <- data.table()
   if(cache_exists_any("stream","stream")) {
     
     rlang::inform(c(i = "loading customer history"))
@@ -132,7 +132,10 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   setnafill(stream, type = "locf", cols = fill_cols, by = by)
   
   # load the last year for windowing
-  if(cache_exists_any("stream","stream")) {
+  if (exists("stream_prev", envir = parent.frame()))
+    stream_prev <- get("stream_prev", envir = parent.frame())
+  
+  if(cache_exists_any("stream","stream") & nrow(stream_prev) == 0) {
     
     rlang::inform(c(i = "loading previous year"))
     stream_prev <- read_cache("stream", "stream") %>% 
@@ -140,11 +143,11 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
                as_datetime(timestamp) < as_datetime(since)) %>% 
       select(all_of(c(by,"timestamp")),matches(paste0("^",fill_cols,"$"))) %>% 
       collect %>% setDT
+  
   }
   
   stream <- rbind(stream_prev,
                   stream[timestamp >= since], fill=T)
-  rm(stream_prev)
   setkey(stream, group_customer_no, timestamp)
   
   rlang::inform(c(i = "windowing"))
@@ -166,7 +169,12 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
     args$overwrite = TRUE
   }
   
+  # stash stream as stream_prev to avoid reload
+  assign("stream_prev", rbind(stream_prev, stream, fill = T)[timestamp >= since - dyears()], 
+         envir = parent.frame())
+  
   do.call(write_cache, args)
+
 }
 
 #' @describeIn stream construct windowed features for columns in `stream_cols`, using `windows`, 

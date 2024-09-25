@@ -268,6 +268,7 @@ test_that("stream_chunk_write done once is the same as doing it multiple times",
   
   suppressMessages(withr::deferred_run())
   tessilake::local_cache_dirs()
+  rm(stream_prev)
 
   suppressMessages(stream_chunk_write(stream[timestamp < as_datetime("2023-07-01")], 
                                       fill_cols = "feature_a",

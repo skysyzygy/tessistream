@@ -134,6 +134,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   setnafill(stream, type = "locf", cols = fill_cols, by = by)
   
   # load the last year for windowing
+  # optimization: load from cached stream_prev
   if (exists("stream_prev", envir = parent.frame()))
     stream_prev <- get("stream_prev", envir = parent.frame())
   
@@ -149,6 +150,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   }
   
   stream <- rbind(stream_prev,
+  # optimization: remove customer history before windowing
                   stream[timestamp >= since], fill=T)
   setkey(stream, group_customer_no, timestamp)
   
@@ -171,7 +173,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
     args$overwrite = TRUE
   }
   
-  # stash stream as stream_prev to avoid reload
+  # optimization: stash stream as stream_prev to avoid reload
   assign("stream_prev", rbind(stream_prev, stream, fill = T)[timestamp >= since - dyears()], 
          envir = parent.frame())
   

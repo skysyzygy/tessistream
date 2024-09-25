@@ -48,6 +48,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
     grep(pattern = fill_match, ignore.case = T, perl = T, value = T)
   window_cols <- fill_cols %>% grep(pattern = window_match, ignore.case = T, perl = T, value = T)
   
+  # plan partitions
   stream_max_date <- as_datetime("1900-01-01")
   if(cache_exists_any("stream","stream") & !rebuild) 
     stream_max_date <- read_cache("stream","stream") %>% summarise(max(timestamp)) %>% collect() %>% .[[1]]
@@ -55,10 +56,21 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
   timestamps <- lapply(streams, \(stream) transmute(stream, timestamp = as_datetime(timestamp)) %>% collect) %>% 
     rbindlist %>% setkey(timestamp) %>% .[,partition := rep(seq_len(.N), each = chunk_size, 
                                                             length.out = .N)]
-  
   partitions <- timestamps[!is.na(timestamp) & 
                              timestamp > stream_max_date,.(timestamp = max(timestamp)),by="partition"]
   rm(timestamps)
+  
+  # load previous year of data if it exists
+  stream_prev <- arrow::arrow_table(timestamp = lubridate::POSIXct())
+  if(cache_exists_any("stream","stream")) {
+    
+    rlang::inform(c(i = "loading previous year"))
+    stream_prev <- read_cache("stream", "stream") %>% 
+      filter(as_datetime(timestamp) >= as_datetime(stream_max_date - dyears()) & 
+               as_datetime(timestamp) <= as_datetime(stream_max_date)) %>% 
+      select(all_of(c("group_customer_no","timestamp")),matches(window_match)) 
+    
+  }
   
   for(partition in split(partitions, partitions$partition)) {
     
@@ -75,11 +87,17 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
       rbindlist(idcol = "stream", fill = T) %>% .[,partition := partition$partition]
     
     # do the filling and windowing
-    stream_chunk_write(stream, fill_cols = fill_cols, window_cols = window_cols,
-                       since = stream_max_date,
+    stream <- stream_chunk_write(stream, fill_cols = fill_cols, window_cols = window_cols,
+                       since = stream_max_date, stream_prev = stream_prev, 
                        incremental = incremental, windows = windows, ...)
     
+    # update the max date of the stream and the previous data for the next loop iteration
     stream_max_date = partition$timestamp
+    
+    stream_prev <- arrow::concat_tables(stream_prev %>% filter(timestamp >= stream_max_date - dyears()) %>% 
+                                          compute, 
+                                        arrow::as_arrow_table(stream))
+    
     gc()
   }
   
@@ -89,18 +107,18 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
 
 
 #' @describeIn stream Fill down cols in `stream_cols` and add windowed features to `stream` for timestamps after `since`.
-#' @note [stream_chunk_write] adds a `stream_prev` variable to its parent.frame for caching of historical data; calling
-#'  [stream_chunk_write] in a non-sequential manner or from the GlobalEnv may produce unexpected results!
 #' @importFrom checkmate assert_data_table assert_names assert_posixct assert_character assert_list
 #' @importFrom lubridate as_datetime
 #' @param stream [data.table] data to process and write 
 #' @param fill_cols [character] columns to fill down 
+#' @param stream_prev [arrow::Table] last year of data to use for windowed features
 #' @param window_cols [character] columns to window
 #' @param since [POSIXct] only the data with timestamps greater than or equal to `since` will be written
 #' @param by [character](1) column name to group by for filling down and windowing
 stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
                                                              c(by, "timestamp")),
                                window_cols = fill_cols,
+                               stream_prev = arrow::as_arrow_table(stream[0]), 
                                since = as_datetime(min(stream$timestamp)), 
                                by = "group_customer_no",
                                incremental = TRUE,
@@ -114,7 +132,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   assert_character(by,len=1)
   
   # load the last row per customer for filling down
-  stream_customer_history <- stream_prev <- data.table()
+  stream_customer_history <- data.table()
   if(cache_exists_any("stream","stream")) {
     
     rlang::inform(c(i = "loading customer history"))
@@ -133,23 +151,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
   # fill down
   setnafill(stream, type = "locf", cols = fill_cols, by = by)
   
-  # load the last year for windowing
-  # optimization: load from cached stream_prev
-  if (exists("stream_prev", envir = parent.frame()))
-    stream_prev <- get("stream_prev", envir = parent.frame())
-  
-  if(cache_exists_any("stream","stream") & nrow(stream_prev) == 0) {
-    
-    rlang::inform(c(i = "loading previous year"))
-    stream_prev <- read_cache("stream", "stream") %>% 
-      filter(as_datetime(timestamp) >= as_datetime(since - dyears()) & 
-               as_datetime(timestamp) < as_datetime(since)) %>% 
-      select(all_of(c(by,"timestamp")),matches(paste0("^",fill_cols,"$"))) %>% 
-      collect %>% setDT
-  
-  }
-  
-  stream <- rbind(stream_prev,
+  stream <- rbind(stream_prev %>% collect %>% setDT,
   # optimization: remove customer history before windowing
                   stream[timestamp >= since], fill=T)
   setkey(stream, group_customer_no, timestamp)
@@ -173,11 +175,9 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
     args$overwrite = TRUE
   }
   
-  # optimization: stash stream as stream_prev to avoid reload
-  assign("stream_prev", rbind(stream_prev, stream, fill = T)[timestamp >= since - dyears()], 
-         envir = parent.frame())
-  
   do.call(write_cache, args)
+  
+  stream[timestamp >= since]
 
 }
 

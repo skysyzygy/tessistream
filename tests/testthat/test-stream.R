@@ -16,7 +16,7 @@ test_that("stream combines multiple streams into one", {
                          pk = sample(seq(n),n)) 
   
   read_cache <- mock(stream_a, stream_b)
-  stream_chunk_write <- mock()
+  stream_chunk_write <- mock(data.table())
   stub(stream, "read_cache", read_cache)
   stub(stream, "stream_chunk_write", stream_chunk_write)
   stub(stream, "sync_cache", NULL)
@@ -42,7 +42,7 @@ test_that("stream works with mixed POSIXct/Date timestamps", {
                                  pk = sample(seq(n),n)) 
   
   read_cache <- mock(stream_a, stream_b)
-  stream_chunk_write <- mock()
+  stream_chunk_write <- mock(data.table())
   stub(stream, "read_cache", read_cache)
   stub(stream, "stream_chunk_write", stream_chunk_write)
   stub(stream, "sync_cache", NULL)
@@ -68,7 +68,7 @@ test_that("stream writes out partitioned dataset", {
                                  pk = sample(seq(n),n)) 
   
   read_cache <- mock(stream_a, stream_b)
-  stream_chunk_write <- mock()
+  stream_chunk_write <- mock(data.table(), cycle = T)
   stub(stream, "read_cache", read_cache)
   stub(stream, "stream_chunk_write", stream_chunk_write)
   stub(stream, "sync_cache", NULL)
@@ -100,8 +100,8 @@ test_that("stream updates the existing dataset", {
                                      timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2022-08-31"),by="day"),
                                                         n,replace=T))
   
-  read_cache <- mock(stream_a, stream_b, stream_cache)
-  stream_chunk_write <- mock()
+  read_cache <- mock(stream_a, stream_b, stream_cache, stream_cache)
+  stream_chunk_write <- mock(data.table(), cycle = T)
   stub(stream, "read_cache", read_cache)
   stub(stream, "stream_chunk_write", stream_chunk_write)
   stub(stream, "sync_cache", NULL)
@@ -133,7 +133,7 @@ test_that("stream rebuilds the whole dataset if `rebuild=TRUE`", {
                                                         n,replace=T))
   
   read_cache <- mock(stream_a, stream_b, stream_cache)
-  stream_chunk_write <- mock()
+  stream_chunk_write <- mock(data.table(), cycle = TRUE)
   stub(stream, "read_cache", read_cache)
   stub(stream, "stream_chunk_write", stream_chunk_write)
   stub(stream, "sync_cache", NULL)
@@ -268,14 +268,14 @@ test_that("stream_chunk_write done once is the same as doing it multiple times",
   
   suppressMessages(withr::deferred_run())
   tessilake::local_cache_dirs()
-  rm(stream_prev)
 
-  suppressMessages(stream_chunk_write(stream[timestamp < as_datetime("2023-07-01")], 
+  stream_prev <- suppressMessages(stream_chunk_write(stream[timestamp < as_datetime("2023-07-01")], 
                                       fill_cols = "feature_a",
                                       windows = lapply(c(1,5),lubridate::period,units="day")))
   
   suppressMessages(expect_warning(stream_chunk_write(stream[timestamp >= as_datetime("2023-07-01")], 
                                                      fill_cols = "feature_a",
+                                                     stream_prev = stream_prev,
                                                      windows = lapply(c(1,5),lubridate::period,units="day")),
                  "primary_keys not given"))
   

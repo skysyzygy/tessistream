@@ -88,7 +88,9 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
 }
 
 
-#' @describeIn stream Fill down cols in `stream_cols` and add windowed features to `stream` for timestamps after `since`
+#' @describeIn stream Fill down cols in `stream_cols` and add windowed features to `stream` for timestamps after `since`.
+#' @note [stream_chunk_write] adds a `stream_prev` variable to its parent.frame for caching of historical data; calling
+#'  [stream_chunk_write] in a non-sequential manner or from the GlobalEnv may produce unexpected results!
 #' @importFrom checkmate assert_data_table assert_names assert_posixct assert_character assert_list
 #' @importFrom lubridate as_datetime
 #' @param stream [data.table] data to process and write 

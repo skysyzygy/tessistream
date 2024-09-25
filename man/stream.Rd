@@ -76,9 +76,13 @@ existing cache if \code{incremental} is \code{TRUE} (default: \code{TRUE})
 }
 \section{Functions}{
 \itemize{
-\item \code{stream_chunk_write()}: Fill down cols in \code{stream_cols} and add windowed features to \code{stream} for timestamps after \code{since}
+\item \code{stream_chunk_write()}: Fill down cols in \code{stream_cols} and add windowed features to \code{stream} for timestamps after \code{since}.
 
 \item \code{stream_window_features()}: construct windowed features for columns in \code{stream_cols}, using \code{windows},
 a list of \link[lubridate:period]{lubridate::period}s as offsets, and grouped by \code{by}
 
 }}
+\note{
+\link{stream_chunk_write} adds a \code{stream_prev} variable to its parent.frame for caching of historical data; calling
+\link{stream_chunk_write} in a non-sequential manner or from the GlobalEnv may produce unexpected results!
+}

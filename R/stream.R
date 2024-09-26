@@ -48,10 +48,20 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
     grep(pattern = fill_match, ignore.case = T, perl = T, value = T)
   window_cols <- fill_cols %>% grep(pattern = window_match, ignore.case = T, perl = T, value = T)
   
-  # plan partitions
+  # load previous year of data if it exists
   stream_max_date <- as_datetime("1900-01-01")
-  if(cache_exists_any("stream","stream") & !rebuild) 
-    stream_max_date <- read_cache("stream","stream") %>% summarise(max(timestamp)) %>% collect() %>% .[[1]]
+  stream_prev <- arrow::arrow_table(timestamp = stream_max_date)
+  if(cache_exists_any("stream","stream")) {
+    
+    rlang::inform(c(i = "loading previous year"))
+    stream_prev <- read_cache("stream", "stream")
+  
+  }
+  
+  # plan partitions
+  rlang::inform(c(i = "planning partitions"))
+  if(!rebuild) 
+    stream_max_date <- stream_prev %>% summarise(max(timestamp)) %>% collect() %>% .[[1]]
   
   timestamps <- lapply(streams, \(stream) transmute(stream, timestamp = as_datetime(timestamp)) %>% collect) %>% 
     rbindlist %>% setkey(timestamp) %>% .[,partition := rep(seq_len(.N), each = chunk_size, 
@@ -60,18 +70,12 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
                              timestamp > stream_max_date,.(timestamp = max(timestamp)),by="partition"]
   rm(timestamps)
   
-  # load previous year of data if it exists
-  stream_prev <- arrow::arrow_table(timestamp = lubridate::POSIXct())
-  if(cache_exists_any("stream","stream")) {
+  # filter previous data to year before stream_max_date
+  stream_prev <- read_cache("stream", "stream") %>% 
+    filter(as_datetime(timestamp) >= as_datetime(stream_max_date - dyears()) & 
+             as_datetime(timestamp) <= as_datetime(stream_max_date)) %>% 
+    select(all_of(c("group_customer_no","timestamp")),matches(window_match)) 
     
-    rlang::inform(c(i = "loading previous year"))
-    stream_prev <- read_cache("stream", "stream") %>% 
-      filter(as_datetime(timestamp) >= as_datetime(stream_max_date - dyears()) & 
-               as_datetime(timestamp) <= as_datetime(stream_max_date)) %>% 
-      select(all_of(c("group_customer_no","timestamp")),matches(window_match)) 
-    
-  }
-  
   for(partition in split(partitions, partitions$partition)) {
     
     rlang::inform(c(paste("Building stream to date",partition$timestamp),

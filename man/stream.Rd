@@ -12,7 +12,7 @@ stream(
   fill_match =
     "^(email|ticket|contribution|membership|ticket|address).+(amt|level|count|max|min|last)",
   window_match = "^(email|ticket|contribution|membership|ticket|address).+(count|amt)$",
-  chunk_size = 1e+06,
+  chunk_size = 1e+07,
   rebuild = FALSE,
   incremental = !rebuild,
   windows = lapply(c(1, 7, 30, 90, 365), lubridate::period, units = "day"),
@@ -23,7 +23,6 @@ stream_chunk_write(
   stream,
   fill_cols = setdiff(colnames(stream), c(by, "timestamp")),
   window_cols = fill_cols,
-  stream_prev = arrow::as_arrow_table(stream[0]),
   since = as_datetime(min(stream$timestamp)),
   by = "group_customer_no",
   incremental = TRUE,
@@ -62,8 +61,6 @@ stream_window_features(
 
 \item{window_cols}{\link{character} columns to window}
 
-\item{stream_prev}{\link[arrow:Table-class]{arrow::Table} last year of data to use for windowed features}
-
 \item{since}{\link{POSIXct} only the data with timestamps greater than or equal to \code{since} will be written}
 
 \item{by}{\href{1}{character} column name to group by for filling down and windowing}
@@ -79,7 +76,7 @@ existing cache if \code{incremental} is \code{TRUE} (default: \code{TRUE})
 }
 \section{Functions}{
 \itemize{
-\item \code{stream_chunk_write()}: Fill down cols in \code{stream_cols} and add windowed features to \code{stream} for timestamps after \code{since}.
+\item \code{stream_chunk_write()}: Fill down cols in \code{stream_cols} and add windowed features to \code{stream} for timestamps after \code{since}
 
 \item \code{stream_window_features()}: construct windowed features for columns in \code{stream_cols}, using \code{windows},
 a list of \link[lubridate:period]{lubridate::period}s as offsets, and grouped by \code{by}

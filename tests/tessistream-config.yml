@@ -8,4 +8,4 @@ default:
     tessitura: "tessitura"
 
   tessistream:
-    survey_dir: !expr here::here("tests/testthat/survey_data")
+    survey_dir: !expr rprojroot::find_testthat_root_file("survey_data")

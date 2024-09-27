@@ -395,3 +395,24 @@ test_that("stream_customer_history only returns columns matching pattern",{
   expect_names(colnames(history), permutation.of = colnames(data)[-4])
 
 })
+
+test_that("stream_customer_history loads the last row from stream per column from an arrow table",{
+  num_rows <- 10000
+  data <- data.table(timestamp = as.POSIXct(runif(num_rows, as.POSIXct("2000-01-01"), Sys.time())),
+                     group_1 = sample(letters, num_rows, replace = TRUE),
+                     group_2 = sample(letters, num_rows, replace = TRUE),
+                     feature_1 = seq(num_rows),
+                     feature_2 = rep(LETTERS, length.out = num_rows)) %>% as_arrow_table()
+  
+  history <- stream_customer_history(data, by = c("group_1", "group_2")) %>% collect %>% setDT
+  data <- data %>% collect %>% setDT
+  
+  expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
+  expect_setequal(history$timestamp, data[,max(timestamp),by = c("group_1", "group_2")]$V1)
+  
+  history <- stream_customer_history(arrow::as_arrow_table(data), by = c("group_1", "group_2"))
+  
+  expect_equal(nrow(history), uniqueN(data, by = c("group_1", "group_2")))
+  expect_equal(sort(history$timestamp), sort(data[,max(timestamp),by = c("group_1", "group_2")]$V1),
+               tolerance = 1e-6, ignore_attr = "tzone")
+})

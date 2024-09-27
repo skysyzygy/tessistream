@@ -107,9 +107,12 @@ setnafill_group <- function(x, type = "locf", cols = seq_along(x), by = NA) {
   roll <- ifelse(type == "locf", Inf, -Inf)
 
   .x <- x
+  join_cols <- na.omit(c(by, "I"))
   lapply(cols, function(col) {
     idx <- is.na(.x[, col, with = FALSE][[1]])
-    .x[idx, (col) := .x[!idx][.x[idx], col, on = na.omit(c(by, "I")), roll = roll, with = FALSE]]
+    filled <- .x[!idx,c(join_cols,col),with=F] %>% 
+      .[.x[idx,join_cols, with = F], col, on = join_cols, roll = roll, with = FALSE]
+    .x[idx, (col) := filled]
   })
 
   x[, I := NULL]
@@ -316,7 +319,9 @@ stream_customer_history <- function(stream, by, before = as.POSIXct("2100-01-01"
   timestamp <- NULL
   assert_names(names(stream), must.include = c("timestamp", by))
 
-  stream <- stream %>% filter(timestamp < before)
+  stream <- stream %>% filter(timestamp < before) %>% 
+    select(all_of(c(by,"timestamp")),matches(pattern,...))
+  
   if (is.null(stream$timestamp_id)) {
     if (inherits(stream, c("ArrowTabular", "arrow_dplyr_query"))) {
       stream <- stream %>% mutate(timestamp_id = arrow:::cast(timestamp, arrow::int64()))
@@ -324,7 +329,6 @@ stream_customer_history <- function(stream, by, before = as.POSIXct("2100-01-01"
       stream <- stream %>% mutate(timestamp_id = timestamp)
     }
   }
-  stream <- compute(stream)
 
   stream_dates <- stream %>%
     select(all_of(c(by,"timestamp", "timestamp_id"))) %>%
@@ -332,12 +336,17 @@ stream_customer_history <- function(stream, by, before = as.POSIXct("2100-01-01"
     collect %>% setDT %>%
     setkeyv(c(by, "timestamp_id", "timestamp")) %>%
     stream_debounce(by)
-
-  if (nrow(stream_dates) > 0) {
-    stream <- stream %>% semi_join(stream_dates, by=c(by, "timestamp_id"))
-  }
-
-  stream %>% select(all_of(c(by,"timestamp")),matches(pattern,...)) %>%
+  
+  if(nrow(stream_dates) == 0)
+    return(arrow::arrow_table(schema = arrow::schema(stream)) %>% 
+             collect %>% setDT)
+    
+  if (inherits(stream, c("ArrowTabular","arrow_dplyr_query")))
+    stream_dates <- arrow::as_arrow_table(stream_dates)
+  
+  stream  %>%
+    semi_join(stream_dates, by=c(by, "timestamp_id")) %>%
+    select(-timestamp_id) %>% 
     collect %>% setDT
 
 }

@@ -1,7 +1,7 @@
 withr::local_package("checkmate")
 withr::local_package("mockery")
 
-suppressWarnings(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx")))
+suppressWarnings(survey_data <- survey_monkey(rprojroot::find_testthat_root_file("survey_data/Audience_Survey_Spring_2024.xlsx")))
 stream_from_audit <- data.table(address=paste0(seq(1000),"@bam.org"),timestamp=Sys.Date(),
                                  customer_no=10000+seq(1000),group_customer_no=100000+seq(1000),primary_ind="Y")
 
@@ -38,7 +38,7 @@ test_that("survey_find_column warns if more than one column meets the criterion"
 # survey_monkey -----------------------------------------------------------
 
 test_that("survey_monkey returns a data.table of survey data", {
-  expect_warning(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx")),
+  expect_warning(survey_data <- survey_monkey(rprojroot::find_testthat_root_file("survey_data/Audience_Survey_Spring_2024.xlsx")),
     "More than one column found")
   
   expect_data_table(survey_data)
@@ -46,7 +46,7 @@ test_that("survey_monkey returns a data.table of survey data", {
 })
 
 test_that("survey_monkey identifies emails and timestamp columns", {
-  expect_warning(survey_data <- survey_monkey(here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx")),
+  expect_warning(survey_data <- survey_monkey(rprojroot::find_testthat_root_file("survey_data/Audience_Survey_Spring_2024.xlsx")),
                  "More than one column found")
   
   expect_class(survey_data$timestamp,"POSIXct")
@@ -111,7 +111,7 @@ test_that("survey_stream returns a data.table", {
   
   expect_data_table(survey_stream)
   expect_names(colnames(survey_stream), permutation.of=c("customer_hash","group_customer_hash","timestamp","survey","question","subquestion","answer","filename"))
-  expect_equal(survey_stream$filename[1],here::here("tests/testthat/survey_data/Audience_Survey_Spring_2024.xlsx"))
+  expect_equal(survey_stream$filename[1],rprojroot::find_testthat_root_file("survey_data/Audience_Survey_Spring_2024.xlsx"))
 })
 
 test_that("survey_stream writes to a cache", {

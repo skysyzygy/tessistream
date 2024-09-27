@@ -38,7 +38,9 @@ address_clean <- function(address_col, pattern = "^(web add|unknown|no add)|^$")
 #' @importFrom checkmate assert_data_table assert_names
 address_normalize <- function(address_stream) {
   query <- formatted_address <- matched_address <- geometry.location_type <- street1_cleaned <- libpostal.house_number <-
-    libpostal.road <- libpostal.city <- libpostal.state <- libpostal.postcode <- libpostal.country <- NULL
+    libpostal.road <- libpostal.city <- libpostal.state <- libpostal.postcode <- libpostal.country <- libpostal.po_box <- 
+    libpostal.unit <- libpostal.house <- street2_cleaned <- country_cleaned <-
+    street1 <- city <- state <- postal_code <- country <- NULL
 
   assert_data_table(address_stream)
   assert_names(colnames(address_stream), must.include = address_cols)

@@ -388,6 +388,6 @@ email_stream <- function(from_date = as.POSIXct("1900-01-01"), to_date = now(), 
   }
   email_stream_chunk(from_date = dates[length(dates)], to_date = to_date)
 
-  sync_cache("email_stream","stream")
+  sync_cache("email_stream", "stream", partition = "year")
 }
 

@@ -84,7 +84,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
     gc()
   }
   
-  sync_cache("stream", "stream", overwrite = TRUE)
+  sync_cache("stream", "stream", overwrite = TRUE, partition = "partition")
   
 }
 

@@ -456,23 +456,27 @@ test_that("p2_update updates recent linkData based on campaign send date", {
   copy_to(tessistream$p2_db, name = "links", data.table(
     id = seq(100) %>% as.character(),
     campaignid = seq(100) %>% as.character(),
-    linkclicks = "1"
+    # first one won't get loaded because we already have all the clicks 
+    # in linkData below
+    linkclicks = c("1",rep("2",99))
   ))
   copy_to(tessistream$p2_db, name = "campaigns", data.table(
     id=seq(10) %>% as.character(),
     sdate=now() %>% as.character())
   )
   copy_to(tessistream$p2_db, name = "logs", data.table(id=seq(100)))
-  copy_to(tessistream$p2_db, name = "linkData", data.table(id=seq(100)))
-  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(id=seq(100)))
+  copy_to(tessistream$p2_db, name = "linkData", data.table(linkid=seq(100),
+                                                           times = 1))
+  copy_to(tessistream$p2_db, name = "mppLinkData", data.table(linkid=seq(100),
+                                                              times = 1))
 
   p2_update()
 
   calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("linkData"))
-  expect_equal(length(calls), 10)
+  expect_equal(length(calls), 9)
   expect_equal(
     keep(calls, ~ "path" %in% names(.)) %>% purrr::map_chr("path"),
-    paste0("api/3/links/", seq(10), "/linkData")
+    paste0("api/3/links/", seq(2,10), "/linkData")
   )
 })
 

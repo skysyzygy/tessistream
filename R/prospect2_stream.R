@@ -272,9 +272,8 @@ p2_unnest <- function(data, colname) {
 #'
 #' Incrementally update all of the p2 data in the local sqlite database
 #'
-#' @importFrom dplyr tbl summarize collect filter
+#' @importFrom dplyr tbl summarize collect filter full_join select group_by transmute
 #' @importFrom lubridate today dmonths
-#' @importFrom dplyr select
 #' @export
 p2_update <- function() {
   updated_timestamp <- id <- linkclicks <- sdate <- campaignid <- NULL
@@ -303,13 +302,32 @@ p2_update <- function() {
 
   # linkData and mppLinkData are *mostly* immutable, so refresh the recent links...
   if (DBI::dbExistsTable(tessistream$p2_db, "links")) {
+    
+    if (DBI::dbExistsTable(tessistream$p2_db, "linkData")) {
+      incomplete_links <- 
+        full_join(
+          tbl(tessistream$p2_db, "linkData") %>%
+            group_by(linkid) %>% 
+            summarise(times = sum(as.numeric(times))),
+          tbl(tessistream$p2_db, "links") %>% 
+            filter(linkclicks != "") %>% 
+            transmute(linkid = id, linkclicks = as.numeric(linkclicks)),
+          by = "linkid") %>% filter(linkclicks > times) %>%
+        collect %>% setDT
+    } else {
+      incomplete_links <- tbl(tessistream$p2_db, "links") %>%
+        select(linkid = id) %>% collect %>% setDT
+    }
+    
     recent_campaigns <- tbl(tessistream$p2_db, "campaigns") %>%
-      filter(sdate > !!(today() - dmonths(1))) %>%
+      filter(sdate > !!(today() - dmonths(3))) %>%
       select(id) %>%
       collect()
 
     recent_links <- tbl(tessistream$p2_db, "links") %>%
-      filter(campaignid %in% recent_campaigns$id) %>%
+      filter(id %in% incomplete_links$linkid &
+             campaignid %in% recent_campaigns$id & 
+             linkclicks != "") %>%
       select(id) %>%
       collect()
 

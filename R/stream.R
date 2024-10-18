@@ -159,7 +159,7 @@ stream_chunk_write <- function(stream, fill_cols = setdiff(colnames(stream),
                type = "stream",
                partition = "partition",
                sync = FALSE,
-               incremental = incremental, num_tries = 1)
+               incremental = incremental)
   
   if(incremental) {
     args$date_column = "timestamp"

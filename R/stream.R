@@ -52,8 +52,9 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
   stream_max_date <- as_datetime("1900-01-01")
   stream_max_rowid <- 0
   if(cache_exists_any("stream","stream") & !rebuild) {
-    stream_max_date <- read_cache("stream","stream") %>% summarise(max(timestamp)) %>% collect() %>% .[[1]]
-    stream_max_rowid - read_cache("stream","stream") %>% summarise(max(rowid)) %>% collect() %>% .[[1]]
+    stream <- read_cache("stream","stream")
+    stream_max_date <- stream %>% summarise(max(timestamp)) %>% collect() %>% .[[1]]
+    stream_max_rowid <- stream %>% summarise(max(rowid)) %>% collect() %>% .[[1]]
   }
     
   timestamps <- lapply(streams, \(stream) transmute(stream, timestamp = as_datetime(timestamp)) %>% collect) %>% 

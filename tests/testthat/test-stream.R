@@ -97,6 +97,7 @@ test_that("stream updates the existing dataset", {
                                  feature_b = runif(n),
                                  pk = sample(seq(n),n)) 
   stream_cache <- arrow::arrow_table(group_customer_no = sample(seq(n/100),n,replace=T),
+                                     rowid = seq(n),
                                      timestamp = sample(seq(as_datetime("2022-01-01"),as_datetime("2022-08-31"),by="day"),
                                                         n,replace=T))
   
@@ -110,11 +111,16 @@ test_that("stream updates the existing dataset", {
   suppressMessages(stream(streams = c("stream_a","stream_b"), chunk_size = n))
   
   stream <- rbindlist(list(collect(stream_a),collect(stream_b)),fill=T)
-  stream_cache <- stream_cache %>% collect 
+  stream_cache <- stream_cache %>% collect %>% setDT
   expect_length(mock_args(stream_chunk_write),2)
   expect_equal(mock_args(stream_chunk_write)[[1]][[1]][,.N]+
                mock_args(stream_chunk_write)[[2]][[1]][,.N],
                stream[timestamp > max(stream_cache$timestamp),.N])
+  expect_equal(anyDuplicated(
+    stream_cache[,rowid],
+    mock_args(stream_chunk_write)[[1]][[1]][,rowid],
+    mock_args(stream_chunk_write)[[2]][[1]][,rowid]),
+    0)
 })
 
 test_that("stream rebuilds the whole dataset if `rebuild=TRUE`", {
@@ -173,7 +179,7 @@ test_that("stream has all input features plus windowed features", {
   stream <- read_cache("stream","stream")
   
   expect_names(names(stream), permutation.of = c("group_customer_no","timestamp","feature_a","feature_b","pk",
-                                                 "timestamp_id","partition","stream",
+                                                 "timestamp_id","partition","stream","rowid",
                                                paste(rep(c("feature_a","feature_b"),each = 5),
                                                      c(1,7,30,90,365),
                                                      sep = ".-")))

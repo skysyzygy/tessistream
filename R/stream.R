@@ -50,9 +50,12 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
   
   rlang::inform(c("i" = "planning partitions"))
   stream_max_date <- as_datetime("1900-01-01")
-  if(cache_exists_any("stream","stream") & !rebuild) 
+  stream_max_rowid <- 0
+  if(cache_exists_any("stream","stream") & !rebuild) {
     stream_max_date <- read_cache("stream","stream") %>% summarise(max(timestamp)) %>% collect() %>% .[[1]]
-  
+    stream_max_rowid - read_cache("stream","stream") %>% summarise(max(rowid)) %>% collect() %>% .[[1]]
+  }
+    
   timestamps <- lapply(streams, \(stream) transmute(stream, timestamp = as_datetime(timestamp)) %>% collect) %>% 
     rbindlist %>% setkey(timestamp) %>% .[,partition := rep(seq_len(.N), each = chunk_size, 
                                                             length.out = .N)]
@@ -73,7 +76,9 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
                                                           arrow::int64())) %>%
                        collect %>% setDT %>% 
                        .[,timestamp := lubridate::as_datetime(timestamp)]) %>%
-      rbindlist(idcol = "stream", fill = T) %>% .[,partition := partition$partition]
+      rbindlist(idcol = "stream", fill = T) %>% 
+      .[,`:=` (partition = partition$partition,
+               rowid = seq(stream_max_rowid+1, length.out = .N))]
     
     # do the filling and windowing
     stream_chunk_write(stream, fill_cols = fill_cols, window_cols = window_cols,
@@ -81,6 +86,7 @@ stream <- function(streams = c("email_stream","ticket_stream","contribution_stre
                        incremental = incremental, windows = windows, ...)
     
     stream_max_date = partition$timestamp
+    stream_max_rowid = stream_max_rowid + nrow(stream)
     gc()
   }
   

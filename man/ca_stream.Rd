@@ -8,12 +8,14 @@
 \title{ca_stream}
 \usage{
 ca_stream(
-  table_name = ca_table,
   ca_table,
+  table_name = ca_table,
   query = "*",
   features = NULL,
   base_url = config::get("tessistream.ca_base_url"),
-  login = config::get("tessistream.ca_login")
+  login = config::get("tessistream.ca_login"),
+  batch_size = 100L,
+  ...
 )
 
 ca_login(login, base_url)
@@ -23,9 +25,9 @@ ca_search(ca_table, query, base_url, bundles = NULL, login = NULL)
 ca_c(...)
 }
 \arguments{
-\item{table_name}{string}
-
 \item{ca_table}{\href{1}{character} base CollectiveAccess table for the query (e.g. \code{ca_entities}, \code{ca_occurrences}, etc.)}
+
+\item{table_name}{string}
 
 \item{query}{\href{1}{character} search query}
 
@@ -53,9 +55,11 @@ be a list in order to specify additional parameters (e.g. \code{template}, \code
 
 \item{login}{\href{1}{character} in the format of \code{username:password} for authenticating with CollectiveAccess}
 
-\item{bundles}{\link{list} of bundles, as described in \href{https://manual.collectiveaccess.org/providence/developer/api_getting_data.html#bundle-specifiers}{the CollectiveAccess API documentation}}
+\item{batch_size}{\href{1}{integer} number of records to request per query}
 
 \item{...}{lists/vectors to combine}
+
+\item{bundles}{\link{list} of bundles, as described in \href{https://manual.collectiveaccess.org/providence/developer/api_getting_data.html#bundle-specifiers}{the CollectiveAccess API documentation}}
 }
 \value{
 \link{character} authorization token

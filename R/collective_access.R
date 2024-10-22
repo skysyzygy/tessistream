@@ -7,6 +7,7 @@
 #' @param base_url [character](1) CollectiveAccess base API endpoint 
 #'        \href{https://manual.collectiveaccess.org/providence/developer/web_service_api.html#global-parameters}{ending in `service.php` or `service.php/json`}
 #' @param login [character](1) in the format of `username:password` for authenticating with CollectiveAccess
+#' @param batch_size [integer](1) number of records to request per query 
 #' @param features [list] of features to include in the dataset. List names will be used as the names of output columns, list 
 #' values identify the bundle (or a list of bundles that will concatenated) for the output column. Each bundle identifier can itself
 #' be a list in order to specify additional parameters (e.g. `template`, `delimiter`, etc.)
@@ -27,11 +28,14 @@
 #' ```
 #' @inheritParams tessilake::write_cache
 #' @export
-ca_stream <- function(table_name = ca_table, ca_table, 
+ca_stream <- function(ca_table, 
+                      table_name = ca_table, 
                       query = "*", 
                       features = NULL,
                       base_url = config::get("tessistream.ca_base_url"), 
-                      login = config::get("tessistream.ca_login")) {
+                      login = config::get("tessistream.ca_login"), 
+                      batch_size = 100L,
+                      ...) {
   assert_list(features, names = "named")
   
   # extract all the bundles from the featureset
@@ -50,20 +54,26 @@ ca_stream <- function(table_name = ca_table, ca_table,
   
   records <- ca_search(ca_table = ca_table, query = query, base_url = base_url,
                        login = login) %>%
+    .[,id := unlist(id)] %>% 
+    setkey(id) %>% 
     split(rep(seq_len(nrow(.)),
-              each = 1000,
+              each = batch_size,
               length.out = nrow(.)))
   
   results <- list()
   
+  idcol <- paste0(gsub("^ca_|s$","",ca_table),"_id")
+  
+  p <- progressr_(length(records))
   for (chunk in records) {
     results <- rbind(results,
                      ca_search(ca_table = ca_table,
-                               query = paste0('(',ca_table,'.',occurrence_id,':[',
+                               query = paste0('(',ca_table,'.',idcol,':[',
                                               chunk[,min(id)],' TO ',
                                               chunk[,max(id)],']) AND ',
                                               query),
                                base_url = base_url, login = login, bundles = bundles))
+    p()
     
   }
   
@@ -73,7 +83,7 @@ ca_stream <- function(table_name = ca_table, ca_table,
                                          ca_c))]
   
   
-  write_cache(results, table, "stream")
+  write_cache(results, table_name, "stream", ...)
   
 }
 
@@ -87,7 +97,7 @@ ca_login <- function(login, base_url) {
   res <- GET(file.path(base_url,"auth","login"),username = username,password = password) %>%
     content
 
-  if(!is.null(res) & res$ok)
+  if(!is.null(res) & res$ok %||% F)
     return(res$authToken)
 
 }
@@ -104,11 +114,11 @@ ca_search <- function(ca_table, query, base_url, bundles = NULL, login = NULL) {
              encode = "json") %>%
     content
 
-  if(!is.null(res) & res$ok) {
+  if(!is.null(res) & res$ok %||% F) {
     # preserve list columns by using rbind
-    do.call(rbind, res$result) %>% as.data.table %>% 
+    do.call(rbind, res$results) %>% as.data.table %>% 
     # unlist elements and convert back to data.table
-      lapply(sapply,unlist) %>% setDT
+      .[,lapply(.SD,lapply,unlist)]
       
   }
 }

@@ -159,8 +159,8 @@ p2_db_open <- function(db_path = tessilake::cache_primary_path("p2.sqlite", "str
     }
 
     tessistream$p2_db <- DBI::dbConnect(RSQLite::SQLite(), db_path)
-    # Set sqlite timeout to 5 seconds
-    RSQLite::sqliteSetBusyHandler(tessistream$p2_db, 5000)
+    # Set sqlite timeout to 60 seconds
+    RSQLite::sqliteSetBusyHandler(tessistream$p2_db, 60000)
   }
 
   invisible()

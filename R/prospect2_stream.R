@@ -256,7 +256,7 @@ p2_unnest <- function(data, colname) {
       data[ map(get(colname),~ is.null(names(.))) == TRUE,
             (colname) := map(get(colname),
                              ~modifyList(setNames(rep(list(NA),new_width),
-                                                  new_names),.))]
+                                                  new_names),as.list(.)))]
 
     }
     data[, paste(colname, new_names %||% seq(new_width), sep = ".") :=

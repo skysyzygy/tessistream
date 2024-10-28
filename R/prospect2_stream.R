@@ -312,7 +312,7 @@ p2_update <- function() {
           tbl(tessistream$p2_db, "links") %>% 
             filter(linkclicks != "") %>% 
             transmute(linkid = id, linkclicks = as.numeric(linkclicks)),
-          by = "linkid") %>% filter(linkclicks > times) %>%
+          by = "linkid") %>% filter(linkclicks > times | is.na(times)) %>%
         collect %>% setDT
     } else {
       incomplete_links <- tbl(tessistream$p2_db, "links") %>%

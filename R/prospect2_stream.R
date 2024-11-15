@@ -24,7 +24,7 @@ api_url <- "https://brooklynacademyofmusic.api-us1.com"
 p2_query_table_length <- function(url, api_key = keyring::key_get("P2_API")) {
 
   first <- modify_url(url, query = list("limit" = 1)) %>%
-    GET(add_headers("Api-Token" = api_key), httr::timeout(300)) %>%
+    GET(add_headers("Api-Token" = api_key), httr::timeout(Inf)) %>%
     content()
   if (is.null(first$meta)) {
     total <- map_int(first, length) %>% max()
@@ -94,7 +94,7 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
 
   mapper(jobs$off, jobs$len, ~ {
     res <- make_resilient(GET(modify_url(url, query = list("offset" = .x, "limit" = .y)),
-                              api_headers, httr::timeout(300)) %>%
+                              api_headers, httr::timeout(Inf)) %>%
             content() %>%
             map(p2_json_to_datatable))
     p(amount = .y)
@@ -301,49 +301,8 @@ p2_update <- function() {
   }
   p2_load("contacts", query = list("filters[updated_after]" = as.character(contacts_max_date)))
 
-  # linkData and mppLinkData are *mostly* immutable, so refresh the recent links...
-  if (DBI::dbExistsTable(tessistream$p2_db, "links")) {
-    
-    if (DBI::dbExistsTable(tessistream$p2_db, "linkData")) {
-      incomplete_links <- 
-        full_join(
-          tbl(tessistream$p2_db, "linkData") %>%
-            group_by(linkid) %>% 
-            summarise(times = sum(as.numeric(times))),
-          tbl(tessistream$p2_db, "links") %>% 
-            filter(linkclicks != "") %>% 
-            transmute(linkid = id, linkclicks = as.numeric(linkclicks)),
-          by = "linkid") %>% filter(linkclicks > times | is.na(times)) %>%
-        collect %>% setDT
-    } else {
-      incomplete_links <- tbl(tessistream$p2_db, "links") %>%
-        select(linkid = id) %>% collect %>% setDT
-    }
-    
-    recent_campaigns <- tbl(tessistream$p2_db, "campaigns") %>%
-      filter(sdate > !!(today() - dmonths(3))) %>%
-      select(id) %>%
-      collect()
-
-    recent_links <- tbl(tessistream$p2_db, "links") %>%
-      filter(id %in% incomplete_links$linkid &
-             campaignid %in% recent_campaigns$id & 
-             linkclicks != "") %>%
-      select(id) %>%
-      collect()
-
-    p <- progressor(nrow(recent_links)*2)
-    map(recent_links$id, ~ {
-      for(table in c("linkData","mppLinkData")) {
-        path <- file.path("api/3/links", ., table)
-        p(paste("Querying", path))
-        p2_load(table, path = path)
-      }
-    })
-  }
-
   # then load new log entries greater than the current max id
-  for (table in c("logs")) {
+  for (table in c("logs", "linkData", "mppLinkData")) {
     max_id <- if (DBI::dbExistsTable(tessistream$p2_db, table)) {
       tbl(tessistream$p2_db, table) %>%
         summarize(max(as.integer(id), na.rm = TRUE)) %>%

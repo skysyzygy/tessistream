@@ -24,7 +24,7 @@ api_url <- "https://brooklynacademyofmusic.api-us1.com"
 p2_query_table_length <- function(url, api_key = keyring::key_get("P2_API")) {
 
   first <- modify_url(url, query = list("limit" = 1)) %>%
-    GET(add_headers("Api-Token" = api_key), httr::timeout(Inf)) %>%
+    GET(add_headers("Api-Token" = api_key), httr::timeout(3600)) %>%
     content()
   if (is.null(first$meta)) {
     total <- map_int(first, length) %>% max()
@@ -94,7 +94,7 @@ p2_query_api <- function(url, api_key = keyring::key_get("P2_API"),
 
   mapper(jobs$off, jobs$len, ~ {
     res <- make_resilient(GET(modify_url(url, query = list("offset" = .x, "limit" = .y)),
-                              api_headers, httr::timeout(Inf)) %>%
+                              api_headers, httr::timeout(3600)) %>%
             content() %>%
             map(p2_json_to_datatable))
     p(amount = .y)

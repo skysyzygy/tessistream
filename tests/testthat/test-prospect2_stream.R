@@ -437,45 +437,21 @@ test_that("p2_update only loads contacts after max(updated_timestamp)", {
   expect_equal(call[[1]][["query"]], list("filters[updated_after]" = as.character(today() + ddays(30))))
 })
 
-test_that("p2_update only loads logs after max(id)", {
+test_that("p2_update only loads logs, linkData, and mppLinkData after max(id)", {
   p2_load <- mock(cycle = T)
   stub(p2_update, "p2_load", p2_load)
   p2_db_open()
-  copy_to(tessistream$p2_db, name = "logs", data.table(id = seq(100) %>% as.character()))
-
+  
+  purrr::imap(c("logs","linkData","mppLinkData"), \(table, i) {
+    copy_to(tessistream$p2_db, name = table, data.table(id = seq(100+i) %>% as.character()))
+  })
+  
   p2_update()
 
-  calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("logs"))
-  expect_equal(calls[[1]][["offset"]], 100)
-})
-
-test_that("p2_update updates recent linkData based on campaign send date", {
-  p2_load <- mock(cycle = T)
-  stub(p2_update, "p2_load", p2_load)
-  p2_db_open()
-  copy_to(tessistream$p2_db, name = "links", data.table(
-    id = seq(100) %>% as.character(),
-    campaignid = seq(100) %>% as.character(),
-    # first one won't get loaded because we already have all the clicks 
-    # in linkData below
-    linkclicks = c("1",rep("2",99))
-  ))
-  copy_to(tessistream$p2_db, name = "campaigns", data.table(
-    id=seq(10) %>% as.character(),
-    sdate=now() %>% as.character())
-  )
-  copy_to(tessistream$p2_db, name = "linkData", data.table(linkid=as.character(seq(5)),
-                                                           times = 1))
-  p2_update()
-
-  calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c("linkData"))
-  # first one is already loaded (linkclicks = times), next 9 need to be refreshed -- 4
-  # have times < linkclicks, five have no linkData.
-  expect_equal(length(calls), 9)
-  expect_equal(
-    keep(calls, ~ "path" %in% names(.)) %>% purrr::map_chr("path"),
-    paste0("api/3/links/", seq(2,10), "/linkData")
-  )
+  purrr::imap(c("logs","linkData","mppLinkData"), \(table, i) {
+    calls <- mock_args(p2_load) %>% keep(~ .[[1]] %in% c(table))
+    expect_equal(calls[[1]][["offset"]], 100+i)
+  })
 })
 
 
